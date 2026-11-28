@@ -75,6 +75,8 @@ const (
 	helpRejected = "# HELP semaphore_flag_rejected_total Flags rejected at load, by what became of them: kept " +
 		"(the last valid definition keeps serving) or dropped (none to fall back on). Counted once per rejected " +
 		"flag, in the applied generation that brought the rejection."
+	helpPresent = "# HELP semaphore_flags_rejected Rejected flags present in the running generation, by what became " +
+		"of them: kept or dropped. Unlike the counter, it falls when the rejection is fixed."
 	helpObjectAge = "# HELP semaphore_object_oldest_unapplied_age_seconds Seconds since the oldest object that is " +
 		"not ok left that state; 0 when every object is ok."
 )
@@ -113,7 +115,7 @@ func TestNewConfigCollector_RejectedFlags(t *testing.T) {
 		rig.awaitGeneration(t, rig.gen)
 	}
 
-	wantMetrics := func(kept, dropped, ok, invalid int) {
+	wantMetrics := func(kept, dropped, presentKept, presentDropped, ok, invalid int) {
 		t.Helper()
 
 		want := fmt.Sprintf(`
@@ -121,6 +123,10 @@ func TestNewConfigCollector_RejectedFlags(t *testing.T) {
 # TYPE semaphore_flag_rejected_total counter
 semaphore_flag_rejected_total{reason="dropped"} %d
 semaphore_flag_rejected_total{reason="kept"} %d
+%s
+# TYPE semaphore_flags_rejected gauge
+semaphore_flags_rejected{reason="dropped"} %d
+semaphore_flags_rejected{reason="kept"} %d
 %s
 # TYPE semaphore_object_oldest_unapplied_age_seconds gauge
 semaphore_object_oldest_unapplied_age_seconds 0
@@ -131,7 +137,7 @@ semaphore_object_status{state="missing"} 0
 semaphore_object_status{state="ok"} %d
 semaphore_object_status{state="pending"} 0
 semaphore_object_status{state="stale"} 0
-`, helpRejected, dropped, kept, helpObjectAge, invalid, ok)
+`, helpRejected, dropped, kept, helpPresent, presentDropped, presentKept, helpObjectAge, invalid, ok)
 
 		require.NoError(t, testutil.GatherAndCompare(
 			rig.metrics.Registry,
@@ -144,16 +150,16 @@ semaphore_object_status{state="stale"} 0
 
 	// generation 1: the invalid flag has nothing to fall back on
 	step(map[string]string{flagsB: flagsWithBad})
-	wantMetrics(0, 1, 3, 0)
+	wantMetrics(0, 1, 0, 1, 3, 0)
 
 	// generation 2: the same objects again, the rejection is still there and counts nothing more
 	step(nil)
-	wantMetrics(0, 1, 3, 0)
+	wantMetrics(0, 1, 0, 1, 3, 0)
 
 	// generation 3: a new version of the object, in which the flag that was valid is kept and the other dropped
 	// again, and an object that does not decode
 	step(map[string]string{flagsB: flagsAllBad, flagsC: "not: [valid"})
-	wantMetrics(1, 2, 3, 1)
+	wantMetrics(1, 2, 1, 1, 3, 1)
 
 	lines := logs.reloadLines()
 	line := func(generation int) string {
@@ -178,57 +184,89 @@ semaphore_object_status{state="stale"} 0
 	}
 }
 
-// TestNew_AdminKeyCollision: a generation whose flag-set key equals the admin key is rejected, the previous generation
-// keeps serving, and neither the log nor /info shows the key.
+// TestNew_AdminKeyCollision: a flag-set key that equals an admin key is not routed to the flag set, the flag set
+// reports the problem and its other key serves, the relay is ready; a reload of the admin keys changes the routing
+// without republishing, in both directions.
 func TestNew_AdminKeyCollision(t *testing.T) {
 	t.Parallel()
 
 	logs := &lockedBuffer{}
 	rig := newV2With(t, v2Options{cold: true, logger: newTestLogger(logs)})
 
+	rig.sets = []controlplane.FlagSet{
+		{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{adminKey, tenantKey}},
+	}
 	rig.publish(t)
 	rig.tick(t)
 	rig.awaitGeneration(t, 1)
 
-	rig.sets = []controlplane.FlagSet{{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{adminKey}}}
-	rig.publish(t)
-	rig.tick(t)
-	rig.awaitRejected(t, 2)
+	evaluate := func(key string) int {
+		status, _, _ := do(t, http.MethodPost, rig.url+"/ofrep/v1/evaluate/flags/bool-flag", `{"context":{}}`,
+			keyHeader(key))
 
-	code, _, body := do(t, http.MethodGet, rig.url+"/info", "", nil)
-	require.Equal(t, http.StatusOK, code)
+		return status
+	}
 
-	var info model.InfoResponse
-	require.NoError(t, json.Unmarshal(body, &info))
-	require.NotNil(t, info.Config)
-	require.NotNil(t, info.Config.LastRejected)
+	problems := func() []string {
+		_, _, body := do(t, http.MethodGet, rig.url+"/info", "", nil)
 
-	assert.Equal(t, flagruntime.CodeAdminKeyCollision, info.Config.LastRejected.Code)
-	assert.Equal(t, uint64(2), info.Config.LastRejected.Generation)
-	assert.Equal(t, uint64(1), info.Config.Generation, "the previous generation stays")
-	assert.Equal(t, string(flagruntime.OutcomeRejected), info.Config.LastReload.Outcome)
+		var info model.InfoResponse
+		require.NoError(t, json.Unmarshal(body, &info))
+		require.NotNil(t, info.Config)
 
-	// the previous generation still serves its key and the collision never made the admin key a flag-set key
-	status, _, _ := do(t, http.MethodPost, rig.url+"/ofrep/v1/evaluate/flags/bool-flag", `{"context":{}}`,
-		keyHeader(tenantKey))
-	assert.Equal(t, http.StatusOK, status)
+		var out []string
 
-	rejected := ""
+		for _, set := range info.Config.FlagSets {
+			for _, p := range set.Problems {
+				out = append(out, set.Name+":"+p.Code)
+			}
+		}
 
-	for _, line := range logs.reloadLines() {
-		if strings.Contains(line, "outcome=rejected") {
-			rejected = line
+		// the key is "admin-key": its only legitimate appearance is inside the code "admin-key-collision"
+		assert.Equal(t, strings.Count(string(body), "admin-key-collision"), strings.Count(string(body), adminKey))
+
+		return out
+	}
+
+	collision := []string{setName + ":" + string(flagruntime.CodeAdminKeyCollision)}
+
+	// the collision: ready, the other key serves, the colliding key answers as an admin key only
+	rig.wantProbe(t, "/readyz", http.StatusOK, `{"ready":true,"state":"degraded"}`)
+	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
+	assert.Equal(t, http.StatusBadRequest, evaluate(adminKey))
+	assert.Equal(t, collision, problems())
+	require.NoError(t, testutil.GatherAndCompare(rig.metrics.Registry, strings.NewReader(`
+# HELP semaphore_resource_status 1 for a resource that is not ready, by kind and name; at most 100 per kind.
+# TYPE semaphore_resource_status gauge
+semaphore_resource_status{kind="flagset",name="tenant",state="degraded"} 1
+`), "semaphore_resource_status"))
+
+	// the admin key is rotated by a reload of the file: the key routes to the flag set
+	rig.setAdmin(t, "rotated-admin")
+	assert.Equal(t, http.StatusOK, evaluate(adminKey))
+	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
+	assert.Empty(t, problems())
+	rig.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
+
+	// and the reverse: a reload brings the collision, the key stops routing
+	rig.setAdmin(t, adminKey)
+	assert.Equal(t, http.StatusBadRequest, evaluate(adminKey))
+	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
+	assert.Equal(t, collision, problems())
+
+	warnings := 0
+
+	for line := range strings.SplitSeq(logs.all(), "\n") {
+		if strings.Contains(line, "equals an admin key") {
+			warnings++
+
+			assert.Contains(t, line, "flagsets=tenant")
 		}
 	}
 
-	assert.Contains(t, rejected, "code=admin-key-collision")
-	assert.Contains(t, rejected, "generation=2")
-	assert.Contains(t, rejected, "flagSets[tenant].apiKeys")
-
-	// the key is "admin-key": its only legitimate appearance is inside the code "admin-key-collision"
-	for name, out := range map[string]string{"log": logs.all(), "info": string(body)} {
-		assert.Equal(t, strings.Count(out, "admin-key-collision"), strings.Count(out, adminKey), name)
-	}
+	assert.Equal(t, 2, warnings, "once for each time the collision is new")
+	assert.Equal(t, strings.Count(logs.all(), "admin-key-collision"), strings.Count(logs.all(), adminKey))
+	assert.Equal(t, uint64(1), rig.core.Status().Source.Runtime.Generation, "no generation was rejected")
 }
 
 type fixedSource struct{ status relaycore.Status }
@@ -250,6 +288,12 @@ func TestConfigCollector_Collect(t *testing.T) {
 		return status
 	}
 
+	withRejected := func(obj *flagruntime.ObjectStatus) *flagruntime.ObjectStatus {
+		obj.Rejected = []flagruntime.FlagRejection{{Flag: "a", Kept: true}, {Flag: "b"}, {Flag: "c"}}
+
+		return obj
+	}
+
 	tests := []struct {
 		rejected    map[string]uint64
 		name        string
@@ -257,6 +301,8 @@ func TestConfigCollector_Collect(t *testing.T) {
 		wantAge     float64
 		wantKept    uint64
 		wantDropped uint64
+		// wantPresentKept and wantPresentDropped are the rejected flags the objects hold.
+		wantPresentKept, wantPresentDropped int
 		// wantStates are the objects of the states invalid, missing, ok, pending and stale.
 		wantStates [5]int
 	}{
@@ -279,10 +325,17 @@ func TestConfigCollector_Collect(t *testing.T) {
 			wantAge: 90, wantStates: [5]int{0, 1, 1, 0, 1},
 		},
 		{
-			name:     "counted",
-			objects:  []*flagruntime.ObjectStatus{object("a", flagruntime.ObjectInvalid, 5*time.Second)},
-			rejected: map[string]uint64{relaycore.RejectedKept: 3, relaycore.RejectedDropped: 2},
-			wantAge:  5, wantKept: 3, wantDropped: 2, wantStates: [5]int{1, 0, 0, 0, 0},
+			name: "counted",
+			objects: []*flagruntime.ObjectStatus{
+				withRejected(object("a", flagruntime.ObjectInvalid, 5*time.Second)),
+			},
+			rejected:           map[string]uint64{relaycore.RejectedKept: 3, relaycore.RejectedDropped: 2},
+			wantAge:            5,
+			wantKept:           3,
+			wantDropped:        2,
+			wantPresentKept:    1,
+			wantPresentDropped: 2,
+			wantStates:         [5]int{1, 0, 0, 0, 0},
 		},
 	}
 
@@ -306,6 +359,10 @@ func TestConfigCollector_Collect(t *testing.T) {
 semaphore_flag_rejected_total{reason="dropped"} %d
 semaphore_flag_rejected_total{reason="kept"} %d
 %s
+# TYPE semaphore_flags_rejected gauge
+semaphore_flags_rejected{reason="dropped"} %d
+semaphore_flags_rejected{reason="kept"} %d
+%s
 # TYPE semaphore_object_oldest_unapplied_age_seconds gauge
 semaphore_object_oldest_unapplied_age_seconds %v
 # HELP semaphore_object_status Source objects by state: ok, stale, missing, pending, invalid.
@@ -315,13 +372,14 @@ semaphore_object_status{state="missing"} %d
 semaphore_object_status{state="ok"} %d
 semaphore_object_status{state="pending"} %d
 semaphore_object_status{state="stale"} %d
-`, helpRejected, tt.wantDropped, tt.wantKept, helpObjectAge, tt.wantAge,
+`, helpRejected, tt.wantDropped, tt.wantKept, helpPresent, tt.wantPresentDropped, tt.wantPresentKept,
+				helpObjectAge, tt.wantAge,
 				tt.wantStates[0], tt.wantStates[1], tt.wantStates[2], tt.wantStates[3], tt.wantStates[4])
 
 			reg := prom.NewPedanticRegistry()
 			require.NoError(t, reg.Register(col))
 			require.NoError(t, testutil.GatherAndCompare(reg, strings.NewReader(want),
-				"semaphore_flag_rejected_total", "semaphore_object_status",
+				"semaphore_flag_rejected_total", "semaphore_flags_rejected", "semaphore_object_status",
 				"semaphore_object_oldest_unapplied_age_seconds"))
 		})
 	}

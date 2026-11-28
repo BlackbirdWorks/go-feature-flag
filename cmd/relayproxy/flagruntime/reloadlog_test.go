@@ -1,8 +1,10 @@
 package flagruntime_test
 
 import (
+	"bytes"
 	"context"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -188,6 +190,39 @@ func TestBuilder_ObjectSince(t *testing.T) {
 			got := built.Runtime.Status.Objects["f1"]
 			require.NotNil(t, got)
 			assert.True(t, tt.wantSince.Equal(got.Since), "since %v want %v", got.Since, tt.wantSince)
+		})
+	}
+}
+
+// TestNewEngine_LogLevel: the lines follow the level of the injected handler: a reload at a disabled level writes
+// nothing, a rejection is a warning.
+func TestNewEngine_LogLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		generation uint64
+		level      slog.Level
+		wantLines  int
+	}{
+		{name: "info applied", generation: 1, level: slog.LevelInfo, wantLines: 1},
+		{name: "warn applied", generation: 1, level: slog.LevelWarn, wantLines: 0},
+		{name: "warn rejected", generation: 0, level: slog.LevelWarn, wantLines: 1},
+		{name: "error rejected", generation: 0, level: slog.LevelError, wantLines: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var out bytes.Buffer
+
+			logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: tt.level}))
+			rig := newRigLogger(t, logger, flagruntime.Hooks{})
+			rig.start()
+			rig.feed(content(tt.generation, simpleObjs(t, 1)))
+
+			assert.Equal(t, tt.wantLines, strings.Count(out.String(), "runtime reload"))
 		})
 	}
 }

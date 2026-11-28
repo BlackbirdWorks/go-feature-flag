@@ -53,6 +53,7 @@ it. It works with zero flag sets.
 | `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
 | `semaphore_config_pending_restart` | | settings that changed and need a restart |
 | `semaphore_flag_rejected_total` | `reason` (`kept`, `dropped`) | flags rejected at load: `kept` serves the last valid definition, `dropped` had none |
+| `semaphore_flags_rejected` | `reason` (`kept`, `dropped`) | rejected flags present in the running generation (a gauge: it falls when the rejection is fixed; alert on it for "still rejected") |
 | `semaphore_object_status` | `state` (`ok`, `stale`, `missing`, `pending`, `invalid`) | source objects by state, always exported |
 | `semaphore_object_oldest_unapplied_age_seconds` | | seconds since the oldest object that is not `ok` left that state, 0 when all are `ok` |
 
@@ -61,8 +62,9 @@ The generation of the manifest the reader fetched (`semaphore_manifest_generatio
 
 Rejected flags: `semaphore_flag_rejected_total` counts a rejected flag **once**, in the applied generation whose content
 brought the rejection (a new version of its object, or a flag that was valid before). A poll or a generation that leaves
-the rejection as it was counts nothing, so the counter never grows with the poll interval; `rate()` shows new rejections,
-and the rejections still present are `rejected` and `kept` in `/info` and `semaphore_object_status`. The flag set is not a
+the rejection as it was counts nothing, so the counter never grows with the poll interval; `rate()` shows new rejections.
+The rejections still present are the gauge `semaphore_flags_rejected` and, per flag set and object, `rejected` and `kept` in
+`/info` (`semaphore_object_status` counts objects by state: an object with a rejected flag is still `ok`). The flag set is not a
 label: the flag sets that have a problem are in `semaphore_resource_status`. Object names appear only in
 `semaphore_resource_status{kind="object"}` (not `ok` only, at most 100): there is no per-object series for every object.
 The age starts when this process first saw the object not `ok`, and a restart from the state directory starts it again.
@@ -87,13 +89,18 @@ The lines carry counts, codes and paths. They never carry an API key, an admin k
 
 ## Admin key equal to a flag-set key
 
-A key that is an admin key and an API key of a flag set would give a flag-set client the admin endpoints, so the relay
-refuses it. The admin keys come with the bootstrap file and the flag-set keys with the published documents, so the check
-runs when the generation is built. The generation is rejected with the code `admin-key-collision`, the running generation
-stays, and `/info` shows it in `lastRejected` and `lastReload`. The detail names the flag set by path
-(`flagSets[name].apiKeys`) and never prints a key. A `SIGHUP` that adds such an admin key is rejected the same way.
-(A key held by two flag sets is different: the flag set that already holds it keeps it and the other reports
-`duplicate-key`.)
+An admin key wins over an API key of a flag set. When a key of a flag set equals an admin key, the generation is still
+applied (a published key can never make the relay unready or stuck), and:
+
+- the key is not routed to the flag set: a request with it is an admin request and never evaluates that flag set;
+- the other keys of the flag set work;
+- the flag set reports the problem `admin-key-collision` in `/info` (state `degraded`, fewer `apiKeys`) and in
+  `semaphore_resource_status`, the way `duplicate-key` is reported for a key held by two flag sets;
+- one warning is logged where the collision is new, naming the flag set and never the key.
+
+The routing is derived again from the content the relay holds each time the admin keys change, so a reload of the
+bootstrap file (`SIGHUP`) that rotates the admin key makes the flag-set key route again, and a reload that introduces a
+collision stops the key from routing, without publishing anything.
 
 ## Kubernetes
 

@@ -92,24 +92,32 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // is bounded by the number of flag sets, and no name is lost. Events still in the pending table when Run returns
 // are dropped, and the channel is closed.
 type Engine struct {
-	roundStart    time.Time
-	hooks         Hooks
-	builder       *Builder
-	announced     map[string]struct{}
-	content       chan *Content
-	boot          chan *bootstrap.Config
-	changes       chan Change
-	queue         *pendingQueue
-	roundDone     atomic.Pointer[chan struct{}]
-	logger        *slog.Logger
-	last          atomic.Pointer[RoundResult]
-	running       map[string]runningObject
-	cur           *Runtime
-	rejected      *Reload
-	baseline      *bootstrap.Config
-	holder        *Holder
-	decided       atomic.Pointer[decision]
-	secrets       bootstrap.LoadOptions
+	roundStart time.Time
+	hooks      Hooks
+	builder    *Builder
+	announced  map[string]struct{}
+	content    chan *Content
+	boot       chan *bootstrap.Config
+	changes    chan Change
+	queue      *pendingQueue
+	roundDone  atomic.Pointer[chan struct{}]
+	logger     *slog.Logger
+	last       atomic.Pointer[RoundResult]
+	running    map[string]runningObject
+	cur        *Runtime
+	rejected   *Reload
+	baseline   *bootstrap.Config
+	holder     *Holder
+	decided    atomic.Pointer[decision]
+	secrets    bootstrap.LoadOptions
+	heldByKey  map[string]*FlagSet
+	heldSets   map[string]*FlagSetStatus
+	nextByKey  map[string]*FlagSet
+	nextSets   map[string]*FlagSetStatus
+	collided   map[string]struct{}
+	// roundRejected is the rejection of the content of the round, when it was rejected: the decision of its revision.
+	roundRejected *Reload
+	nextCollided  []string
 	taken         atomic.Uint64
 	withdrawnCap  int
 	changeBuf     int
@@ -342,7 +350,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	)
 
 	e.roundHadBoot = cfg != nil
-	e.roundStart, e.roundStats = clock.Now(), reloadStats{}
+	e.roundStart, e.roundStats, e.roundRejected = clock.Now(), reloadStats{}, nil
 
 	e.roundRevision, e.roundContent = 0, false
 	if content != nil {
@@ -352,13 +360,15 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	if content != nil {
 		plan = e.planContent(ctx, content)
+		if plan.res.Outcome == OutcomeRejected {
+			rejected := plan.res
+			e.roundRejected = &rejected
+		}
 	}
 
 	if cfg != nil {
 		boot = e.planBootstrap(cfg)
 	}
-
-	e.vetAdminKeys(&plan, &boot)
 
 	if plan.res.Outcome != "" {
 		results = append(results, plan.res)
@@ -378,7 +388,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		return
 	}
 
-	veto, events := e.swap(&plan, &boot)
+	veto, events := e.swap(ctx, &plan, &boot)
 	if veto != nil {
 		e.finish(ctx, append(results, *veto), nil, 0)
 
@@ -404,7 +414,7 @@ func (e *Engine) adoptBaseline(boot *bootPlan, cfg *bootstrap.Config) {
 
 // swap assembles the candidate and stores it with one atomic store. It returns the rejection when the
 // BeforeSwap hook refused the candidate; nothing is stored then and the builder is not committed.
-func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
+func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	candidate := e.assemble(plan.built, boot)
 
 	if e.hooks.BeforeSwap != nil {
@@ -424,6 +434,8 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	e.holder.store(candidate)
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
+	e.heldByKey, e.heldSets = e.nextByKey, e.nextSets
+	e.logCollisions(ctx, candidate.Generation, e.nextCollided)
 
 	if e.hooks.AfterSwap != nil {
 		e.hooks.AfterSwap(candidate)
@@ -434,8 +446,7 @@ func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	if plan.built != nil {
 		e.builder.Commit(plan.built)
 		e.running = plan.running
-		e.roundStats = countChanges(plan.built)
-		events = e.enqueue(plan.built, candidate)
+		events, e.roundStats = e.enqueue(plan.built, candidate)
 	}
 
 	return nil, events
@@ -462,6 +473,16 @@ func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 		next.AdminKeys = boot.admin
 		status.PendingRestart = boot.pending
 	}
+
+	// the admin keys win over the keys of the flag sets: a colliding key is not routed, and the flag set reports it
+	raw := e.held()
+	if built != nil {
+		raw = heldRouting{byKey: built.Runtime.ByKey, sets: built.Runtime.Status.FlagSets}
+	}
+
+	derived, names := deriveRouting(next.AdminKeys, raw)
+	next.ByKey, status.FlagSets = derived.byKey, derived.sets
+	e.nextByKey, e.nextSets, e.nextCollided = raw.byKey, raw.sets, names
 
 	status.Generation, status.Snapshot = next.Generation, next.Snapshot
 	status.LastRejected = e.rejected
@@ -723,8 +744,10 @@ func validateObject(name string, obj *Object) error {
 //
 // Every step is O(1) besides the diff of the flag set. It returns the number of flag sets whose change is left
 // waiting (see [RoundResult.Events]).
-func (e *Engine) enqueue(built *Built, next *Runtime) int {
+func (e *Engine) enqueue(built *Built, next *Runtime) (int, reloadStats) {
 	queuedEvents := 0
+
+	var stats reloadStats
 
 	for idx := range built.Rebuilt {
 		item := &built.Rebuilt[idx]
@@ -733,6 +756,8 @@ func (e *Engine) enqueue(built *Built, next *Runtime) int {
 			FlagSet: item.Name, Diff: diffFlagSets(item.Old, item.New), Removed: item.New.State == StateWithdrawn,
 			Generation: next.Generation, Snapshot: next.Snapshot,
 		}
+
+		stats.tally(item, &change.Diff)
 
 		_, known := e.announced[item.Name]
 		queued := e.queue.byName[item.Name]
@@ -761,7 +786,7 @@ func (e *Engine) enqueue(built *Built, next *Runtime) int {
 		}
 	}
 
-	return queuedEvents
+	return queuedEvents, stats
 }
 
 // settle drops a pending change that cancels out: for a flag set that the consumer never heard of (created and
@@ -807,8 +832,15 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 
 	if e.roundRevision > 0 {
 		// before the end of the round is signalled: a waiter that wakes up reads this decision
+		// the decision of a revision is the decision about its content: a bootstrap change that was applied in the
+		// same round does not make a rejected content applied
+		decided := final
+		if e.roundRejected != nil {
+			decided = *e.roundRejected
+		}
+
 		e.decided.Store(&decision{
-			revision: e.roundRevision, reload: final, running: e.holder.Load().Generation,
+			revision: e.roundRevision, reload: decided, running: e.holder.Load().Generation,
 		})
 	}
 

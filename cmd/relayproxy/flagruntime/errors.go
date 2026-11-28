@@ -15,9 +15,6 @@ var (
 	// ErrInvalidBootstrap is matched by the rejection of a bootstrap configuration that cannot be applied
 	// (an admin key that does not resolve).
 	ErrInvalidBootstrap = errors.New("runtime: invalid bootstrap")
-	// ErrAdminKeyCollision is matched by the rejection of a generation in which an API key of a flag set equals an
-	// admin key of the bootstrap file.
-	ErrAdminKeyCollision = errors.New("runtime: an API key of a flag set is also an admin key")
 	// ErrVetoed is matched when the BeforeSwap hook refused the candidate.
 	ErrVetoed = errors.New("runtime: candidate vetoed")
 	// ErrDecode is matched by the reason of an object that cannot be decoded.

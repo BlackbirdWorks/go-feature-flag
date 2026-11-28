@@ -142,8 +142,10 @@ type v2 struct {
 	dir      string
 	metrics  *metric.Metrics
 	ready    *corehttp.Readiness
-	sets     []controlplane.FlagSet
-	gen      uint64
+	// base is the bootstrap file without its admin keys.
+	base string
+	sets []controlplane.FlagSet
+	gen  uint64
 }
 
 // publish writes the objects, then the manifest of the next generation.
@@ -292,6 +294,10 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 		stateLine = "  stateDir: " + opts.stateDir + "\n"
 	}
 
+	rig.base = "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
+		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
+		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n"
+
 	adminLine := "auth:\n  adminKeys: [" + adminKey + "]\n"
 	if opts.noAdminKeys {
 		adminLine = ""
@@ -410,6 +416,28 @@ func (rig *v2) awaitRejected(tb testing.TB, gen uint64) {
 			}
 		case <-timeout:
 			require.FailNow(tb, "the engine did not reject the generation", "generation %d", gen)
+		}
+	}
+}
+
+// setAdmin reloads the bootstrap file with the admin keys and waits for the engine to apply it.
+func (rig *v2) setAdmin(tb testing.TB, keys string) {
+	tb.Helper()
+
+	cfg, err := bootstrap.Parse([]byte(rig.base+"auth:\n  adminKeys: ["+keys+"]\n"), nil, bootstrap.LoadOptions{})
+	require.NoError(tb, err)
+	require.NoError(tb, rig.core.Reload(cfg))
+
+	timeout := time.After(waitBound)
+
+	for {
+		select {
+		case res := <-rig.rounds:
+			if res.Outcome == flagruntime.OutcomeApplied && !res.ContentApplied {
+				return
+			}
+		case <-timeout:
+			require.FailNow(tb, "the engine did not apply the bootstrap file")
 		}
 	}
 }

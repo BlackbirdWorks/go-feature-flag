@@ -21,6 +21,7 @@ const (
 	metricResource    = "semaphore_resource_status"
 	metricPending     = "semaphore_config_pending_restart"
 	metricRejected    = "semaphore_flag_rejected_total"
+	metricPresent     = "semaphore_flags_rejected"
 	metricObjects     = "semaphore_object_status"
 	metricObjectAge   = "semaphore_object_oldest_unapplied_age_seconds"
 )
@@ -44,7 +45,7 @@ const nanosPerSecond = 1e9
 func MetricNames() []string {
 	return []string{
 		metricGeneration, metricSnapshot, metricReloads, metricLastSuccess, metricAge, metricResources,
-		metricResource, metricPending, metricRejected, metricObjects, metricObjectAge,
+		metricResource, metricPending, metricRejected, metricPresent, metricObjects, metricObjectAge,
 	}
 }
 
@@ -57,7 +58,7 @@ type ConfigCollector struct {
 	sums *summaries
 
 	generation, snapshot, reloads, lastSuccess, age, counts, named, pending *prom.Desc
-	rejected, objects, objectAge                                            *prom.Desc
+	rejected, present, objects, objectAge                                   *prom.Desc
 }
 
 var _ prom.Collector = (*ConfigCollector)(nil)
@@ -89,6 +90,8 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 				"generation that brought the rejection.",
 			"reason",
 		),
+		present: desc(metricPresent, "Rejected flags present in the running generation, by what became of them: kept "+
+			"or dropped. Unlike the counter, it falls when the rejection is fixed.", "reason"),
 		objects: desc(metricObjects, "Source objects by state: ok, stale, missing, pending, invalid.", "state"),
 		objectAge: desc(metricObjectAge, "Seconds since the oldest object that is not ok left that state; 0 when "+
 			"every object is ok."),
@@ -99,7 +102,7 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
 	for _, d := range []*prom.Desc{
 		c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending,
-		c.rejected, c.objects, c.objectAge,
+		c.rejected, c.present, c.objects, c.objectAge,
 	} {
 		out <- d
 	}
@@ -144,19 +147,7 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 
 	gauge(c.pending, pending)
 
-	counter(c.rejected, float64(status.Reloads.FlagsRejected[relaycore.RejectedKept]), relaycore.RejectedKept)
-	counter(c.rejected, float64(status.Reloads.FlagsRejected[relaycore.RejectedDropped]), relaycore.RejectedDropped)
-
-	for _, state := range objectStates() {
-		gauge(c.objects, float64(sum.objects[state]), state)
-	}
-
-	oldest := 0.0
-	if !sum.oldestNotOK.IsZero() {
-		oldest = max(0, clock.Now().Sub(sum.oldestNotOK).Seconds())
-	}
-
-	gauge(c.objectAge, oldest)
+	c.collectRejected(out, &status.Reloads, sum)
 
 	for _, state := range []string{resourceReady, resourceDegraded, resourcePending} {
 		gauge(c.counts, float64(sum.flagSets[state]), kindFlagSet, state)
@@ -173,4 +164,28 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 	for _, bad := range sum.badObject[:min(len(sum.badObject), maxNamedResources)] {
 		gauge(c.named, 1, kindObject, bad.name, bad.state)
 	}
+}
+
+// collectRejected exports the rejected flags (the counter and the gauge of the ones present) and the objects by state.
+func (c *ConfigCollector) collectRejected(out chan<- prom.Metric, reloads *relaycore.ReloadStats, sum *summary) {
+	gauge := func(d *prom.Desc, v float64, labels ...string) {
+		out <- prom.MustNewConstMetric(d, prom.GaugeValue, v, labels...)
+	}
+
+	for _, reason := range []string{relaycore.RejectedKept, relaycore.RejectedDropped} {
+		out <- prom.MustNewConstMetric(c.rejected, prom.CounterValue, float64(reloads.FlagsRejected[reason]), reason)
+
+		gauge(c.present, float64(sum.rejected[reason]), reason)
+	}
+
+	for _, state := range objectStates() {
+		gauge(c.objects, float64(sum.objects[state]), state)
+	}
+
+	oldest := 0.0
+	if !sum.oldestNotOK.IsZero() {
+		oldest = max(0, clock.Now().Sub(sum.oldestNotOK).Seconds())
+	}
+
+	gauge(c.objectAge, oldest)
 }

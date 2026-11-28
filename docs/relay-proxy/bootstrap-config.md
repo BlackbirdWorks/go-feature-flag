@@ -81,8 +81,8 @@ secretAccessKey: {fromFile: /run/secrets/s3-key}   # content of the file, traili
 
 `auth.adminKeys` is a list of plain strings (the keys are UUIDs set dynamically) or secret references. No development
 flag is needed. The keys are still never printed in errors, logs or the effective print (`[REDACTED]`), and a key may
-appear only once. An admin key must not equal an API key of a flag set: the generation that holds both is rejected and
-the running one stays, see [admin key equal to a flag-set key](probes.md#admin-key-equal-to-a-flag-set-key).
+appear only once. An admin key that equals an API key of a flag set stays an admin key: the flag set does not get that key and
+reports `admin-key-collision`, see [admin key equal to a flag-set key](probes.md#admin-key-equal-to-a-flag-set-key).
 
 ## Environment variables
 

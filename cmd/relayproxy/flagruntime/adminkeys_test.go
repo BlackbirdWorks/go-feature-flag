@@ -1,81 +1,151 @@
 package flagruntime_test
 
 import (
-	"fmt"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
-// TestEngine_AdminKeyCollision: a generation in which an API key of a flag set equals an admin key is rejected with
-// the running one kept, and a bootstrap file whose admin key equals a running API key is rejected the same way.
+// TestEngine_AdminKeyCollision: an API key of a flag set that is also an admin key is not routed to the flag set, the
+// flag set reports the problem and serves its other keys, the generation is applied, and a reload of the bootstrap
+// file derives the routing again from the content that runs.
 func TestEngine_AdminKeyCollision(t *testing.T) {
 	t.Parallel()
 
-	const (
-		secret = "ADMIN-SECRET-9"
-		pathA  = "flagSets[a].apiKeys"
-	)
-
-	manyAdmin := "k-00, k-01, k-02, k-03, k-04, k-05, k-06, k-07, k-08, k-09, k-10, " + secret
+	const secret = "ADMIN-SECRET-9"
 
 	tests := []struct {
 		name string
 		// admin is the admin key of the first bootstrap file; reloadAdmin, when set, a second file.
 		admin, reloadAdmin string
-		wantCode           string
-		wantDetail         string
-		wantAdmin          string
-		wantOutcome        flagruntime.Outcome
-		// keys are the API keys of generation 1; laterKeys, when set, those of generation 2.
-		keys, laterKeys []string
-		// extraSets is the number of other flag sets s00, s01... whose key k-00, k-01... the caller lists as admin keys.
-		extraSets      int
+		wantState          flagruntime.SetState
+		// keys are the API keys of generation 1; again publishes generation 2 with the same keys.
+		keys           []string
+		wantWarnings   int
+		wantAPIKeys    int
 		wantGeneration uint64
+		again          bool
+		wantProblem    bool
+		wantSecretAdm  bool
+		wantSecretSet  bool
+		wantOtherSet   bool
 	}{
 		{
-			name: "content", admin: secret, keys: []string{secret},
-			wantOutcome: flagruntime.OutcomeRejected, wantCode: flagruntime.CodeAdminKeyCollision,
-			wantDetail: pathA, wantAdmin: secret, wantGeneration: 0,
+			name: "content", admin: secret, keys: []string{secret, keyA}, wantState: flagruntime.StateDegraded,
+			wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 1, wantProblem: true, wantSecretAdm: true,
+			wantOtherSet: true,
 		},
 		{
-			name: "later generation", admin: secret, keys: []string{keyA}, laterKeys: []string{keyA, secret},
-			wantOutcome: flagruntime.OutcomeRejected, wantCode: flagruntime.CodeAdminKeyCollision,
-			wantDetail: pathA, wantAdmin: secret, wantGeneration: 1,
+			name: "logged once", admin: secret, keys: []string{secret, keyA}, again: true,
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 2,
+			wantProblem: true, wantSecretAdm: true, wantOtherSet: true,
 		},
 		{
-			name:           "bootstrap",
-			admin:          adminOne,
-			keys:           []string{secret},
-			reloadAdmin:    secret,
-			wantOutcome:    flagruntime.OutcomeRejected,
-			wantCode:       flagruntime.CodeAdminKeyCollision,
-			wantDetail:     "auth.adminKeys: equals an API key of flagSets[a].apiKeys",
-			wantAdmin:      adminOne,
-			wantGeneration: 1,
+			name: "rotated away", admin: secret, reloadAdmin: "rotated-admin", keys: []string{secret, keyA},
+			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 2, wantGeneration: 1,
+			wantSecretSet: true, wantOtherSet: true,
+		},
+		{
+			name: "introduced by reload", admin: adminOne, reloadAdmin: secret, keys: []string{secret, keyA},
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 1,
+			wantProblem: true, wantSecretAdm: true, wantOtherSet: true,
+		},
+		{
+			name: "only key", admin: secret, keys: []string{secret}, wantState: flagruntime.StateDegraded,
+			wantWarnings: 1, wantAPIKeys: 0, wantGeneration: 1, wantProblem: true, wantSecretAdm: true,
 		},
 		{
 			name: "many admin keys", admin: "x1, x2, x3, " + secret, keys: []string{secret},
-			wantOutcome: flagruntime.OutcomeRejected, wantCode: flagruntime.CodeAdminKeyCollision,
-			wantDetail: pathA, wantAdmin: "x1", wantGeneration: 0,
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 0, wantGeneration: 1,
+			wantProblem: true, wantSecretAdm: true,
 		},
 		{
-			name: "names are capped", admin: manyAdmin, keys: []string{keyA}, extraSets: 11,
-			wantOutcome: flagruntime.OutcomeRejected, wantCode: flagruntime.CodeAdminKeyCollision,
-			wantDetail: "flagSets[s09].apiKeys, 1 more", wantAdmin: secret, wantGeneration: 0,
+			name: "distinct keys", admin: secret, keys: []string{keyA}, wantState: flagruntime.StateServing,
+			wantAPIKeys: 1, wantGeneration: 1, wantSecretAdm: true, wantOtherSet: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newRecordingHandler()
+			rig := newRigLogger(t, slog.New(handler), flagruntime.Hooks{})
+			rig.start()
+
+			rig.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+tt.admin+"]\n"))
+
+			feed := func(gen uint64) flagruntime.RoundResult {
+				in := objs{
+					"f1":     flagsObj(int(gen), "x"),
+					setsName: setsObj(t, []controlplane.FlagSet{fset("a", src("f1"), tt.keys...)}...),
+				}
+
+				return rig.feed(content(gen, in))
+			}
+
+			res := feed(1)
+			if tt.again {
+				res = feed(2)
+			}
+
+			if tt.reloadAdmin != "" {
+				res = rig.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+tt.reloadAdmin+"]\n"))
+			}
+
+			current := rig.holder.Load()
+			status := current.Status.FlagSets["a"]
+			require.NotNil(t, status)
+
+			problem := false
+
+			for _, p := range status.Problems {
+				problem = problem || p.Code == flagruntime.CodeAdminKeyCollision
+			}
+
+			_, secretSet := routedSet(current, secret)
+			_, otherSet := routedSet(current, keyA)
+
+			assert.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+			assert.Equal(t, tt.wantGeneration, current.Generation)
+			assert.Equal(t, tt.wantState, status.State)
+			assert.Equal(t, tt.wantAPIKeys, status.APIKeys)
+			assert.Equal(t, tt.wantProblem, problem)
+			assert.Equal(t, tt.wantSecretAdm, isAdmin(current, secret))
+			assert.Equal(t, tt.wantSecretSet, secretSet)
+			assert.Equal(t, tt.wantOtherSet, otherSet)
+			assert.Equal(t, tt.wantWarnings, strings.Count(handler.text(), "equals an admin key"))
+			assert.NotContains(t, handler.text(), secret)
+		})
+	}
+}
+
+// TestEngine_ContentDecision: the decision of a revision is about its content, so a bootstrap change that is applied
+// in the same round does not make a rejected content applied.
+func TestEngine_ContentDecision(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		wantOutcome  flagruntime.Outcome
+		wantCode     string
+		wantRoundOut flagruntime.Outcome
+		generation   uint64
+		wantRunning  uint64
+	}{
+		{
+			name: "invalid content", generation: 0, wantOutcome: flagruntime.OutcomeRejected,
+			wantCode: flagruntime.CodeInvalidContent, wantRunning: 0, wantRoundOut: flagruntime.OutcomeApplied,
 		},
 		{
-			name: "distinct keys", admin: secret, keys: []string{keyA},
-			wantOutcome: flagruntime.OutcomeApplied, wantCode: flagruntime.CodeApplied,
-			wantAdmin: secret, wantGeneration: 1,
-		},
-		{
-			name: "fixed", admin: secret, keys: []string{secret}, laterKeys: []string{keyA},
-			wantOutcome: flagruntime.OutcomeApplied, wantCode: flagruntime.CodeApplied,
-			wantAdmin: secret, wantGeneration: 2,
+			name: "valid content", generation: 1, wantOutcome: flagruntime.OutcomeApplied,
+			wantCode: flagruntime.CodeApplied, wantRunning: 1, wantRoundOut: flagruntime.OutcomeApplied,
 		},
 	}
 
@@ -84,39 +154,24 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 			t.Parallel()
 
 			rig := newRig(t, flagruntime.Hooks{})
+
+			c := content(tt.generation, simpleObjs(t, 1))
+			c.Revision = 7
+
+			// both inputs wait for the engine, so they are one round
+			rig.eng.Submit(c)
+			rig.eng.Reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: [rotated]\n"))
 			rig.start()
 
-			rig.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+tt.admin+"]\n"))
+			round := rig.nextRound()
 
-			set := func(gen uint64, keys []string) flagruntime.RoundResult {
-				sets := []controlplane.FlagSet{fset("a", src("f1"), keys...)}
-				for i := range tt.extraSets {
-					sets = append(sets, fset(fmt.Sprintf("s%02d", i), src("f1"), fmt.Sprintf("k-%02d", i)))
-				}
+			decision, err := rig.eng.AwaitDecision(t.Context(), 7)
+			require.NoError(t, err)
 
-				in := objs{"f1": flagsObj(1, "x"), setsName: setsObj(t, sets...)}
-
-				return rig.feed(content(gen, in))
-			}
-
-			res := set(1, tt.keys)
-
-			if tt.laterKeys != nil {
-				res = set(2, tt.laterKeys)
-			}
-
-			if tt.reloadAdmin != "" {
-				res = rig.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+tt.reloadAdmin+"]\n"))
-			}
-
-			current := rig.holder.Load()
-
-			assert.Equal(t, tt.wantOutcome, res.Outcome, res.Detail)
-			assert.Equal(t, tt.wantCode, res.Code)
-			assert.Contains(t, res.Detail, tt.wantDetail)
-			assert.NotContains(t, res.Detail, secret)
-			assert.Equal(t, tt.wantGeneration, current.Generation)
-			assert.True(t, isAdmin(current, tt.wantAdmin))
+			assert.Equal(t, tt.wantOutcome, decision.Reload.Outcome)
+			assert.Equal(t, tt.wantCode, decision.Reload.Code)
+			assert.Equal(t, tt.wantRunning, decision.Running)
+			assert.Equal(t, tt.wantRoundOut, round.Outcome, "the round itself applied the bootstrap change")
 		})
 	}
 }

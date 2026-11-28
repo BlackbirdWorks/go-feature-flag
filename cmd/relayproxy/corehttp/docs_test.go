@@ -25,7 +25,7 @@ func TestDocs_ListsMatchTheCode(t *testing.T) {
 	t.Run("metrics", func(t *testing.T) {
 		t.Parallel()
 
-		documented := regexp.MustCompile("`(semaphore_(?:(?:config|resource|object)_[a-z_]+|flag_rejected_total))`").
+		documented := regexp.MustCompile("`(semaphore_(?:(?:config|resource|object)_[a-z_]+|flags?_rejected(?:_total)?))`").
 			FindAllStringSubmatch(page, -1)
 
 		var got []string

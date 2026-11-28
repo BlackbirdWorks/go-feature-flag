@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
+	"github.com/blackbirdworks/semaphore/notifier"
 )
 
 // reloadStats is what one applied round changed. It is computed once per applied round, off the request path.
@@ -14,33 +15,20 @@ type reloadStats struct {
 	flagsCreated, flagsUpdated, flagsDeleted int
 }
 
-// countChanges counts the flag sets and the flags that a build created, updated and deleted (withdrew).
-func countChanges(built *Built) reloadStats {
-	var stats reloadStats
-
-	if built == nil {
-		return stats
+// tally adds one rebuilt flag set, with the diff that [Engine.enqueue] computed for it, to the counts of the round.
+func (stats *reloadStats) tally(item *Rebuilt, diff *notifier.DiffCache) {
+	switch {
+	case item.New.State == StateWithdrawn:
+		stats.setsDeleted++
+	case item.Old == nil:
+		stats.setsCreated++
+	default:
+		stats.setsUpdated++
 	}
 
-	for idx := range built.Rebuilt {
-		item := &built.Rebuilt[idx]
-
-		switch {
-		case item.New.State == StateWithdrawn:
-			stats.setsDeleted++
-		case item.Old == nil:
-			stats.setsCreated++
-		default:
-			stats.setsUpdated++
-		}
-
-		diff := diffFlagSets(item.Old, item.New)
-		stats.flagsCreated += len(diff.Added)
-		stats.flagsUpdated += len(diff.Updated)
-		stats.flagsDeleted += len(diff.Deleted)
-	}
-
-	return stats
+	stats.flagsCreated += len(diff.Added)
+	stats.flagsUpdated += len(diff.Updated)
+	stats.flagsDeleted += len(diff.Deleted)
 }
 
 // objectCounts counts the source objects of a status by state, and the flags that were rejected in them.

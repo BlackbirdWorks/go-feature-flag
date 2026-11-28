@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 )
 
 // The states of a resource in /info and in the metrics. A flag set that serves without a problem is "ready".
@@ -34,8 +35,10 @@ type summary struct {
 	oldestNotOK time.Time
 	flagSets    map[string]int
 	objects     map[string]int
-	badSets     []unhealthy
-	badObject   []unhealthy
+	// rejected counts the rejected flags present in the objects, by reason (kept, dropped).
+	rejected  map[string]int
+	badSets   []unhealthy
+	badObject []unhealthy
 }
 
 // summaries caches the summary of the runtime that was last read. A new runtime is a new pointer, so the cache
@@ -51,9 +54,33 @@ type cachedSummary struct {
 	sum    *summary
 }
 
+// addObjects counts the objects by state and the rejected flags, and notes the objects that are not ok.
+func (sum *summary) addObjects(objects map[string]*flagruntime.ObjectStatus) {
+	for name, obj := range objects {
+		state := string(obj.State)
+		sum.objects[state]++
+
+		for _, rej := range obj.Rejected {
+			if rej.Kept {
+				sum.rejected[relaycore.RejectedKept]++
+			} else {
+				sum.rejected[relaycore.RejectedDropped]++
+			}
+		}
+
+		if obj.State != flagruntime.ObjectOK {
+			if !obj.Since.IsZero() && (sum.oldestNotOK.IsZero() || obj.Since.Before(sum.oldestNotOK)) {
+				sum.oldestNotOK = obj.Since
+			}
+
+			sum.badObject = append(sum.badObject, unhealthy{name: name, state: state})
+		}
+	}
+}
+
 func (c *summaries) of(status *flagruntime.Status) *summary {
 	if status == nil {
-		return &summary{flagSets: map[string]int{}, objects: map[string]int{}}
+		return &summary{flagSets: map[string]int{}, objects: map[string]int{}, rejected: map[string]int{}}
 	}
 
 	if cached := c.last.Load(); cached != nil && cached.status == status {
@@ -62,7 +89,7 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 
 	c.computed.Add(1)
 
-	sum := &summary{flagSets: map[string]int{}, objects: map[string]int{}}
+	sum := &summary{flagSets: map[string]int{}, objects: map[string]int{}, rejected: map[string]int{}}
 
 	for name, set := range status.FlagSets {
 		state := setLabel(set.State)
@@ -73,18 +100,7 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 		}
 	}
 
-	for name, obj := range status.Objects {
-		state := string(obj.State)
-		sum.objects[state]++
-
-		if obj.State != flagruntime.ObjectOK {
-			if !obj.Since.IsZero() && (sum.oldestNotOK.IsZero() || obj.Since.Before(sum.oldestNotOK)) {
-				sum.oldestNotOK = obj.Since
-			}
-
-			sum.badObject = append(sum.badObject, unhealthy{name: name, state: state})
-		}
-	}
+	sum.addObjects(status.Objects)
 
 	byName := func(a, b unhealthy) int {
 		if a.name < b.name {
