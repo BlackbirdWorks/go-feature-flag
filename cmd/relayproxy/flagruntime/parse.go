@@ -9,16 +9,23 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
+func capUnknownFields(paths []string) []string {
+	return manifestreader.CapUnknownFieldPaths(paths)
+}
+
 // parsedFlags is the result of parsing one flags object. It is cached by checksum and never changed.
 type parsedFlags struct {
-	err      error
-	valid    map[string]*flagdef.InternalFlag
-	hashes   map[string]uint64
-	refs     map[string][]string // the names of the segments that a flag uses, only for the flags that use some
-	rejected []rejection
+	err           error
+	valid         map[string]*flagdef.InternalFlag
+	hashes        map[string]uint64
+	refs          map[string][]string // the names of the segments that a flag uses, only for the flags that use some
+	rejected      []rejection
+	unknownFields []string
+	unknownCount  int
 }
 
 type rejection struct {
@@ -28,8 +35,10 @@ type rejection struct {
 
 // parsedDoc is the result of decoding one flag-set document. It is cached by checksum and never changed.
 type parsedDoc struct {
-	err error
-	doc *controlplane.FlagSetDocument
+	err           error
+	doc           *controlplane.FlagSetDocument
+	unknownFields []string
+	unknownCount  int
 }
 
 // parseFlags decodes a flags object with the engine parser and validates every flag with the shared service.
@@ -53,6 +62,14 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 		valid:  make(map[string]*flagdef.InternalFlag, len(raw)),
 		hashes: make(map[string]uint64, len(raw)),
 		refs:   map[string][]string{},
+	}
+
+	if obj.Format != controlplane.FormatTOML {
+		_, info, uerr := controlplane.UnmarshalFlags(obj.Bytes, obj.Format)
+		if uerr == nil && len(info.UnknownFields) > 0 {
+			out.unknownCount = len(info.UnknownFields)
+			out.unknownFields = capUnknownFields(info.UnknownFields)
+		}
 	}
 
 	for _, name := range names {
@@ -79,12 +96,16 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 
 // parseDoc decodes a flag-set document.
 func parseDoc(obj *Object) *parsedDoc {
-	doc, _, err := controlplane.UnmarshalFlagSet(obj.Bytes)
+	doc, info, err := controlplane.UnmarshalFlagSet(obj.Bytes)
 	if err != nil {
 		return &parsedDoc{err: fmt.Errorf("%w: %w", ErrDecode, err)}
 	}
 
-	return &parsedDoc{doc: doc}
+	return &parsedDoc{
+		doc:           doc,
+		unknownFields: capUnknownFields(info.UnknownFields),
+		unknownCount:  len(info.UnknownFields),
+	}
 }
 
 // contentHash hashes the canonical form of a parsed flag: the JSON encoding of the flag, in which map keys are

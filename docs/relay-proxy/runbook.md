@@ -50,11 +50,12 @@ The reader rejects a manifest that is not valid, is of another channel or has a 
 
 | Where | What to look for |
 |---|---|
+| `/info` | `config.reader` has `outcome`, `reason` and `at`. |
+| Metric | `semaphore_config_reader_rejections_total` grows for that `reason` (same closed set as `config.reader.reason`); `semaphore_config_generation{layer="applied"}` does not move while the publisher has written a newer generation. |
 | Log | `"manifest reader: manifest rejected, previous one kept"` at level warn, with the attributes `outcome` and `reason`. |
-| Metric | `semaphore_config_generation{layer="applied"}` does not move while the publisher has written a newer generation. |
 
 Outcomes: `invalid`, `lower-generation`, `generation-conflict`, `channel-mismatch`. The reason for `invalid` is a
-closed code such as `unsupported-version` or `wrong-kind`. `/info` does not show the outcome; read the log.
+closed code such as `unsupported-version` or `wrong-kind`. Read the log or `config.reader` for the outcome and reason.
 
 The engine rejects content that the reader accepted but that does not build:
 
@@ -73,6 +74,21 @@ What to do:
 - `generation-conflict`: two writers published the same generation with other content. Publish a higher generation.
 - `invalid` or `invalid-content`: read the `reason` or `detail` in the log, fix the document, publish a new generation.
 - Validate before you publish with the `controlplane` package; `semaphore-cli publish` does it.
+
+## Unknown fields in control-plane documents
+
+Accepted documents with fields from a newer schema or misspelt field names are not rejected, and their unknown fields are counted:
+
+| Where | What to look for |
+|---|---|
+| `/info` | `config.unknownFields` lists each document `kind` (`flagSets`, `flags`, `manifest`, `segments`) with `count` and the first `fields` paths when non-zero. |
+| Metric | `semaphore_config_unknown_fields` gives the count per `kind`. |
+| Log | `"unknown fields in control-plane documents"` at level warn when the count for a kind changes above zero, and `"unknown fields cleared in control-plane documents"` when it returns to zero. |
+
+What to do:
+
+- Run `semaphore-cli config validate` or `semaphore-cli publish verify` against the published files to locate and fix misspelt keys or confirm whether the relay needs an upgrade for a newer schema field.
+- Note: flags objects in TOML format are not inspected for unknown fields and report 0.
 
 ## `pendingRestart` does not go away
 

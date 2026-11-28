@@ -1,6 +1,7 @@
 package corehttp
 
 import (
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -10,6 +11,11 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
+)
+
+const (
+	kindManifest         = "manifest"
+	maxUnknownFieldPaths = 10
 )
 
 // monitoring answers the health, the info and the probe endpoints from a core.
@@ -59,8 +65,10 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		State:          stateInfo(&status.Source.Reader.State),
 	}
 
+	info.Reader = readerInfo(&status.Source.Reader.Manifest)
 	info.LastReload = roundInfo(status.Reloads.LastRound)
 	info.LastApplied = roundInfo(status.Reloads.LastApplied)
+	info.UnknownFields = unknownFieldsInfo(status)
 
 	if status.Reloads.LastRejected != nil {
 		rejected := roundInfo(status.Reloads.LastRejected)
@@ -112,6 +120,82 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	slices.SortFunc(info.Objects, func(a, b model.ObjectInfo) int { return strings.Compare(a.Name, b.Name) })
 
 	return info
+}
+
+func readerInfo(manifest *manifestreader.ManifestStatus) *model.ReaderInfo {
+	if manifest.Outcome == "" || manifest.Outcome == manifestreader.OutcomeNone {
+		return nil
+	}
+
+	out := &model.ReaderInfo{
+		Outcome: manifest.Outcome,
+		Reason:  manifestreader.RejectionReason(manifest.Outcome, manifest.Reason),
+	}
+	if !manifest.At.IsZero() {
+		at := manifest.At
+		out.At = &at
+	}
+
+	return out
+}
+
+func unknownFieldsInfo(status *relaycore.Status) []model.UnknownFieldsInfo {
+	byKind := map[string]*model.UnknownFieldsInfo{}
+
+	manifest := status.Source.Reader.Manifest
+	if manifest.UnknownFields > 0 {
+		var fields []string
+
+		if len(manifest.UnknownFieldPaths) > 0 {
+			limit := min(len(manifest.UnknownFieldPaths), maxUnknownFieldPaths)
+			fields = slices.Clone(manifest.UnknownFieldPaths[:limit])
+		}
+
+		byKind[kindManifest] = &model.UnknownFieldsInfo{
+			Kind: kindManifest, Fields: fields, Count: manifest.UnknownFields,
+		}
+	}
+
+	if status.Source.Runtime != nil {
+		collectObjectUnknownFields(byKind, status.Source.Runtime.Objects)
+	}
+
+	if len(byKind) == 0 {
+		return nil
+	}
+
+	out := make([]model.UnknownFieldsInfo, 0, len(byKind))
+	for _, kind := range slices.Sorted(maps.Keys(byKind)) {
+		out = append(out, *byKind[kind])
+	}
+
+	return out
+}
+
+func collectObjectUnknownFields(
+	byKind map[string]*model.UnknownFieldsInfo, objects map[string]*flagruntime.ObjectStatus,
+) {
+	for _, name := range slices.Sorted(maps.Keys(objects)) {
+		obj := objects[name]
+		if obj.UnknownFields == 0 {
+			continue
+		}
+
+		entry := byKind[obj.Kind]
+		if entry == nil {
+			entry = &model.UnknownFieldsInfo{Kind: obj.Kind}
+			byKind[obj.Kind] = entry
+		}
+
+		entry.Count += obj.UnknownFields
+		for _, field := range obj.UnknownFieldPaths {
+			if len(entry.Fields) >= maxUnknownFieldPaths {
+				break
+			}
+
+			entry.Fields = append(entry.Fields, obj.Name+"/"+field)
+		}
+	}
 }
 
 func stateInfo(state *manifestreader.StateStatus) model.StateInfo {

@@ -60,9 +60,9 @@ func TestConfigCollector_ScrapeCost(t *testing.T) {
 		flagsPerSet int
 		wantSeries  int
 	}{
-		{name: "one flag per set", sets: 5000, flagsPerSet: 1, wantSeries: 40},
-		{name: "thousand flags per set", sets: 5000, flagsPerSet: 1000, wantSeries: 40},
-		{name: "no flag sets", sets: 0, flagsPerSet: 0, wantSeries: 30},
+		{name: "one flag per set", sets: 5000, flagsPerSet: 1, wantSeries: 58},
+		{name: "thousand flags per set", sets: 5000, flagsPerSet: 1000, wantSeries: 58},
+		{name: "no flag sets", sets: 0, flagsPerSet: 0, wantSeries: 48},
 	}
 
 	for _, tt := range tests {
@@ -100,9 +100,10 @@ func TestConfigCollector_NamedSeriesAreCapped(t *testing.T) {
 
 	col := collector(current)
 
-	// 5 gauges + 3 reloads + 3 flag set counts + 5 object counts + 2 rejected + 2 present + 5 states + 1 age + 2
-	// dynamic segment counts = 29 + the summary counter = 30, plus the cap for the degraded flag sets
-	assert.Equal(t, 30+maxNamedResources, testutil.CollectAndCount(col))
+	// 5 gauges + 3 reloads + 3 flag set counts + 5 object counts + 2 rejected + 2 present + 5 states + 1 age + 3
+	// dynamic segment counts + 1 summary counter + 4 unknown fields + 14 reader rejections = 48, plus the cap
+	// for the degraded flag sets
+	assert.Equal(t, 48+maxNamedResources, testutil.CollectAndCount(col))
 }
 
 // TestConfigCollector_NoRuntime pins the series before any runtime exists.
@@ -111,7 +112,7 @@ func TestConfigCollector_NoRuntime(t *testing.T) {
 
 	col := collector(nil)
 
-	assert.Equal(t, 30, testutil.CollectAndCount(col))
+	assert.Equal(t, 48, testutil.CollectAndCount(col))
 }
 
 // TestNewConfigCollectorSharing: the readiness and the metrics summarise a runtime once between them.
