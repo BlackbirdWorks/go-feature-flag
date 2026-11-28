@@ -62,6 +62,7 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `segments-both.yaml`, `segments-neither.yaml`: a segment with both a `connection` and `members`, or with neither.
 - `segments-keys-snapshot.yaml`: the `keys` layout with the `snapshot` mode (the default), which is lookup-only.
 - `segments-version-both.yaml`: a version with both `value` and `key`.
+- `segments-null-member.yaml`, `segments-null-member.json`, `segments-number-member.yaml`: a member that is null or is not a string is a decode error with the path of the item.
 - `segments-duplicate-member.yaml`, `segments-duplicate-name.yaml`: duplicates.
 - `segments-cache-on-snapshot.yaml`: a cache on a segment that is not in the `lookup` mode.
 - `flagset-segments-unresolved.yaml`: a segment source that the manifest does not list.

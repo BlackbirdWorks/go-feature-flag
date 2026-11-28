@@ -41,6 +41,10 @@ const (
 	SegmentMissingUnknown = "unknown"
 )
 
+// MemberList is the member list of a static segment. It is a list of strings like any other, except that the decoder
+// rejects an item that is null or is not a string (it would otherwise drop the first and turn the other into text).
+type MemberList []string
+
 // SegmentsDocument is the document of kind Segments: named segment definitions.
 type SegmentsDocument struct {
 	// APIVersion is the document version, "semaphore/v1". Empty means the current version when marshalling.
@@ -60,7 +64,7 @@ type SegmentDefinition struct { //nolint:govet // fieldalignment: the field orde
 	// Connection names a connection of the relay bootstrap file: a dynamic segment.
 	Connection string `json:"connection,omitempty" yaml:"connection,omitempty"`
 	// Members are the members of a static segment. An empty list is a static segment with no member.
-	Members []string `json:"members,omitempty" yaml:"members,omitempty"`
+	Members MemberList `json:"members,omitempty" yaml:"members,omitempty"`
 	// Mode is "snapshot" (default) or "lookup" (dynamic only).
 	Mode string `json:"mode,omitempty" yaml:"mode,omitempty"`
 	// Key is the key of the set (layout set) or the prefix of the member keys (layout keys) in the store.

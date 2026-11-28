@@ -109,6 +109,7 @@ type stage struct {
 	prev    *state
 	objects map[string]*objState
 	docs    map[string]*docState
+	segs    map[string]*segState
 	built   *Built
 	manif   *controlplane.Manifest
 	changed []string // names of objects (any kind) whose state changed or that were removed
@@ -116,6 +117,8 @@ type stage struct {
 	gen     uint64
 	cloneO  bool
 	cloneD  bool
+	cloneS  bool
+	segGood bool // a segments object became resolvable or stopped being so
 	docsChg bool
 }
 
@@ -169,8 +172,14 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	}
 
 	stg := &stage{
-		b: b, prev: b.cur, objects: b.cur.objects, docs: b.cur.docs, gen: content.Generation, now: b.now(),
-		built: &Built{flagSet: map[string]*parsedFlags{}, docSet: map[string]*parsedDoc{}},
+		b:       b,
+		prev:    b.cur,
+		objects: b.cur.objects,
+		docs:    b.cur.docs,
+		segs:    b.cur.segs,
+		gen:     content.Generation,
+		now:     b.now(),
+		built:   &Built{flagSet: map[string]*parsedFlags{}, docSet: map[string]*parsedDoc{}},
 	}
 
 	sums := stg.scan(content)
@@ -178,9 +187,12 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	// The set of names changed when a name was added or removed, whatever its kind. Names are compared exactly:
 	// when no name of the content is new and the counts equal those of the running state, the sets are equal.
 	namesChanged := sums.addedFlags || sums.nFlags != len(stg.prev.objects)
-	if namesChanged || sums.addedDocs || sums.nDocs != len(stg.prev.docs) {
+	if namesChanged || sums.addedDocs || sums.nDocs != len(stg.prev.docs) || sums.nSegs != len(stg.prev.segs) {
 		stg.removeGone(content)
 	}
+
+	// the names that segmentSources resolve to changed: the flag-set documents are validated again
+	namesChanged = stg.segNamesChanged(namesChanged)
 
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("build: %w", ctx.Err())
@@ -218,6 +230,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 type scanSums struct {
 	nFlags     int
 	nDocs      int
+	nSegs      int
 	addedFlags bool
 	addedDocs  bool
 }
@@ -241,6 +254,17 @@ func (st *stage) scan(content *Content) scanSums {
 				st.putObj(name, next)
 				st.changed = append(st.changed, name)
 				st.chFlags = append(st.chFlags, name)
+			}
+		case KindSegments:
+			sums.nSegs++
+
+			prev := st.prev.segs[name]
+			next := st.segObject(name, &obj, prev)
+
+			if next != prev {
+				st.putSeg(name, next)
+				st.changed = append(st.changed, name)
+				st.segGood = st.segGood || (prev != nil && prev.loaded) != next.loaded
 			}
 		case KindFlagSets:
 			sums.nDocs++
@@ -268,6 +292,14 @@ func (st *stage) removeGone(content *Content) {
 			st.changed = append(st.changed, name)
 			st.chFlags = append(st.chFlags, name)
 			st.release(os.refKey, false)
+		}
+	}
+
+	for name, ss := range st.prev.segs {
+		if o, ok := content.Objects[name]; !ok || o.Kind != KindSegments {
+			st.delSeg(name)
+			st.changed = append(st.changed, name)
+			st.segGood = st.segGood || ss.loaded
 		}
 	}
 
@@ -351,6 +383,8 @@ func (st *stage) objectStatus() map[string]*ObjectStatus {
 			out[name] = st.objects[name].status
 		case st.docs[name] != nil:
 			out[name] = st.docs[name].status
+		case st.segs[name] != nil:
+			out[name] = st.segs[name].status
 		default:
 			delete(out, name)
 		}

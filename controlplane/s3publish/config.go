@@ -16,6 +16,12 @@ type Config struct {
 	// (Object.Source is then the key of the object). The package
 	// does not import the engine itself, so an importer only pays for what it uses.
 	Check func(obj *Object) error
+	// CheckAll is an optional hook that validates the documents together, for example that the segments that the flags
+	// of a flag set use are defined in its segment sources (controlplane/flagcheck). It runs once, after Check, before
+	// any S3 call, with every object of the publication; an error refuses it (ErrInvalid). Verify runs it with the
+	// objects that it read and whose size, checksum and content were valid; an error is one ProblemInvalidContent
+	// problem for the object "objects".
+	CheckAll func(objects []Object) error
 	// Bucket is the bucket of the connection.
 	Bucket string
 	// Prefix is put before every key (objects and default manifest key). Empty or a key prefix without leading

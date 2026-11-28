@@ -1021,9 +1021,10 @@ func snapshotProbes(segs map[string]*segmentConfig, budget int) []snapshotProbe 
 
 // probePlan splits the cap of MaxInitProbes between the probes of Init: the snapshot probes come first, so a provider
 // with many lookup namespaces cannot crowd out the permission check of a snapshot segment, and the lookup probes take
-// what is left.
+// what is left, at least one when there is a lookup namespace.
 func (p *Provider) probePlan() ([]string, []string, []snapshotProbe) {
-	snaps := snapshotProbes(p.segs, MaxInitProbes)
+	reserved := min(len(p.probeSets)+len(p.probeKeys), 1) // a lookup probe always runs: it detects the script commands
+	snaps := snapshotProbes(p.segs, MaxInitProbes-reserved)
 	room := MaxInitProbes - len(snaps)
 	sets := p.probeSets[:min(len(p.probeSets), room)]
 	keys := p.probeKeys[:min(len(p.probeKeys), room-len(sets))]

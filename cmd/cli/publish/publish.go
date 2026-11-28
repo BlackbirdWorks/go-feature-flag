@@ -238,7 +238,8 @@ func runPublish(ctx context.Context, streams *helper.Streams, dir string, opts *
 		return withCode(err)
 	}
 
-	tgt.cfg.Check = checkFlags
+	tgt.cfg.Check = checkObject
+	tgt.cfg.CheckAll = checkReferences
 
 	pub, err := newPublisher(ctx, tgt, deps)
 	if err != nil {
@@ -258,8 +259,12 @@ func runPublish(ctx context.Context, streams *helper.Streams, dir string, opts *
 	return printResult(streams.Stdout, opts.Output, res)
 }
 
-// checkFlags validates a flag file with the engine of the relay (the flagcheck package).
-func checkFlags(obj *s3publish.Object) error {
+// checkObject validates a flag file or a segments document with the engine of the relay (the flagcheck package).
+func checkObject(obj *s3publish.Object) error {
+	if obj.Kind == controlplane.KindSegments {
+		return checkSegments(obj)
+	}
+
 	if obj.Kind != controlplane.KindFlags {
 		return nil
 	}
@@ -281,6 +286,10 @@ func errorDetails(err error) []string {
 		for i := range verr.Problems {
 			details = append(details, verr.Problems[i].Error())
 		}
+	}
+
+	if rerr, ok := errors.AsType[*flagcheck.ReferenceError](err); ok {
+		details = append(details, rerr.Error())
 	}
 
 	if ferr, ok := errors.AsType[*flagcheck.Error](err); ok {
@@ -332,7 +341,8 @@ func runVerify(ctx context.Context, streams *helper.Streams, opts *Cmd, deps *De
 		return withCode(err)
 	}
 
-	tgt.cfg.Check = checkFlags
+	tgt.cfg.Check = checkObject
+	tgt.cfg.CheckAll = checkReferences
 
 	pub, err := newPublisher(ctx, tgt, deps)
 	if err != nil {

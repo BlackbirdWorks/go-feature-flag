@@ -175,6 +175,8 @@ func (p *Publisher) check(ctx context.Context) (*Report, error) {
 
 	found = append(found, crossProblems(docs, manifest, len(manifest.Objects))...)
 
+	found = append(found, p.checkAll(len(manifest.Objects))...)
+
 	if manifest.Channel != p.cfg.Channel {
 		found = append(found, positioned{pos: len(manifest.Objects), problem: p.manifestProblem(
 			fmt.Sprintf("channel %q, want %q", manifest.Channel, p.cfg.Channel))})
@@ -264,6 +266,22 @@ func (p *Publisher) entryProblem(obj *controlplane.ManifestObject) string {
 	return ""
 }
 
+// checkAll runs Config.CheckAll on the objects that were read, and returns its problem, placed at pos.
+func (p *Publisher) checkAll(pos int) []positioned {
+	if p.cfg.CheckAll == nil {
+		return nil
+	}
+
+	err := p.cfg.CheckAll(p.verified)
+	if err == nil {
+		return nil
+	}
+
+	return []positioned{{pos: pos, problem: Problem{
+		Object: "objects", Code: ProblemInvalidContent, Detail: hookText(err),
+	}}}
+}
+
 // verifyObject checks one object and returns its problems and, for a readable flag-set document, the document.
 func (p *Publisher) verifyObject(
 	ctx context.Context, obj *controlplane.ManifestObject,
@@ -307,6 +325,13 @@ func (p *Publisher) verifyObject(
 
 			return problems, doc, true
 		}
+	}
+
+	if p.cfg.CheckAll != nil {
+		p.verified = append(
+			p.verified,
+			Object{Name: obj.Name, Kind: obj.Kind, Format: obj.Format, Source: obj.Key, Body: body},
+		)
 	}
 
 	return nil, doc, true

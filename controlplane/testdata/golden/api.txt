@@ -233,6 +233,7 @@ type ManifestObject struct {
 
 	VersionID	string	`json:"versionId,omitempty" yaml:"versionId,omitempty"`
 }
+type MemberList []string
 type ProgressiveRollout struct {
 	Initial	*ProgressiveRolloutStep	`json:"initial,omitempty" yaml:"initial,omitempty"`
 	End	*ProgressiveRolloutStep	`json:"end,omitempty"     yaml:"end,omitempty"`
@@ -273,7 +274,7 @@ type SegmentDefinition struct {
 
 	Connection	string	`json:"connection,omitempty" yaml:"connection,omitempty"`
 
-	Members	[]string	`json:"members,omitempty" yaml:"members,omitempty"`
+	Members	MemberList	`json:"members,omitempty" yaml:"members,omitempty"`
 
 	Mode	string	`json:"mode,omitempty" yaml:"mode,omitempty"`
 
@@ -425,6 +426,8 @@ type API interface {
 }
 type Config struct {
 	Check	func(obj *Object) error
+
+	CheckAll	func(objects []Object) error
 
 	Bucket	string
 

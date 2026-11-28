@@ -418,11 +418,11 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 		},
 		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2, wantLookups: 2},
 		{
-			// the snapshot probes come first: 10 segments make 20 probes, and the cap of 16 leaves none for the lookups
+			// the snapshot probes come first: 10 segments make 20 probes, the cap of 16 keeps one for the lookups
 			name: "the snapshot probes take the cap before the lookup probes", segs: distinct(10),
-			wantScans: 8, wantGets: 8, wantLookups: 0,
+			wantScans: 8, wantGets: 7, wantLookups: 1,
 		},
-		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 8, wantLookups: 0},
+		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 7, wantLookups: 1},
 		{
 			// 16 lookup namespaces and one snapshot segment: its two probes run, the lookups give way to 14
 			name: "16 lookup namespaces and a snapshot segment", segs: lookupAndSnapshot(), wantScans: 1, wantGets: 1,
@@ -550,4 +550,39 @@ func TestStartupProbesOfASnapshotGoToThePrimary(t *testing.T) {
 	assert.Equal(t, int64(2), hits.Load(), "the SSCAN and the GET of the snapshot probes ran on the primary")
 	assert.Equal(t, []string{snapSetKey, snapVerKey}, cluster.keys, "the primary of the key of each probe")
 	assert.Equal(t, int64(1), cluster.routed.Load(), "only the lookup probes went through the routing client")
+}
+
+func TestSnapshotsThatFillTheCapLeaveTheScriptDetection(t *testing.T) {
+	t.Parallel()
+
+	segs := map[string]redissegment.SegmentOptions{}
+
+	for i := range 10 {
+		name := "s" + strconv.Itoa(100+i)
+		segs[name] = redissegment.SegmentOptions{Key: name + ":{x}", VersionKey: "v:" + name, Snapshot: true}
+	}
+
+	store := &fakeStore{sets: map[string]map[string]bool{}, keys: map[string]bool{}, values: map[string]string{}}
+
+	prov, err := redissegment.New(store, &redissegment.Options{
+		Segments: segs, Atomic: true, MissingKey: redissegment.MissingUnknown,
+	})
+	require.NoError(t, err)
+	require.NoError(t, prov.Init(context.Background()))
+
+	scripts, scans := 0, 0
+
+	for _, pipeline := range store.commands() {
+		for _, cmd := range pipeline {
+			switch {
+			case strings.HasPrefix(cmd, "eval_ro "):
+				scripts++
+			case strings.HasPrefix(cmd, cmdSScan+" "):
+				scans++
+			}
+		}
+	}
+
+	assert.Equal(t, 1, scripts, "the read-only script is probed once, whatever the snapshot probes take")
+	assert.Equal(t, 8, scans)
 }

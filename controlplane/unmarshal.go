@@ -336,11 +336,37 @@ func (w *walker) walkSlice(path string, node *yaml.Node, typ reflect.Type, depth
 		return w.fail(path, node, "expected a list")
 	}
 
+	strict := typ == reflect.TypeFor[MemberList]()
+
 	for i, item := range node.Content {
-		err := w.walk(path+"["+strconv.Itoa(i)+"]", item, typ.Elem(), depth+1)
+		itemPath := path + "[" + strconv.Itoa(i) + "]"
+
+		if strict {
+			err := w.strictString(itemPath, item)
+			if err != nil {
+				return err
+			}
+		}
+
+		err := w.walk(itemPath, item, typ.Elem(), depth+1)
 		if err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// strictString rejects an item of a member list that is null or is not a string: the generic decoder would drop the
+// first and turn the other into text.
+func (w *walker) strictString(path string, original *yaml.Node) error {
+	item := resolve(original)
+
+	switch {
+	case item == nil || item.Kind == yaml.ScalarNode && item.Tag == tagNull:
+		return w.fail(path, original, "must not be null")
+	case item.Kind != yaml.ScalarNode || item.Tag != tagStr:
+		return w.fail(path, original, "expected a string")
 	}
 
 	return nil

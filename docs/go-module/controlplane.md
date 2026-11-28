@@ -60,7 +60,7 @@ objects:
 | `createdAt` | optional, informational |
 | `objects` | at most `DefaultMaxObjects` (20000) entries; the limit is an option, see below |
 | `objects[].name` | `^[a-z][a-z0-9-]{0,62}$`, unique; flag sets refer to objects by name |
-| `objects[].kind` | `flags` or `flagSets` |
+| `objects[].kind` | `flags`, `flagSets` or `segments` |
 | `objects[].connection` | name of a connection of the relay bootstrap file (it fixes bucket and credentials); never a secret |
 | `objects[].key` | key in the bucket of the connection |
 | `objects[].format` | `yaml`, `json` (and `toml` for `flags`) |
@@ -140,6 +140,12 @@ segments:
   `missingKey` is `notMember` (default) or `unknown`. `version` is `value` or `key` (not both) with an optional
   `interval` (`100ms` to `24h`, needs `key`). `cache` (`maxEntries`, `ttl`) is for the `lookup` mode only.
 - `onError`: `unknown` (default), `notMember` or `member`.
+- The relay accepts a published segments object: it decodes and validates it, keeps its last good content when a later
+  version is invalid, shows it in `/info`, and resolves the `segmentSources` of the flag sets that list it. Evaluation of
+  the segments follows in a later change; today they are not used.
+- `semaphore-cli publish` and `publish verify` also run the engine checks of the `flagcheck` package: a segment
+  definition that the engine rejects, a `segment("name")` of a flag rule that no segment source of its flag set defines,
+  and a name that two segment sources of one flag set define are errors.
 
 ### Flag object
 

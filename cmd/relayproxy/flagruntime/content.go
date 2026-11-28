@@ -28,10 +28,12 @@ const (
 	KindFlags = controlplane.KindFlags
 	// KindFlagSets is an object of flag-set documents.
 	KindFlagSets = controlplane.KindFlagSets
+	// KindSegments is an object of segments documents: accepted and validated, not used for evaluation yet.
+	KindSegments = controlplane.KindSegments
 )
 
 // Content is one verified snapshot of published content. The manifest reader builds it; this package never
-// reads a manifest. Objects of another kind than [KindFlags] and [KindFlagSets] are ignored.
+// reads a manifest. Objects of another kind than [KindFlags], [KindFlagSets] and [KindSegments] are ignored.
 type Content struct {
 	// Objects are the objects by manifest object name.
 	Objects map[string]Object
@@ -41,7 +43,7 @@ type Content struct {
 
 // Object is one object of a [Content].
 type Object struct {
-	// Kind is [KindFlags] or [KindFlagSets].
+	// Kind is [KindFlags], [KindFlagSets] or [KindSegments].
 	Kind string
 	// Format is "yaml", "json" or (flags only) "toml".
 	Format string

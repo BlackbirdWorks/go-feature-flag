@@ -248,11 +248,11 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 		},
 		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2, wantLookups: 2},
 		{
-			// the snapshot probes come first: 10 segments make 20 probes, and the cap of 16 leaves none for the lookups
+			// the snapshot probes come first: 10 segments make 20 probes, the cap of 16 keeps one for the lookups
 			name: "the snapshot probes take the cap before the lookup probes", segs: distinct(10),
-			wantScans: 8, wantGets: 8, wantLookups: 0,
+			wantScans: 8, wantGets: 7, wantLookups: 1,
 		},
-		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 8, wantLookups: 0},
+		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 7, wantLookups: 1},
 		{
 			// 16 lookup namespaces and one snapshot segment: its two probes run, the lookups give way to 14
 			name: "16 lookup namespaces and a snapshot segment", segs: lookupAndSnapshot(), wantScans: 1, wantGets: 1,

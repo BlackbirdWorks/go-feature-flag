@@ -75,8 +75,10 @@ func (c *counter) requests() Requests {
 // Publisher publishes to one bucket and channel. It holds no mutable state: it is safe for concurrent use and
 // two publishers (or two processes) on one bucket are what the conditional writes protect against.
 type Publisher struct {
-	api API
-	cfg Config
+	// verified are the objects that Verify read, kept for Config.CheckAll
+	verified []Object
+	api      API
+	cfg      Config
 }
 
 // New returns a Publisher. It makes no S3 call. cfg is copied and its zero limits get their defaults.

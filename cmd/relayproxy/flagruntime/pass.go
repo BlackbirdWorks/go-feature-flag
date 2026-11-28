@@ -44,6 +44,12 @@ func (st *stage) manifest() *controlplane.Manifest {
 			objs = append(objs, controlplane.ManifestObject{Name: name, Kind: controlplane.KindFlags})
 		}
 
+		for name, held := range st.segs {
+			if held.loaded {
+				objs = append(objs, controlplane.ManifestObject{Name: name, Kind: controlplane.KindSegments})
+			}
+		}
+
 		st.manif = &controlplane.Manifest{Objects: objs}
 	}
 
@@ -190,7 +196,7 @@ func (st *stage) fullPass(ctx context.Context, namesVer uint64) (*state, error) 
 	docNames := slices.Sorted(maps.Keys(st.docs))
 	st.validateDocs(docNames, namesVer)
 
-	next := &state{objects: st.objects, docs: st.docs, objStatus: st.objectStatus()}
+	next := &state{objects: st.objects, docs: st.docs, segs: st.segs, objStatus: st.objectStatus()}
 
 	col := st.candidates(docNames)
 	entries := st.resolveKeys(col.cands, col.entries)
