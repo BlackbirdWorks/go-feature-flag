@@ -13,6 +13,9 @@ import (
 type RefreshResult struct {
 	Engine flagruntime.Reload
 	Poll   manifestreader.RefreshResult
+	// Running is the generation the relay serves when the call returns: the one of the decision when it was applied,
+	// the last known good when it was rejected.
+	Running uint64
 }
 
 // Refresh polls the control plane now, through the loop that polls on schedule, then waits until the engine has
@@ -29,5 +32,5 @@ func (c *Core) Refresh(ctx context.Context) (RefreshResult, error) {
 		return RefreshResult{}, fmt.Errorf("refresh: %w", err)
 	}
 
-	return RefreshResult{Poll: polled, Engine: decided}, nil
+	return RefreshResult{Poll: polled, Engine: decided, Running: c.holder.Load().Generation}, nil
 }

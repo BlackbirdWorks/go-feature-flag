@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -621,4 +622,63 @@ func TestNotifications_WaitDrains(t *testing.T) {
 			}
 		})
 	}
+}
+
+const (
+	keyedSet  = "keyed"
+	pubOneSet = "pub-one"
+)
+
+// The public flag set is a view for the streams: the notifiers get a change once, under the flag set that owns the
+// flag, and get nothing for the public view (neither the same edit again, nor a deletion because a flag set became
+// private). The broadcast hook gets all of them.
+func TestNotifications_PublicViewIsForTheStreamsOnly(t *testing.T) {
+	t.Parallel()
+
+	recorded := &recordingNotifier{got: make(chan notifier.DiffCache, 8)}
+
+	var (
+		mu       sync.Mutex
+		hooked   []string
+		hookSeen = make(chan struct{}, 8)
+	)
+
+	notes, changes := startNotifications(t, &events.NotificationsConfig{
+		QueueSize: 8,
+		Broadcast: func(c flagruntime.Change) {
+			mu.Lock()
+
+			hooked = append(hooked, c.FlagSet)
+			mu.Unlock()
+
+			hookSeen <- struct{}{}
+		},
+	})
+
+	_, err := notes.Apply(context.Background(), []events.NotifierDef{ndef("a", "v1", recorded)})
+	require.NoError(t, err)
+
+	// an edit of a public flag: the flag set and the public view report it
+	changes <- change(pubOneSet, 1)
+
+	changes <- change(flagruntime.PublicName, 1)
+	// the flag set became private: the public view reports a deletion
+	changes <- change(flagruntime.PublicName, 2)
+	// a change of another flag set follows
+	changes <- change(keyedSet, 3)
+
+	for range 4 {
+		await(t, hookSeen, "the broadcast hook")
+	}
+
+	await(t, recorded.got, "the notifier")
+	await(t, recorded.got, "the notifier")
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.Equal(t, []string{pubOneSet, flagruntime.PublicName, flagruntime.PublicName, keyedSet}, hooked)
+	assert.Equal(t, map[string][]int{pubOneSet: {1}, keyedSet: {3}},
+		seqs(t, recorded.received(), map[string]string{"1": pubOneSet, "2": flagruntime.PublicName, "3": keyedSet}),
+		"the notifier got each change of a real flag set once, and nothing of the public view")
 }

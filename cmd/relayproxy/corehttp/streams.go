@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/pprof"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -95,6 +96,14 @@ func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
 	}
 
 	s.publicClosed.Store(keep == "")
+
+	if keep == "" {
+		// what waits for the clients without a key is dropped with them: nothing queued before the withdrawal can
+		// reach a client that connects after the public flags are back
+		for _, l := range s.lane {
+			l.discard(flagruntime.PublicName)
+		}
+	}
 
 	s.ws.DisconnectAnonymous(keep)
 	s.sse.DisconnectAnonymous(keep)
@@ -228,6 +237,20 @@ func (l *lane) offer(change *flagruntime.Change) {
 	case l.wake <- struct{}{}:
 	default:
 	}
+}
+
+// discard drops the change that waits for a flag set.
+func (l *lane) discard(name string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, waiting := l.pending[name]; !waiting {
+		return
+	}
+
+	delete(l.pending, name)
+
+	l.order = slices.DeleteFunc(l.order, func(queued string) bool { return queued == name })
 }
 
 func (l *lane) close() {

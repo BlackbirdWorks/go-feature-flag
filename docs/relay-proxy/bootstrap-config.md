@@ -15,7 +15,8 @@ control plane location, listeners, observability and admin keys. It is strict: a
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).
 - Listeners: one `api` listener and at most one `ops` listener, each with its own address (the ops listener can bind another host, for
-  example `127.0.0.1:1032`), with ports from 1 to 65535. More
+  example `127.0.0.1:1032`), with ports from 1 to 65535 (`:0` is refused by the relay and by `semaphore-cli config validate`, with the path of the
+  address; a tool that only reads the file does not check the layout). More
   listeners, the same address twice and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
   validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
   cleartext on the `api` listener.
@@ -219,6 +220,11 @@ A flag set that is published **without API keys** (no `apiKeys` in its entry of 
 - Several flag sets without keys form **one public namespace**. A flag key that two of them define is an error: the generation is rejected as a whole, the relay keeps the last known good (`code: build-failed`, with the flag key and the two flag sets in the log).
 - A request **with** a key behaves as before: a wrong key is `401`, it never falls back to the public flags.
 - When the generation has no flag set without keys, a request without a key is refused (`401`). When the generation that publishes the keys of the last public flag set arrives, the open streams of the clients without a key are closed (they reconnect and are refused).
+- **What a caller without a key can do:** it is a caller of the public flags only. It evaluates them (single, bulk,
+  OFREP), reads their configuration, change hashes and manifest, follows their changes on the streams, and sends
+  evaluation events for them. It sees nothing of the flags of a flag set with a key: they answer as flags that do not
+  exist, and an evaluation event for any other flag key is dropped and counted (`semaphore_events_dropped_total` with
+  `reason="not_public"`), with the same answer as for any other batch. The admin endpoints need an admin key.
 - `/info` shows the status of the namespace: `"public": {"present": true, "flags": 12, "sets": ["pricing", "web"]}`.
 
 ### `controlPlane`

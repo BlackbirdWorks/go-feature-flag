@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -195,4 +196,41 @@ func TestPublicViewIsSharedAndReported(t *testing.T) {
 	}
 
 	assert.True(t, withdrawn, "the public flag set is withdrawn")
+}
+
+// A public view that is made again because a public flag set left is dated by its own build: the configuration
+// endpoint never reports a date older than the one before, and the hash of the flags changes with the view.
+func TestPublicViewIsNeverOlderThanTheOneItReplaces(t *testing.T) {
+	t.Parallel()
+
+	moment := time.Date(2026, time.November, 28, 10, 0, 0, 0, time.UTC)
+	b := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{
+		Now: func() time.Time {
+			moment = moment.Add(time.Hour)
+
+			return moment
+		},
+	})
+
+	generation := func(gen uint64, keyForTwo ...string) *flagruntime.Content {
+		return content(gen, objs{
+			"o1": flagsObj(1, "f"), "o2": flagsObj(2, "g"),
+			setsName: setsObj(t, fset(pubOne, src("o1")), fset(pubTwo, src("o2"), keyForTwo...)),
+		})
+	}
+
+	first := buildAndCommit(t, b, generation(1))
+	assert.Equal(t, []string{"f", "g"}, flagNames(first.Runtime.Public))
+
+	// the second flag set gets a key: the view is made again, from the first one only, at a later build time
+	second := buildAndCommit(t, b, generation(2, keyB))
+	assert.Equal(t, []string{"f"}, flagNames(second.Runtime.Public))
+	assert.True(t, second.Runtime.Public.ModifiedAt.After(first.Runtime.Public.ModifiedAt),
+		"the new view is dated by its build, not by its oldest source")
+	assert.NotEqual(t, first.Runtime.Public.Hash, second.Runtime.Public.Hash, "the hash follows the flags")
+
+	// a generation that changes nothing public keeps the view, and its date
+	third := buildAndCommit(t, b, generation(3, keyB))
+	assert.Same(t, second.Runtime.Public, third.Runtime.Public)
+	assert.Equal(t, second.Runtime.Public.ModifiedAt, third.Runtime.Public.ModifiedAt)
 }

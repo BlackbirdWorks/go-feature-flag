@@ -118,8 +118,11 @@ func (s *store) publish(value int) {
 }
 
 // flagYAML is a flags document of the flag f valued value.
-func flagYAML(value int) string {
-	return fmt.Sprintf("%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", flagKey, value)
+func flagYAML(value int) string { return flagYAMLOf(flagKey, value) }
+
+// flagYAMLOf is a flags document of the flag key valued value.
+func flagYAMLOf(key string, value int) string {
+	return fmt.Sprintf("%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", key, value)
 }
 
 // publishDocs writes the flag sets and the flags objects (by name), then the manifest of the next generation.

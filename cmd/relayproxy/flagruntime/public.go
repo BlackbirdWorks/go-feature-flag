@@ -3,7 +3,6 @@ package flagruntime
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"time"
 
@@ -39,23 +38,34 @@ type publicView struct {
 // buildPublic merges the flag sets that were published without an API key. A flag key that two of them define is an
 // error: the generation is rejected, the relay keeps the last known good.
 func (st *stage) buildPublic(next *state) error {
-	var (
-		names   []string
-		sources []*FlagSet
-	)
+	// the common case first: no flag set without keys, no work and no allocation
+	keyless := 0
 
-	for _, name := range slices.Sorted(maps.Keys(next.sets)) {
-		set := next.sets[name]
+	for _, set := range next.sets {
 		if len(set.spec.declKeys) == 0 {
-			names = append(names, name)
-			sources = append(sources, set.fs)
+			keyless++
 		}
 	}
 
-	if len(sources) == 0 {
+	if keyless == 0 {
 		next.public = nil
 
 		return nil
+	}
+
+	names := make([]string, 0, keyless)
+
+	for name, set := range next.sets {
+		if len(set.spec.declKeys) == 0 {
+			names = append(names, name)
+		}
+	}
+
+	slices.Sort(names)
+
+	sources := make([]*FlagSet, 0, len(names))
+	for _, name := range names {
+		sources = append(sources, next.sets[name].fs)
 	}
 
 	if prev := st.prev.public; prev != nil && slices.Equal(prev.sources, sources) {
@@ -78,9 +88,10 @@ func (st *stage) buildPublic(next *state) error {
 func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, error) {
 	fset := &FlagSet{Name: PublicName, State: StateServing, ModifiedAt: now}
 
+	// the view is dated by its own build: a view that is made again because a public flag set left or changed is never
+	// older than the one it replaces (the flag sets that stay may have been built long ago)
 	if len(sources) == 1 {
 		fset.Flags, fset.Hash, fset.State = sources[0].Flags, sources[0].Hash, sources[0].State
-		fset.ModifiedAt = sources[0].ModifiedAt
 
 		return fset, nil
 	}
@@ -106,10 +117,6 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 
 		fset.Hash = fset.Hash*publicHashFactor + source.Hash
 		fset.Rejected += source.Rejected
-
-		if source.ModifiedAt.After(fset.ModifiedAt) || idx == 0 {
-			fset.ModifiedAt = source.ModifiedAt
-		}
 
 		switch source.State {
 		case StatePending:

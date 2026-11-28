@@ -37,6 +37,8 @@ type Source interface {
 	Status() relaycore.Status
 	// Collect hands a feature event to the exporters.
 	Collect(event events.Event) bool
+	// DropNotPublic counts events refused for a flag that is not public.
+	DropNotPublic(count int)
 	// Refresh polls the control plane now.
 	Refresh(ctx context.Context) (relaycore.RefreshResult, error)
 }
@@ -47,6 +49,7 @@ type Adapter struct {
 	holder  *flagruntime.Holder
 	eval    *flagruntime.Evaluator
 	collect func(events.Event) bool
+	drop    func(int)
 	refresh func(context.Context) (relaycore.RefreshResult, error)
 	// table is the flag set views of the runtime that was last served: a view is made once per flag set, so
 	// resolving a key does not allocate.
@@ -63,7 +66,13 @@ var (
 
 // NewAdapter returns the adapter of a core.
 func NewAdapter(src Source) *Adapter {
-	return &Adapter{holder: src.Holder(), eval: src.Evaluator(), collect: src.Collect, refresh: src.Refresh}
+	return &Adapter{
+		holder:  src.Holder(),
+		eval:    src.Evaluator(),
+		collect: src.Collect,
+		drop:    src.DropNotPublic,
+		refresh: src.Refresh,
+	}
 }
 
 // viewTable holds the views of the flag sets of one runtime.
@@ -139,7 +148,7 @@ func (a *Adapter) Refresh(ctx context.Context) (service.RefreshOutcome, error) {
 	return service.RefreshOutcome{
 		Result: result.Poll.Poll.Result, Reason: result.Poll.Poll.Reason, Generation: result.Poll.Generation,
 		Changed: result.Poll.Changed, Applied: result.Engine.Outcome != flagruntime.OutcomeRejected,
-		AppliedGeneration: result.Engine.Generation, Rejection: rejection(&result.Engine),
+		AppliedGeneration: result.Running, Rejection: rejection(&result.Engine),
 	}, nil
 }
 
@@ -287,3 +296,18 @@ func rejection(decided *flagruntime.Reload) string {
 
 	return ""
 }
+
+var _ service.PublicScope = (*view)(nil)
+
+// IsPublic reports that the view is the public flag set.
+func (v *view) IsPublic() bool { return v.set.Name == flagruntime.PublicName }
+
+// HasFlag reports whether the flag is one of the view.
+func (v *view) HasFlag(key string) bool {
+	_, ok := v.set.Flag(key)
+
+	return ok
+}
+
+// DropNotPublic counts events refused for a flag that is not public.
+func (v *view) DropNotPublic(count int) { v.adapter.drop(count) }

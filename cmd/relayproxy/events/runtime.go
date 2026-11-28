@@ -68,6 +68,9 @@ func (r *Runtime) Start(ctx context.Context, changes <-chan flagruntime.Change) 
 // Collect hands an evaluation event to the exporters, see [Dispatcher.Collect].
 func (r *Runtime) Collect(event Event) bool { return r.Dispatcher.Collect(event) }
 
+// DropNotPublic counts events of a caller without a key that were refused for a flag that is not public.
+func (r *Runtime) DropNotPublic(count int) { r.Dispatcher.DropNotPublic(count) }
+
 // ReloadReport says what a reload did with the exporters and the notifiers.
 type ReloadReport struct {
 	Exporters ReloadSet

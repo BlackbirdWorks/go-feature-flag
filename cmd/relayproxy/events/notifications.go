@@ -248,6 +248,12 @@ func (n *Notifications) dispatch(ctx context.Context, change flagruntime.Change)
 		n.broadcast(ctx, change)
 	}
 
+	// the public flag set is a view for the streams of the clients without a key: the flags of its sources are
+	// notified under their own flag set, once, and a flag set that became private deletes nothing
+	if change.FlagSet == flagruntime.PublicName {
+		return
+	}
+
 	n.mu.RLock()
 	defer n.mu.RUnlock()
 
