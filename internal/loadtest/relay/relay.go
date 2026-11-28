@@ -185,7 +185,7 @@ func StartWithStore(opts *Options, store *StoreOptions) (_ *Relay, err error) {
 		return nil, err
 	}
 
-	err = r.checkServed()
+	err = r.checkServed(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -463,7 +463,7 @@ func (r *Relay) storeConnections() string {
 
 // checkServed evaluates a flag of the flag set: a corrupted object degrades its flag set only (the generation is
 // applied without it), and a set that is routed but pending serves no flag.
-func (r *Relay) checkServed() error {
+func (r *Relay) checkServed(ctx context.Context) error {
 	flagSet, err := r.FlagSets.FlagSet(APIKey)
 	if err != nil {
 		return fmt.Errorf("%w: the flag set is not served: %w", errNotReady, err)
@@ -471,7 +471,7 @@ func (r *Relay) checkServed() error {
 
 	key := loadtest.FlagKey(loadtest.Scenarios()[0], loadtest.Types()[0], false)
 
-	_, err = flagSet.RawVariation(key, ffcontext.NewEvaluationContext("readiness"), nil)
+	_, err = flagSet.RawVariation(ctx, key, ffcontext.NewEvaluationContext("readiness"), nil)
 	if err != nil {
 		return fmt.Errorf("%w: the flag %s is not served: %w", errNotReady, key, err)
 	}

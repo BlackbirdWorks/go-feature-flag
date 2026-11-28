@@ -67,7 +67,7 @@ func checkSpan(t *testing.T, tt *spanCase) {
 	builder.Commit(built)
 
 	eval := flagruntime.NewEvaluator(newService(t), nil)
-	_, err = eval.BoolVariationDetails(
+	_, err = eval.BoolVariationDetails(t.Context(),
 		built.Runtime.FlagSets["a"], "audience-flag", ffcontext.NewEvaluationContext(memberAlice), false)
 	require.NoError(t, err, tt.name)
 
@@ -121,7 +121,7 @@ func TestSegmentBindingsCountOpenBreakers(t *testing.T) {
 	)
 
 	eval := flagruntime.NewEvaluator(newService(t), nil)
-	_, err = eval.BoolVariationDetails(
+	_, err = eval.BoolVariationDetails(t.Context(),
 		built.Runtime.FlagSets["a"], "audience-flag", ffcontext.NewEvaluationContext(memberAlice), false)
 	require.NoError(t, err)
 

@@ -50,10 +50,10 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 
-	_, span := tracer.Start(r.Context(), "AllFlagsState")
+	ctx, span := tracer.Start(r.Context(), "AllFlagsState")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetManager, helper.APIKey(r))
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetManager, helper.APIKey(r))
 	if httpErr != nil {
 		return fmt.Errorf("getting the flag set of all flags: %w", httpErr)
 	}
@@ -62,11 +62,12 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	if len(evaluationCtx.ExtractGOFFProtectedFields().FlagList) > 0 {
 		// if we have a list of flags to evaluate in the evaluation context, we evaluate only those flags.
 		allFlags = flagset.GetFlagStates(
+			ctx,
 			evaluationCtx,
 			evaluationCtx.ExtractGOFFProtectedFields().FlagList,
 		)
 	} else {
-		allFlags = flagset.AllFlagsState(evaluationCtx)
+		allFlags = flagset.AllFlagsState(ctx, evaluationCtx)
 	}
 
 	flagNames := make([]string, 0, len(allFlags.GetFlags()))
@@ -74,7 +75,9 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 		flagNames = append(flagNames, key)
 	}
 
-	h.metrics.IncAllFlag(flagNames...)
+	if ctx.Err() == nil {
+		h.metrics.IncAllFlag(flagNames...)
+	}
 
 	span.SetAttributes(
 		attribute.Bool("AllFlagsState.valid", allFlags.IsValid()),

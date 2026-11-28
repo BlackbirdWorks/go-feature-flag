@@ -95,7 +95,7 @@ func TestSharedBinding(t *testing.T) {
 				}
 
 				for _, name := range []string{"s0", "s1", fmt.Sprintf("s%d", tt.sets-1)} {
-					got, err := eval.BoolVariationDetails(
+					got, err := eval.BoolVariationDetails(t.Context(),
 						current.FlagSets[name], "audience-flag", ffcontext.NewEvaluationContext(memberAlice), false)
 					require.NoError(t, err)
 					assert.True(t, got.Value)
@@ -347,7 +347,7 @@ func startSnapshotRig(t *testing.T, doc string) *snapshotRig {
 func (r *snapshotRig) answer(t *testing.T) (bool, segment.Status) {
 	t.Helper()
 
-	got, err := r.eval.BoolVariationDetails(
+	got, err := r.eval.BoolVariationDetails(t.Context(),
 		r.holder.Load().FlagSets["a"], "audience-flag", ffcontext.NewEvaluationContext(memberAlice), false)
 	require.NoError(t, err)
 
@@ -1115,7 +1115,7 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 			first := buildAndCommit(t, builder, viewContent(t, base.String()))
 			require.NoError(t, first.Runtime.FlagSets["a"].Segments.View.RefreshVersions(t.Context(), now))
 
-			got, err := eval.BoolVariationDetails(first.Runtime.FlagSets["a"], audienceFlag, ctx, false)
+			got, err := eval.BoolVariationDetails(t.Context(), first.Runtime.FlagSets["a"], audienceFlag, ctx, false)
 			require.NoError(t, err)
 			require.True(t, got.Value)
 			require.Equal(t, manyNames, source.Calls(segment.OpMembers))
@@ -1158,7 +1158,7 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 
 			require.NoError(t, set.Segments.View.RefreshVersions(t.Context(), now.Add(time.Minute)))
 
-			got, err = eval.BoolVariationDetails(set, audienceFlag, ctx, false)
+			got, err = eval.BoolVariationDetails(t.Context(), set, audienceFlag, ctx, false)
 			require.NoError(t, err)
 			assert.True(t, got.Value)
 			assert.Equal(t, tt.wantMembers, source.Calls(segment.OpMembers))
@@ -1513,7 +1513,7 @@ func TestRemovedConnectionLookupCacheIsNotKept(t *testing.T) {
 	for gen, doc := range []string{lookupDoc, segHeader + "  - name: beta\n    members: [alice]\n", lookupDoc} {
 		built := buildAndCommit(t, builder, revisionContent(t, uint64(gen+1), doc))
 
-		_, err := eval.BoolVariationDetails(built.Runtime.FlagSets["a"], audienceFlag, ctx, false)
+		_, err := eval.BoolVariationDetails(t.Context(), built.Runtime.FlagSets["a"], audienceFlag, ctx, false)
 		require.NoError(t, err)
 	}
 
@@ -1550,7 +1550,13 @@ func TestRefusedSnapshotDoesNotTakeTheLookupsDown(t *testing.T) {
 	require.NotNil(t, set.Segments.View)
 	assert.True(t, set.Segments.View.Serves(audienceSegmentName))
 
-	got, err := eval.BoolVariationDetails(set, audienceFlag, ffcontext.NewEvaluationContext(memberAlice), false)
+	got, err := eval.BoolVariationDetails(
+		t.Context(),
+		set,
+		audienceFlag,
+		ffcontext.NewEvaluationContext(memberAlice),
+		false,
+	)
 	require.NoError(t, err)
 	assert.True(t, got.Value)
 	assert.Equal(t, segment.StatusHealthy, got.SegmentStatus)

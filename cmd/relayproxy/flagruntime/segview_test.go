@@ -160,7 +160,7 @@ func TestDynamicSegmentIsServed(t *testing.T) {
 			source.Fail(segment.OpContains, tt.fail)
 
 			set := viewSet(t, &memBinder{source: source}, lookupDoc)
-			got, err := eval.BoolVariationDetails(
+			got, err := eval.BoolVariationDetails(t.Context(),
 				set,
 				"audience-flag",
 				ffcontext.NewEvaluationContext(tt.target),
@@ -191,7 +191,7 @@ func TestDynamicSegmentsAreFetchedInOneBatch(t *testing.T) {
 		{
 			name: "one flag", wantCalls: 1,
 			run: func(set *flagruntime.FlagSet) any {
-				got, _ := eval.BoolVariationDetails(
+				got, _ := eval.BoolVariationDetails(t.Context(),
 					set,
 					"audience-flag",
 					ffcontext.NewEvaluationContext(memberAlice),
@@ -204,7 +204,7 @@ func TestDynamicSegmentsAreFetchedInOneBatch(t *testing.T) {
 		{
 			name: "plain flag", wantCalls: 0,
 			run: func(set *flagruntime.FlagSet) any {
-				got, _ := eval.BoolVariationDetails(
+				got, _ := eval.BoolVariationDetails(t.Context(),
 					set,
 					"plain-flag",
 					ffcontext.NewEvaluationContext(memberAlice),
@@ -217,7 +217,7 @@ func TestDynamicSegmentsAreFetchedInOneBatch(t *testing.T) {
 		{
 			name: "all flags", wantCalls: 1,
 			run: func(set *flagruntime.FlagSet) any {
-				states := eval.AllFlagsState(set, ffcontext.NewEvaluationContext(memberAlice))
+				states := eval.AllFlagsState(t.Context(), set, ffcontext.NewEvaluationContext(memberAlice))
 
 				return states.GetFlags()["twin-flag"].Value
 			},
@@ -309,7 +309,7 @@ func TestSegmentViewRefreshVersions(t *testing.T) {
 
 		require.NoError(t, view.RefreshVersions(t.Context(), start.Add(tt.at)), tt.name)
 
-		got, err := eval.BoolVariationDetails(set, "audience-flag", ctx, false)
+		got, err := eval.BoolVariationDetails(t.Context(), set, "audience-flag", ctx, false)
 		require.NoError(t, err, tt.name)
 		assert.Equal(t, tt.wantValue, got.Value, tt.name)
 		assert.Equal(t, tt.wantVersions, source.Calls(segment.OpVersion), tt.name)
@@ -457,14 +457,26 @@ func TestSegmentViewGroupsAndSettings(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		got, err := eval.BoolVariationDetails(set, "either-flag", ffcontext.NewEvaluationContext(tt.target), false)
+		got, err := eval.BoolVariationDetails(
+			t.Context(),
+			set,
+			"either-flag",
+			ffcontext.NewEvaluationContext(tt.target),
+			false,
+		)
 		require.NoError(t, err, tt.name)
 		assert.Equal(t, tt.wantValue, got.Value, tt.name)
 	}
 
 	assert.Equal(t, 6, source.Calls(segment.OpContains), "one call for each group of each evaluation")
 
-	_, err := eval.BoolVariationDetails(set, "either-flag", ffcontext.NewEvaluationContext(memberAlice), false)
+	_, err := eval.BoolVariationDetails(
+		t.Context(),
+		set,
+		"either-flag",
+		ffcontext.NewEvaluationContext(memberAlice),
+		false,
+	)
 	require.NoError(t, err)
 	assert.Positive(t, counters.Snapshot().Hits, "the second evaluation of alice is answered by the cache")
 }
@@ -482,7 +494,7 @@ func TestSegmentViewAsksWhatTheBatchCouldNotRead(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 
 	evalCtx := ffcontext.NewEvaluationContextBuilder("k").AddCustom("user", user{ID: memberAlice}).Build()
-	got, err := eval.BoolVariationDetails(set, "typed-flag", evalCtx, false)
+	got, err := eval.BoolVariationDetails(t.Context(), set, "typed-flag", evalCtx, false)
 
 	require.NoError(t, err)
 	assert.True(t, got.Value)

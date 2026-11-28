@@ -47,7 +47,7 @@ func TestRequestFlagSet(t *testing.T) {
 	t.Parallel()
 
 	routed := &ffclient.GoFeatureFlag{}
-	manager := &mock.Resolver{Set: routed}
+	manager := &mock.Resolver{Set: mock.Engine{GoFeatureFlag: routed}}
 	unrouted := &mock.Resolver{Err: errNotFound}
 
 	tests := []struct {
@@ -59,11 +59,11 @@ func TestRequestFlagSet(t *testing.T) {
 	}{
 		{
 			name: "the flag set resolved by the authentication is used", authenticate: true, manager: manager,
-			wantFlagSet: routed,
+			wantFlagSet: mock.Engine{GoFeatureFlag: routed},
 		},
 		{
 			name: "the flag set of the key is looked up without authentication", manager: manager,
-			wantFlagSet: routed,
+			wantFlagSet: mock.Engine{GoFeatureFlag: routed},
 		},
 		{name: "a key without flag set is an error without authentication", manager: unrouted, wantErr: true},
 	}
@@ -98,7 +98,7 @@ func TestAuthenticateFlagSet(t *testing.T) {
 	}{
 		{
 			name:    "a key that routes to a flag set",
-			manager: &mock.Resolver{Set: &ffclient.GoFeatureFlag{}}, want: true,
+			manager: &mock.Resolver{Set: mock.Engine{GoFeatureFlag: &ffclient.GoFeatureFlag{}}}, want: true,
 		},
 		{
 			name:    "a key that does not route to a flag set",

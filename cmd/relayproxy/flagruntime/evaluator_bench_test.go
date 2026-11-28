@@ -83,7 +83,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, _ = eval.RawVariation(set, flag, ctx, nil)
+				_, _ = eval.RawVariation(b.Context(), set, flag, ctx, nil)
 			}
 		})
 	}
@@ -100,7 +100,7 @@ func BenchmarkSingleEvaluation(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = eval.BoolVariationDetails(set, boolRule, ctx, false)
+			_, _ = eval.BoolVariationDetails(b.Context(), set, boolRule, ctx, false)
 		}
 	})
 }
@@ -130,7 +130,7 @@ func BenchmarkAllFlags(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = eval.AllFlagsState(set, ctx)
+			_ = eval.AllFlagsState(b.Context(), set, ctx)
 		}
 	})
 }
@@ -156,7 +156,7 @@ func BenchmarkNestedMetadata(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_, _ = eval.RawVariation(set, boolRule, ctx, nil)
+			_, _ = eval.RawVariation(b.Context(), set, boolRule, ctx, nil)
 		}
 	})
 }

@@ -63,7 +63,7 @@ func BenchmarkEvaluationTracking(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, err = flagSet.RawVariation(flag, evalCtx, nil)
+				_, err = flagSet.RawVariation(b.Context(), flag, evalCtx, nil)
 				require.NoError(b, err)
 			}
 		})

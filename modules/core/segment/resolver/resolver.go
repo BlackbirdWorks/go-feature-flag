@@ -264,6 +264,10 @@ type segAccs struct {
 	items [MaxObservedSegments]segAcc
 	spill segAcc
 	n     int
+	// gone is true when the context of the caller ended before the call had its answers; storeFault is true when the
+	// store, or the timeout of a shared call, also failed a lookup of the call. A call that only lost its caller is not
+	// a failure of the store.
+	gone, storeFault bool
 }
 
 func (a *segAccs) of(name string) *segAcc {
@@ -316,6 +320,8 @@ func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs
 
 			switch {
 			case pnd.flt.err != nil:
+				accs.storeFault = true
+
 				accs.of(pnd.sst.name).mark(ReasonStore)
 
 				storeErrs = appendOnce(storeErrs, pnd.flt.err)
@@ -323,20 +329,29 @@ func waitFor(ctx context.Context, lookups []segment.Lookup, pend []pending, accs
 				accs.of(pnd.sst.name).mark(ReasonUnanswered) // the store replied without an answer for it
 			}
 		case flightTimedOut:
+			accs.storeFault = true
+
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 
 			waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, cause))
 		case callerGone:
+			accs.gone = true
+
 			accs.of(pnd.sst.name).mark(ReasonWaiting)
 
 			waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, cause))
 
 			// the caller is gone: what is already known of the others is kept, and so are the causes, whatever the order
 			if pnd.flt.call.ctx.Err() != nil {
+				accs.storeFault = true
+
 				waitErrs = append(waitErrs, fmt.Errorf("%w: %w", ErrWaiting, pnd.flt.call.ctx.Err()))
 			}
 
+			caused := len(waitErrs)
+
 			storeErrs, waitErrs = keepAnswered(lookups, pend[i+1:], storeErrs, waitErrs)
+			accs.storeFault = accs.storeFault || len(storeErrs) > 0 || len(waitErrs) > caused
 
 			return joinCauses(storeErrs, waitErrs)
 		}
@@ -1276,7 +1291,8 @@ func (r *Resolver) report(lookups []segment.Lookup, obs *CallObservation, accs *
 	}
 
 	obs.Duration = clock.Now().Sub(start)
-	obs.Failed = err != nil
+	// a caller that left is not a failure of the store: it is counted in the unknown lookups, as waiting
+	obs.Failed = err != nil && (!accs.gone || accs.storeFault)
 	r.observer.ObserveCall(*obs)
 }
 
@@ -1340,6 +1356,8 @@ func (r *Resolver) prepare(
 
 	// a caller that is gone does not start a call; what the cache had was answered above
 	if ctx.Err() != nil {
+		accs.gone = true
+
 		for i := range pend {
 			accs.of(pend[i].sst.name).mark(ReasonWaiting)
 		}

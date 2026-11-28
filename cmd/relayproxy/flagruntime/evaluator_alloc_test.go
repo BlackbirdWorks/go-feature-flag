@@ -94,7 +94,7 @@ func TestEvaluator_AllocationsEqualTheEngine(t *testing.T) {
 				nil,
 			)
 		})
-		raw := minAllocs(func() { rawRes, _ = eval.RawVariation(set, tt.flag, ctx, nil) })
+		raw := minAllocs(func() { rawRes, _ = eval.RawVariation(t.Context(), set, tt.flag, ctx, nil) })
 
 		assert.Equal(t, tt.wantReason, rawRes.Reason, tt.name)
 		assert.Equal(t, tt.wantValueKind, valueKind(rawRes.Value), "%s: the kind of the value", tt.name)
@@ -131,7 +131,7 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 		{
 			name: kindObject, flag: objectFlag, copies: true, wantValueKind: kindMap,
 			typed: func() any {
-				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, objectFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -148,7 +148,7 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 			copies:        true,
 			wantValueKind: kindList,
 			typed: func() any {
-				res, _ := eval.JSONArrayVariationDetails(set, arrayFlag, ctx, nil)
+				res, _ := eval.JSONArrayVariationDetails(t.Context(), set, arrayFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -163,7 +163,7 @@ func TestEvaluator_TypedJSONCopiesOnce(t *testing.T) {
 			name: "scheduled object", flag: scheduledObject, copies: false, wantScheduled: true,
 			wantValueKind: kindMap,
 			typed: func() any {
-				res, _ := eval.JSONVariationDetails(set, scheduledObject, ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, scheduledObject, ctx, nil)
 
 				return res.Value
 			},
@@ -227,7 +227,7 @@ func TestEvaluator_AllFlagsAllocationsEqualTheEngine(t *testing.T) {
 	var engineStates, gotStates flagstate.AllFlags
 
 	engine := minAllocs(func() { engineStates = engineAllFlags(set.Flags, ctx, flagCtx) })
-	got := minAllocs(func() { gotStates = eval.AllFlagsState(set, ctx) })
+	got := minAllocs(func() { gotStates = eval.AllFlagsState(t.Context(), set, ctx) })
 
 	assert.Len(t, set.Flags, 100)
 
@@ -278,7 +278,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		{
 			name: "scalar flag", flag: trackedFlag, wantReason: flagdef.ReasonStatic, wantValueKind: kindBool,
 			run: func(eval *flagruntime.Evaluator) any {
-				res, _ := eval.RawVariation(set, trackedFlag, ctx, nil)
+				res, _ := eval.RawVariation(t.Context(), set, trackedFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -289,7 +289,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			wantReason:    flagdef.ReasonTargetingMatch,
 			wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
-				res, _ := eval.RawVariation(set, objectFlag, ctx, nil)
+				res, _ := eval.RawVariation(t.Context(), set, objectFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -297,7 +297,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 		{
 			name: "typed object", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
-				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, objectFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -306,7 +306,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			name: "typed scheduled object", flag: "scheduled-tracked-object-flag", snapshot: true,
 			wantReason: flagdef.ReasonStatic, wantScheduled: true, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
-				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, "scheduled-tracked-object-flag", ctx, nil)
 
 				return res.Value
 			},
@@ -315,7 +315,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 			name: "missing flag, typed with a default", flag: missingKey, snapshot: true, def: newDefault(),
 			wantReason: flagdef.ReasonError, wantErrorCode: flagdef.ErrorCodeFlagNotFound, wantValueKind: kindMap,
 			run: func(eval *flagruntime.Evaluator) any {
-				res, _ := eval.JSONVariationDetails(set, missingKey, ctx, newDefault())
+				res, _ := eval.JSONVariationDetails(t.Context(), set, missingKey, ctx, newDefault())
 
 				return res.Value
 			},
@@ -323,7 +323,7 @@ func TestEvaluator_TrackedAllocations(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		res, _ := plain.RawVariation(set, tt.flag, ctx, tt.def)
+		res, _ := plain.RawVariation(t.Context(), set, tt.flag, ctx, tt.def)
 
 		assert.Equal(t, tt.wantReason, res.Reason, tt.name)
 		assert.Equal(t, tt.wantErrorCode, res.ErrorCode, tt.name)

@@ -103,7 +103,7 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 
 				started := time.Now()
 
-				res, err := eval.IntVariationDetails(set, "flag-000", evalCtx, -1)
+				res, err := eval.IntVariationDetails(b.Context(), set, "flag-000", evalCtx, -1)
 				if err != nil || res.Failed {
 					failed.Add(1)
 
