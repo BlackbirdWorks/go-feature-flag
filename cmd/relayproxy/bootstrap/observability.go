@@ -21,6 +21,12 @@ type Metrics struct {
 	Enabled       *bool `json:"enabled,omitempty"       jsonschema:"default=true"      yaml:"enabled,omitempty"`
 	LegacyNames   bool  `json:"legacyNames,omitempty"   yaml:"legacyNames,omitempty"`
 	PerFlagLabels bool  `json:"perFlagLabels,omitempty" yaml:"perFlagLabels,omitempty"`
+	// PerSegmentLabels adds the series labelled by segment name (off by default: the default series are labelled by
+	// connection only).
+	PerSegmentLabels bool `json:"perSegmentLabels,omitempty" yaml:"perSegmentLabels,omitempty"`
+	// MaxSegmentLabels caps the distinct segment names of those series; the others are counted under "other".
+	// Default 100.
+	MaxSegmentLabels int32 `json:"maxSegmentLabels,omitempty" yaml:"maxSegmentLabels,omitempty"`
 }
 
 // Tracing is the OpenTelemetry setup.

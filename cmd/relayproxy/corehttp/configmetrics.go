@@ -82,7 +82,10 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 			"Seconds since the control plane last confirmed the manifest.",
 		),
 		counts: desc(
-			metricResources, "Resources by kind (flagset, object, dynamicSegment) and state.", "kind", "state",
+			metricResources,
+			"Resources by kind (flagset, object, dynamicSegment, unresolvedSegment) and state.",
+			"kind",
+			"state",
 		),
 		named: desc(metricResource, "1 for a resource that is not ready, by kind and name; at most "+
 			strconv.Itoa(maxNamedResources)+" per kind.", "kind", "name", "state"),
@@ -176,6 +179,8 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 	for _, state := range []string{stateValid, stateRejected} {
 		gauge(c.counts, float64(sum.dynamic[state]), kindDynamicSegment, state)
 	}
+
+	gauge(c.counts, float64(sum.dynamic[stateUnresolved]), kindUnresolvedSegment, stateUnresolved)
 
 	for _, bad := range sum.badSets[:min(len(sum.badSets), maxNamedResources)] {
 		gauge(c.named, 1, kindFlagSet, bad.name, bad.state)

@@ -161,7 +161,7 @@ A segment definition can say what an unanswered lookup of that segment becomes, 
 
 ### Segments that are not defined
 
-When a set of segment definitions is configured, a rule that uses another name is accepted with a warning, and the segment matches nobody (`not (x in segment("ghost"))` is then true for everybody). Without any definition, every segment is looked up through the provider as it is.
+When a set of segment definitions is configured, a rule that uses another name is accepted, the relay logs one warning per applied generation and lists the name in `/info` (`segments.unresolvedNames`) and in `semaphore_resource_count{kind="unresolvedSegment"}`, and the segment matches nobody (`not (x in segment("ghost"))` is then true for everybody). Without any definition, every segment is looked up through the provider as it is.
 
 ### Evaluation status
 

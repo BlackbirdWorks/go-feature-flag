@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentobs"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
 // New builds the core of a validated bootstrap file. The context bounds the build (the exporters and notifiers); it
@@ -130,7 +135,7 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	engineHooks := deps.Hooks
 	afterRound := engineHooks.AfterRound
 	engineHooks.AfterRound = func(res flagruntime.RoundResult) {
-		c.reloads.record(&res)
+		c.recordRound(ctx, &res)
 		c.reloads.recordRejected(&res, c.holder.Load().Status.Objects)
 
 		if persist != nil {
@@ -142,14 +147,16 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 		}
 	}
 
-	c.engine = c.newEngine(cfg, deps, engineHooks)
+	c.engine = c.newEngine(ctx, cfg, deps, engineHooks)
 	c.source = controlsource.New(c.reader, c.engine, c.holder, c.log)
 
 	return c.assembleEvents(ctx, cfg, deps)
 }
 
 // newEngine builds the engine and the stores of the dynamic segments that it binds its generations to.
-func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Hooks) *flagruntime.Engine {
+func (c *Core) newEngine(
+	ctx context.Context, cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Hooks,
+) *flagruntime.Engine {
 	c.segWait = deps.SegmentWait
 	if c.segWait == nil {
 		c.segWait = timerWait
@@ -160,13 +167,29 @@ func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Ho
 		c.segJitter = func(limit time.Duration) time.Duration { return time.Duration(c.jitter() * float64(limit)) }
 	}
 
+	metrics := cfg.Observability.Metrics
+	c.segObs = segmentobs.New(segmentobs.Options{
+		PerSegment: metrics.PerSegmentLabels, MaxSegments: int(metrics.MaxSegmentLabels),
+	})
+	c.registerSegmentSeries(ctx)
+
 	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})
+
+	// the series of every connection that can serve segments exist from the start, at zero
+	for _, store := range c.segs.States() {
+		c.segObs.For(store.Name)
+	}
 
 	return flagruntime.NewEngine(c.log, c.svc, c.holder,
 		flagruntime.WithHooks(hooks),
 		flagruntime.WithSegmentStores(c.segs),
 		flagruntime.WithSegments(&flagruntime.SegmentEnv{
-			Binder: c.segs, Observer: &c.segCounters, Resolver: resolverSettings(cfg),
+			Binder:      c.segs,
+			ObserverFor: func(connection string) resolver.Observer { return c.segObs.For(connection) },
+			Resolver:    resolverSettings(cfg),
+			Traced: opentelemetry.Enabled(&opentelemetry.Settings{
+				OTLPEndpoint: cfg.Observability.Tracing.OTLPEndpoint,
+			}),
 		}),
 		flagruntime.WithSecretOptions(deps.Secrets),
 		flagruntime.WithInitialBootstrap(cfg),
@@ -243,3 +266,72 @@ func SerializeJitter(source func() float64) func() float64 {
 		return source()
 	}
 }
+
+// registerSegmentSeries registers the series of the resolvers. A failed registration only loses the series: the
+// counters still feed /info.
+func (c *Core) registerSegmentSeries(ctx context.Context) {
+	if c.registry == nil {
+		return
+	}
+
+	err := c.registry.Register(c.segObs)
+	if err != nil {
+		c.log.LogAttrs(ctx, slog.LevelWarn, "the segment series are not registered", slog.String("error", err.Error()))
+
+		return
+	}
+
+	c.segObsRegistered = true
+}
+
+// recordRound counts a round, then follows the live segments of the generation that it applied.
+func (c *Core) recordRound(ctx context.Context, res *flagruntime.RoundResult) {
+	c.reloads.record(res)
+	c.noteLiveSegments(ctx, res)
+}
+
+// noteLiveSegments follows the live catalog: the names of the served dynamic segments are the ones that have a series
+// by segment name.
+func (c *Core) noteLiveSegments(ctx context.Context, res *flagruntime.RoundResult) {
+	if !res.ContentApplied {
+		return
+	}
+
+	runtime := c.holder.Load()
+	c.segObs.SetLive(runtime.DynamicSegmentNames())
+	c.warnUnresolved(ctx, runtime)
+}
+
+// warnUnresolved writes one line for the applied generation when flags use segment names that no segments object of
+// their flag set defines: such a name answers "not a member" for ever, which is nearly always a typo. The flag sets and
+// names are bounded; names only.
+func (c *Core) warnUnresolved(ctx context.Context, current *flagruntime.Runtime) {
+	var total int
+
+	var entries []string
+
+	for _, name := range slices.Sorted(maps.Keys(current.Status.FlagSets)) {
+		counts := current.Status.FlagSets[name].Segments
+		if counts == nil || counts.Unresolved == 0 {
+			continue
+		}
+
+		total += counts.Unresolved
+
+		for _, segName := range counts.UnresolvedNames {
+			entries = append(entries, name+"/"+segName)
+		}
+	}
+
+	if total == 0 {
+		return
+	}
+
+	c.log.LogAttrs(ctx, slog.LevelWarn,
+		"flags use segment names that no segments object of their flag set defines: they answer not a member",
+		slog.Int("unresolved", total),
+		slog.Any("names", entries[:min(len(entries), maxLoggedUnresolved)]))
+}
+
+// maxLoggedUnresolved bounds the names of the line that reports unresolved segment names.
+const maxLoggedUnresolved = 10

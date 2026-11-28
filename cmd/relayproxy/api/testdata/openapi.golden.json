@@ -1010,6 +1010,19 @@
           "static": {
             "format": "int64",
             "type": "integer"
+          },
+          "unresolved": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unresolvedNames": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "required": [

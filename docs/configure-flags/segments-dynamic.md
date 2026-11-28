@@ -193,3 +193,33 @@ segments:
 
 - [Segments - dynamic: Redis](segments-redis.md): the data model, loading members, the resolver, metrics and sizing (shared by both types).
 - [Segments - dynamic: Valkey](segments-valkey.md): the valkey-go provider.
+
+## Security
+
+- **Read-only ACL.** The relay only reads. The lines below are tested against a real store (`TestE2E_ReadOnlyACLIsSufficientAndMinimal`): with the line the relay serves the set and the `keys` layout, both modes and the existence check; without any one command the feature that needs it answers `STORE_ERROR` and the relay stays ready. The user cannot write.
+
+  `valkey` (replace `<password>`; the relay reads it from a `fromEnv` or `fromFile` reference):
+
+  ```
+  ACL SETUSER relay on ><password> ~* -@all +hello +smismember +exists +sscan +get +multi +exec
+  ```
+
+  `redis`:
+
+  ```
+  ACL SETUSER relay on ><password> ~* -@all +smismember +exists +sscan +get
+  ```
+
+  | Command | Needed for |
+  |---|---|
+  | `hello` | `valkey` only: the client opens its connection with it |
+  | `smismember` | the `set` layout (every lookup of a set) |
+  | `exists` | the `keys` layout, and `missingKey: unknown` |
+  | `sscan`, `get` | the `snapshot` mode: the members, and the version key |
+  | `multi`, `exec` | `valkey` only: the existence check of `missingKey: unknown` is one transaction (`atomic`, on by default) |
+
+  Narrow `~*` to your key patterns (for example `~segments:*`) when the store is shared. A `redis` connection with `atomic: true` also needs `+evalsha +eval` (or `+evalsha_ro +eval_ro`), see [the Redis page](segments-redis.md).
+- **TLS.** `tls.enable: true` with `tls.caBundleFile` (and `tls.serverName` when the address is not the name of the certificate). The connection is tested against a TLS-only store: the right CA serves the lookups; a CA that did not sign the certificate, or no TLS against a TLS store, is refused with a classified error (`valkey: ... unavailable`) that names neither the address nor the certificate, the segments answer `STORE_ERROR`, and the relay stays ready.
+- **Secrets.** A password is a `fromEnv` or `fromFile` reference. A resolved value is a secret type: it prints as `[REDACTED]` in `config print --effective`, in `%v`, in JSON and YAML, in logs and in errors. An inline password is refused unless the development switch allows it.
+- **Never logged, never in an API.** No member id, key or key pattern is in a log line (at any level), in `/info`, in the metrics, in `POST /v1/flag/configuration` or in an error body: lines carry the segment name and a class. A test evaluates a recognisable id through every path (hit, miss, snapshot, typed attribute, rejected definition, outage) at debug level and scans all of them. Metric labels are the connection and closed lists; segment names are in a label only when you turn on `perSegmentLabels` (see [Metrics](../relay-proxy/probes.md#metrics)). A segment name is not secret, but it is a label: keep the names of a tenant out of a shared metrics store if that matters.
+- **A flag set sees its own segments only.** A flag set resolves a segment name only in the segments objects it lists in `segmentSources`. A flag that names a segment of an object it does not list stays unresolved: the lookup answers "not a member" and the members of another set never reach it (`TestE2E_FlagSetSeesOnlyItsOwnSegments`). There is no allow list beyond `segmentSources`, and the relay says so: `/info` lists, for each flag set, `segments.unresolved` and the first names (`unresolvedNames`, sorted, at most 5), `semaphore_resource_count{kind="unresolvedSegment",state="unresolved"}` counts them, and each applied generation that has some writes one WARN line with the flag sets and names (never ids). `semaphore-cli publish` and `verify` refuse a flag that uses a name that no segments object of its flag set defines. On the eval endpoints such a flag is cacheable (the answer is a fixed "not a member"); `POST /v1/flag/configuration` lists the name in `segments` and sets `requiresServerEvaluation: true`.

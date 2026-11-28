@@ -101,6 +101,43 @@ func TestCountersAndObserver(t *testing.T) {
 		Duration: stats.Duration,
 	}, stats)
 	assert.GreaterOrEqual(t, stats.Duration, time.Duration(0))
+
+	dist := counters.Distribution()
+
+	var inBuckets, inReasons uint64
+	for _, n := range dist.DurationBuckets {
+		inBuckets += n
+	}
+
+	for _, n := range dist.Reasons {
+		inReasons += n
+	}
+
+	assert.Equal(t, uint64(2), inBuckets, "each call is in one bucket")
+	assert.Equal(t, stats.Unknown, inReasons, "each unknown lookup has a reason")
+}
+
+func TestCountersDistribution(t *testing.T) {
+	t.Parallel()
+
+	counters := &resolver.Counters{}
+	counters.ObserveCall(resolver.CallObservation{Duration: 3 * time.Millisecond})
+	counters.ObserveCall(resolver.CallObservation{Duration: time.Hour})
+	counters.ObserveCall(resolver.CallObservation{Duration: -1})
+	counters.ObserveSegment(resolver.SegmentObservation{Unknown: 2, Failure: resolver.ReasonCircuitOpen})
+	counters.ObserveSegment(resolver.SegmentObservation{Unknown: 1, Failure: resolver.Reason(200)})
+	counters.ObserveSegment(resolver.SegmentObservation{Unknown: 0, Failure: resolver.ReasonStore})
+	counters.ObserveSegment(resolver.SegmentObservation{Unknown: -3, Failure: resolver.ReasonStore})
+
+	want := resolver.Distribution{}
+	want.DurationBuckets[0] = 1                              // a negative duration counts as the fastest
+	want.DurationBuckets[3] = 1                              // 3ms is above 2.5ms and below 5ms
+	want.DurationBuckets[resolver.DurationBucketCount-1] = 1 // above the last bound
+	want.Reasons[resolver.ReasonCircuitOpen] = 2             //
+	want.Reasons[resolver.ReasonNone] = 1                    // a reason that is not one is "none"
+
+	assert.Equal(t, want, counters.Distribution())
+	assert.Len(t, resolver.DurationBounds(), resolver.DurationBucketCount-1)
 }
 
 func TestCountersIgnoreNegativeValues(t *testing.T) {

@@ -213,6 +213,10 @@ func (c *Core) releaseAll(ctx context.Context) {
 		c.registry.Unregister(c.collector)
 	}
 
+	if c.segObsRegistered {
+		c.registry.Unregister(c.segObs)
+	}
+
 	if c.readerMetrics != nil {
 		c.registry.Unregister(c.readerMetrics)
 	}

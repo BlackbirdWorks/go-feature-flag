@@ -49,11 +49,17 @@ it. It works with zero flag sets.
 | `semaphore_config_reload_total` | `result` (`applied`, `rejected`, `ignored`) | reconcile rounds |
 | `semaphore_config_last_success_timestamp_seconds` | | Unix time of the last applied round, 0 when none |
 | `semaphore_config_age_seconds` | | seconds since the control plane last confirmed the manifest |
-| `semaphore_resource_count` | `kind` (`flagset`, `object`, `dynamicSegment`), `state` | resources by state, always exported; `dynamicSegment` counts the dynamic segment definitions of the flag sets as `valid` or `rejected` |
-| `semaphore_segment_lookups_total` | `result` (`hit`, `miss`, `coalesced`, `short_circuited`, `unknown`) | segment lookups by how the resolvers answered them, since the start |
+| `semaphore_resource_count` | `kind` (`flagset`, `object`, `dynamicSegment`, `unresolvedSegment`), `state` | resources by state, always exported; `dynamicSegment` counts the dynamic segment definitions of the flag sets as `valid` or `rejected`; `unresolvedSegment` (state `unresolved`) counts the segment names that flags use and no segments object of their flag set defines |
+| `semaphore_segment_lookups_total` | `connection`, `result` (`hit`, `miss`, `coalesced`, `short_circuited`, `unknown`) | lookups of the `lookup` mode by how the resolver answered them; `hit`, `miss` and `coalesced` are the cache outcomes |
+| `semaphore_segment_lookup_duration_seconds` | `connection` | histogram of the duration of a resolver call (one batch of lookups; buckets 0.5ms to 5s) |
+| `semaphore_segment_unknown_total` | `connection`, `reason` (`none`, `store`, `circuit_open`, `waiting`, `not_loaded`, `oversized`, `invalid`, `unanswered`, `overdue`) | lookups that stayed unknown, by why (the first 8 segments of a call are reported) |
 | `semaphore_segment_store_calls_total` | | calls of the resolvers to the stores |
 | `semaphore_segment_store_failed_calls_total` | | those calls that failed |
 | `semaphore_segment_breaker_transitions_total` | `to` (`open`, `half_open`, `closed`) | transitions of the circuit breakers |
+| `semaphore_segment_breaker_state` | `connection`, `state` (`open`, `half_open`) | segments whose circuit breaker is in that state now; closed is the rest |
+| `semaphore_segment_named_lookups_total` | `segment`, `result` (`hit`, `miss`, `coalesced`, `unknown`) | opt-in (`observability.metrics.perSegmentLabels`): lookups by segment name |
+| `semaphore_segment_named_unknown_total` | `segment`, `reason` | opt-in: unknown lookups by segment name and reason |
+| `semaphore_segment_named_overflow_total` | | opt-in: observations of segments beyond `maxSegmentLabels`, counted in `segment="other"` |
 | `semaphore_segment_store_state` | `connection`, `state` | 1 for the state of each store connection, 0 for the others |
 | `semaphore_segment_dynamic` | `status` (`healthy`, `store_error`) | served dynamic segments by health now |
 | `semaphore_segment_snapshot_sets` | `connection`, `state` (`loaded`, `stale`, `missing`, `never_loaded`) | held sets of the `snapshot` mode by connection and state now |
@@ -66,6 +72,10 @@ it. It works with zero flag sets.
 | `semaphore_object_status` | `state` (`ok`, `stale`, `missing`, `pending`, `invalid`) | source objects by state, always exported |
 | `semaphore_object_oldest_unapplied_age_seconds` | | seconds since the oldest object that is not `ok` left that state, 0 when all are `ok` |
 | `semaphore_config_summaries_total` | | status summaries built: one per swapped runtime, by the first probe or scrape that reads it (readers that meet it together share one build) |
+
+Cardinality: the segment series are labelled by `connection` (a name of the bootstrap file) and by closed lists (`result`, `reason`, `state`), never by a flag set, member, key or id. The series by segment name are off unless `observability.metrics.perSegmentLabels` is `true`; the names that have a series are the live dynamic segments of the served generation (a name that is gone loses its series and frees its slot), at most `maxSegmentLabels` of them (default 100) in sorted order, and every other name is counted under `segment="other"` (a segment that is itself named `other` shares it); a series of a name that comes back starts at zero. The series cost one atomic load and atomic adds per segment, no lock. The `snapshot` mode answers from memory without the resolver, so the resolver series cover the `lookup` mode only; `semaphore_segment_snapshot_*` cover the snapshot mode. A request that reaches dynamic segments writes one span `segmentLookups` when tracing is on (`observability.tracing.otlpEndpoint`), with `semaphore.segment.connections`, `semaphore.segment.lookups`, `semaphore.segment.unanswered` and `semaphore.segment.result` (`answered`, `unanswered`, `failed`) and no id. The span is on exactly when tracing is (`opentelemetry.Enabled`, the predicate that starts the exporter). The evaluator has no request context yet, so it is a root span, not a child of the request span: it is recorded only with a sampler that samples roots (`always_on`, `traceidratio`), not with the default `parentbased_always_off`.
+
+Health of a store that nothing has contacted: a connection that is configured but was never asked (a `lookup` segment with no `version.key`, and no request has reached it yet) reads healthy in `/info` and in `semaphore_segment_dynamic` until the first lookup fails; a `snapshot` segment, and a `lookup` segment with a `version.key`, are contacted by the refresh loop and show `store_error` within one interval. A cheap fix would be one probe of the store (a `PING`) when a connection is first opened; it is not built.
 
 The generation of the manifest the reader fetched (`semaphore_manifest_generation`: the engine may have rejected it; the generation served is `semaphore_config_generation{layer="applied"}`), the S3 requests and the exporters have their own metrics
 (`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).

@@ -176,7 +176,10 @@ func flagSetInfo(set *flagruntime.FlagSetStatus) model.FlagSetInfo {
 }
 
 func segmentCountsInfo(counts *flagruntime.SegmentCounts) *model.SegmentCountsInfo {
-	out := &model.SegmentCountsInfo{Static: counts.Static, Dynamic: counts.Dynamic}
+	out := &model.SegmentCountsInfo{
+		Static: counts.Static, Dynamic: counts.Dynamic, Unresolved: counts.Unresolved,
+		UnresolvedNames: counts.UnresolvedNames,
+	}
 
 	if counts.Dynamic > 0 {
 		out.DynamicStates = &model.DynamicStatesInfo{

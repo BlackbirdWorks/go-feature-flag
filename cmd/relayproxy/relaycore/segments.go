@@ -30,7 +30,7 @@ type SegmentSetHealth struct {
 // It evaluates nothing and calls no store.
 func (c *Core) segmentsStatus() SegmentsStatus {
 	rt := c.holder.Load()
-	out := SegmentsStatus{Stores: c.segs.States(), Resolver: c.segCounters.Snapshot(), Bindings: rt.SegmentBindings()}
+	out := SegmentsStatus{Stores: c.segs.States(), Resolver: c.segObs.Stats(), Bindings: rt.SegmentBindings()}
 
 	for name, set := range rt.FlagSets {
 		if set.Segments == nil || set.Segments.View == nil {
