@@ -106,10 +106,10 @@ const (
 type OnError string
 
 const (
-	// OnErrorUnknown keeps the lookup Unknown: the rule that depends on it does not match, unless the rule says
-	// onError: match. It is the default.
+	// OnErrorUnknown keeps the lookup Unknown (the opt-in of the three-valued logic): the rule that depends on it does
+	// not match, unless the rule says onError: match. It is not the default: the default is OnErrorNotMember.
 	OnErrorUnknown OnError = "unknown"
-	// OnErrorNotMember turns an Unknown lookup into NotMember.
+	// OnErrorNotMember turns an Unknown lookup into NotMember. It is the default, as in LaunchDarkly.
 	OnErrorNotMember OnError = "notMember"
 	// OnErrorMember turns an Unknown lookup into Member.
 	OnErrorMember OnError = "member"
@@ -298,6 +298,12 @@ func (s Status) String() string {
 	}
 
 	return ""
+}
+
+// Reported reports whether the status is worth telling the caller: a segment was looked up and the lookup was not
+// healthy. A healthy evaluation, and one that looked at no segment, report nothing.
+func (s Status) Reported() bool {
+	return s > StatusHealthy
 }
 
 // Worse returns the worse of the two statuses.

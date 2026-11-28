@@ -306,9 +306,10 @@ func TestEvaluator_ResponseMetadata(t *testing.T) {
 				flagruntime.LegacyMetadataCacheable: true,
 			},
 		},
+		{name: "healthy segment status is not reported", in: model.RawVarResult{SegmentStatus: segment.StatusHealthy}},
 		{
 			name: "segment status, Semaphore keys disabled",
-			in:   model.RawVarResult{SegmentStatus: segment.StatusHealthy}, disable: true,
+			in:   model.RawVarResult{SegmentStatus: segment.StatusStoreError}, disable: true,
 		},
 		{
 			name: "cacheable, Semaphore key disabled", in: model.RawVarResult{Cacheable: true}, disable: true,

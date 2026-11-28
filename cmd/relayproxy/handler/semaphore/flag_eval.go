@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
+	"github.com/blackbirdworks/semaphore/internal/flagstate"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
@@ -93,6 +94,8 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 	if flagSetNameErr == nil {
 		span.SetAttributes(attribute.String("flagEvaluation.flagSetName", flagsetName))
 	}
+
+	flagValue.Metadata = flagstate.WithSegmentStatus(flagValue.Metadata, flagValue.SegmentStatus)
 
 	werr := helper.WriteJSON(w, http.StatusOK, flagValue)
 	if werr != nil {

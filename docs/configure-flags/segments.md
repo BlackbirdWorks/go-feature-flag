@@ -118,7 +118,7 @@ The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. 
 
 ### Opt-in: unknown and `onError: match`
 
-A segment definition can ask for the three-valued logic with `onError: unknown`. The lookups of that segment that cannot be answered are then unknown, a rule combines its terms with three-valued logic, and a result that does not depend on an unknown term is still known:
+A segment definition can ask for the three-valued logic with `onError: unknown`. The lookups of that segment that cannot be answered are then unknown, a rule combines its terms with three-valued logic, and a result that does not depend on an unknown term is still known. A segment that is missing from the store is "not a member" by default, so `onError: unknown` does not apply to it (a known answer is never unknown): set `missingKey: unknown` in the store options to make a missing segment unknown.
 
 | Rule | A is unknown, the rest is | Result |
 |---|---|---|
@@ -174,7 +174,7 @@ The membership is two-valued, so the evaluation reports beside the result how th
 | `NOT_CONFIGURED` | a rule uses a segment and no provider is configured | |
 | `STORE_ERROR` | a lookup was not answered (store error, timeout, ended request, provider that panicked or left a lookup untouched) | worst |
 
-An evaluation that looked no segment up has no status. The relay proxy returns it as the `semaphore_segmentStatus` metadata key of the evaluation response (it is not sent when the Semaphore metadata is disabled). A provider that can serve older data reports it by implementing `segment.StaleReporter` (`Stale() bool`); nothing in the engine produces `STALE` by itself.
+An evaluation that looked no segment up has no status. The relay proxy returns it as the `semaphore_segmentStatus` metadata key of the evaluation responses (OFREP single and bulk, `/v1/feature/{flagKey}/eval` and `/v1/allflags`) when the evaluation used a segment and the status is not `HEALTHY`; a healthy evaluation and a flag without a segment have no such key, so their responses are unchanged. OFREP does not send it when the Semaphore metadata is disabled. A provider that can serve older data reports it by implementing `segment.StaleReporter` (`Stale() bool`); nothing in the engine produces `STALE` by itself.
 
 ## Use segments in the Go module
 
@@ -195,7 +195,7 @@ client, err := ffclient.New(&ffclient.Config{
 ```
 
 - `segment.Definition` has a `Name`, a `Type` (`file` for a static segment, `redis` or `valkey` for a dynamic segment) and an `OnError`. It never holds members.
-- A `segment.Provider` answers `Contains(ctx, []segment.Lookup) error`. All the lookups of a rule are sent in one call, so a store can answer them in one round trip. A lookup the provider cannot answer is not a member (unknown for a segment that opted in); when it returns an error, the lookups that it answered before keep their answers and the others are not answered, whether the error comes from the store or from the end of the request context during the call (a provider that panics is not trusted: all are unknown).
+- A `segment.Provider` answers `Contains(ctx, []segment.Lookup) error`. All the lookups of a rule are sent in one call, so a store can answer them in one round trip. A lookup the provider cannot answer is not a member (unknown for a segment that opted in); when it returns an error, the lookups that it answered before keep their answers and the others are not answered, whether the error comes from the store or from the end of the request context during the call (a provider that panics is not trusted: all lookups are unanswered, then the failure policy of the segment applies).
 - A provider can fail in four ways, and all are the same to the engine: it returns an error, it panics (only the type of the panic value is logged), it leaves a lookup untouched, or it sets a state that is not one of the three constants. The lookups that were not answered with a member or a non member are then not a member by default (all of them after a panic), and the evaluation reports `STORE_ERROR`; the rule is evaluated with the answers it has, so an answer that decides the rule still decides it. A request context that has ended before the call is the same, without a call; one that ends during the call is an error of the provider like another, and the answers given before keep their value.
 - `segment.NewMemoryProvider` holds the members in memory as hash sets. It serves the `file` type and tests. `segment.ReadMemberSet` reads a member file (one value per line; a UTF-8 byte order mark, blanks, carriage returns and blank lines are ignored, duplicates are one member) straight into a set, bounded by `segment.Limits` (rows and bytes, with defaults), and `segment.NewMemoryProviderFromSets` builds a provider from the sets.
 - The segment package does not depend on the rules engine, so a provider package does not pull the parser in.

@@ -146,9 +146,9 @@ func NewEvaluator(svc *flagdef.Service, cfg *EvaluatorConfig) *Evaluator {
 const (
 	// MetadataCacheable is the Semaphore key.
 	MetadataCacheable = "semaphore_cacheable"
-	// MetadataSegmentStatus is the Semaphore key of the health of the segment lookups of an evaluation: HEALTHY,
-	// STALE, STORE_ERROR or NOT_CONFIGURED, the worst of the segments of the evaluation (the names of LaunchDarkly's
-	// bigSegmentsStatus). An evaluation that looked at no segment does not carry it.
+	// MetadataSegmentStatus is the Semaphore key of the health of the segment lookups of an evaluation: STALE,
+	// NOT_CONFIGURED or STORE_ERROR, the worst of the segments of the evaluation (the names of LaunchDarkly's
+	// bigSegmentsStatus). A healthy evaluation, and one that looked at no segment, do not carry it.
 	MetadataSegmentStatus = "semaphore_segmentStatus"
 	// LegacyMetadataCacheable is the legacy key, always sent.
 	LegacyMetadataCacheable = "gofeatureflag_cacheable"
@@ -162,8 +162,7 @@ const (
 // cacheable.
 func (e *Evaluator) ResponseMetadata(res *model.RawVarResult) map[string]any {
 	metadata := res.Metadata
-	status := res.SegmentStatus.String()
-	withStatus := status != "" && !e.legacyMetadataOnly
+	withStatus := res.SegmentStatus.Reported() && !e.legacyMetadataOnly
 
 	if !res.Cacheable && !withStatus {
 		return metadata
@@ -174,7 +173,7 @@ func (e *Evaluator) ResponseMetadata(res *model.RawVarResult) map[string]any {
 	}
 
 	if withStatus {
-		metadata[MetadataSegmentStatus] = status
+		metadata[MetadataSegmentStatus] = res.SegmentStatus.String()
 	}
 
 	if !res.Cacheable {

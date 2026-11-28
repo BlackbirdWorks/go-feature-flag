@@ -6,6 +6,7 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // FlagState represents the state of an individual feature flag, with regard to a specific user, when it was called.
@@ -19,6 +20,28 @@ type FlagState struct { //nolint:govet // fieldalignment: field order is the key
 	ErrorDetails  string                   `json:"errorDetails,omitempty"`
 	Reason        flagdef.ResolutionReason `json:"reason"`
 	Metadata      map[string]any           `json:"metadata,omitempty"`
+	// SegmentStatus is the health of the segment lookups; it is not part of the JSON, see [WithSegmentStatus].
+	SegmentStatus segment.Status `json:"-"`
+}
+
+// MetadataSegmentStatus is the response metadata key of the health of the segment lookups of an evaluation.
+const MetadataSegmentStatus = "semaphore_segmentStatus"
+
+// WithSegmentStatus adds the MetadataSegmentStatus key to the metadata of an evaluation whose segment lookups were
+// not healthy (STALE, NOT_CONFIGURED or STORE_ERROR). A healthy evaluation, and one with no segment, get the
+// metadata back untouched: no copy, no allocation. The map belongs to the evaluation, so the key is added to it.
+func WithSegmentStatus(metadata map[string]any, status segment.Status) map[string]any {
+	if !status.Reported() {
+		return metadata
+	}
+
+	if metadata == nil {
+		metadata = make(map[string]any, 1)
+	}
+
+	metadata[MetadataSegmentStatus] = status.String()
+
+	return metadata
 }
 
 // FromFlagEvaluation builds the state of a flag evaluated now.
@@ -44,6 +67,7 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			ErrorDetails:  resolutionDetails.ErrorMessage,
 			Reason:        resolutionDetails.Reason,
 			Metadata:      resolutionDetails.Metadata,
+			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 	}
 
@@ -58,6 +82,7 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			ErrorDetails:  resolutionDetails.ErrorMessage,
 			Reason:        resolutionDetails.Reason,
 			Metadata:      resolutionDetails.Metadata,
+			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 	}
 
@@ -73,6 +98,7 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			ErrorDetails:  resolutionDetails.ErrorMessage,
 			Reason:        resolutionDetails.Reason,
 			Metadata:      resolutionDetails.Metadata,
+			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 
 	default:
@@ -89,6 +115,7 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			ErrorDetails:  resolutionDetails.ErrorMessage,
 			Reason:        flagdef.ReasonError,
 			Metadata:      resolutionDetails.Metadata,
+			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 	}
 }
