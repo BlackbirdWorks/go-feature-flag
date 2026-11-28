@@ -59,6 +59,9 @@ type BuilderOptions struct {
 	// SegmentStores tells what the connections of the bootstrap file can serve: a dynamic segment is checked against
 	// it when its segments object is read. Nil means the connections are not known and are not checked.
 	SegmentStores SegmentStores
+	// Segments binds the served dynamic segments to the providers of the process. The zero value serves none: they
+	// answer not a member, NOT_CONFIGURED.
+	Segments *SegmentEnv
 	// OnParse is called once for every object that is parsed (not for an object served from the cache).
 	OnParse func(ParseEvent)
 	// Now returns the time stamped on the flag sets that a build creates ([FlagSet.ModifiedAt]). Nil means

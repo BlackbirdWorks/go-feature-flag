@@ -50,11 +50,6 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	if cfg.Segments != nil {
-		logger.LogAttrs(ctx, slog.LevelWarn,
-			"segment stores are configured; segment definitions come from the control plane (not active yet)")
-	}
-
 	core := &Core{
 		log:      logger,
 		factory:  connection.New(append([]connection.Option{connection.WithLogger(logger)}, deps.Connection...)...),
@@ -141,9 +136,13 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 		}
 	}
 
+	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})
 	c.engine = flagruntime.NewEngine(c.log, c.svc, c.holder,
 		flagruntime.WithHooks(engineHooks),
-		flagruntime.WithSegmentStores(segmentstore.New(cfg)),
+		flagruntime.WithSegmentStores(c.segs),
+		flagruntime.WithSegments(&flagruntime.SegmentEnv{
+			Binder: c.segs, Observer: &c.segCounters, Resolver: resolverSettings(cfg),
+		}),
 		flagruntime.WithSecretOptions(deps.Secrets),
 		flagruntime.WithInitialBootstrap(cfg),
 	)
@@ -195,4 +194,13 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 	}
 
 	return nil
+}
+
+// resolverSettings is the resolver section of the file, nil when it has no segments section.
+func resolverSettings(cfg *bootstrap.Config) *bootstrap.SegmentResolver {
+	if cfg.Segments == nil {
+		return nil
+	}
+
+	return &cfg.Segments.Resolver
 }

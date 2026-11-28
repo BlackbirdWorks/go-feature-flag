@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
@@ -17,6 +19,9 @@ type SetSegments struct {
 	// a definition and no provider yet, so it answers by its failure policy and the evaluation reports
 	// NOT_CONFIGURED.
 	Catalog *segment.Catalog
+	// View binds the served dynamic definitions of the catalog to the providers of the process, nil when none is
+	// served. It is built with the catalog and carried over with it.
+	View *SegmentView
 	// hashes is the content hash of each segment of the catalog, members included: what a flag that uses the segment
 	// depends on, see [FlagSet.flagSigs].
 	hashes map[string]uint64
@@ -142,6 +147,8 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 
 	out.Catalog = catalog
 
+	problems = append(problems, st.bindView(out, defs, rejected)...)
+
 	return inputs, out, problems
 }
 
@@ -171,6 +178,7 @@ func definitionOf(def *controlplane.SegmentDefinition, rejected bool) segment.De
 		out.Mode = segment.Mode(def.Mode)
 		out.MissingKey = segment.MissingKey(def.MissingKey)
 		out.Layout = segment.Layout(def.Layout)
+		out.Version = versionSpec(def.Version)
 	}
 
 	// Applied last: the missingKey of the document must not overwrite the rejection.
@@ -318,4 +326,105 @@ func nameSet(names []string) map[string]struct{} {
 	}
 
 	return set
+}
+
+// versionSpec is the version of a definition for the catalog; an interval that does not parse is left out (the
+// document was validated before).
+func versionSpec(version *controlplane.SegmentVersion) *segment.VersionSpec {
+	if version == nil {
+		return nil
+	}
+
+	spec := &segment.VersionSpec{Value: version.Value, Key: version.Key}
+
+	if version.Interval != "" {
+		interval, err := time.ParseDuration(version.Interval)
+		if err == nil {
+			spec.Interval = interval
+		}
+	}
+
+	return spec
+}
+
+// bindView binds the dynamic definitions that the relay can serve (lookup mode, a connection it knows) to the
+// providers of the process, once for the flag set: the view is part of the generation and unchanged flag sets keep
+// theirs. A definition that cannot be bound stays unserved and the flag set is degraded.
+func (st *stage) bindView(
+	out *SetSegments,
+	defs map[string]*controlplane.SegmentDefinition,
+	rejected map[string]struct{},
+) []Problem {
+	env := st.b.opts.Segments
+	if !env.enabled() || out.Dynamic == out.RejectedDefinitions {
+		return nil
+	}
+
+	var served []*controlplane.SegmentDefinition
+
+	for _, name := range sortedNames(defs) {
+		def := defs[name]
+		if _, bad := rejected[name]; !bad && def.Connection != "" {
+			served = append(served, def)
+		}
+	}
+
+	view, failed := newSegmentView(env, served)
+	out.View = view
+
+	var problems []Problem
+
+	for _, name := range sortedNames(defs) {
+		if err, bad := failed[name]; bad {
+			problems = append(problems, Problem{
+				Code: controlplane.CodeUnresolvedSource, Subject: name,
+				Reason: fmt.Sprintf("the dynamic segment %q is not served: %v", name, err),
+			})
+		}
+	}
+
+	return problems
+}
+
+// dynamicTerms is, for each flag that uses a served dynamic segment, the segment terms of its rules that the view
+// serves. It parses the rules of those flags only, when the flag set is built.
+func dynamicTerms(
+	svc *flagdef.Service, flags map[string]*flagdef.InternalFlag, uses map[string]segUse, segments *SetSegments,
+) map[string][]segment.Term {
+	if segments == nil || segments.View == nil {
+		return nil
+	}
+
+	var out map[string][]segment.Term
+
+	for key, use := range uses {
+		if !use.dynamic {
+			continue
+		}
+
+		flag, ok := flags[key]
+		if !ok {
+			continue
+		}
+
+		var terms []segment.Term
+
+		for _, term := range flag.SegmentTerms(svc) {
+			if segments.View.Serves(term.Name) {
+				terms = append(terms, term)
+			}
+		}
+
+		if len(terms) == 0 {
+			continue
+		}
+
+		if out == nil {
+			out = map[string][]segment.Term{}
+		}
+
+		out[key] = terms
+	}
+
+	return out
 }

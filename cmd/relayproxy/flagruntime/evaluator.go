@@ -321,6 +321,13 @@ func variation[T model.JSONType](
 		SegmentCatalog:              set.SegmentCatalogFor(flagKey),
 	}
 
+	if set.usesDynamicSegment(flagKey) {
+		// every membership of the flag is fetched in one batch before the rules run
+		if prefetch := set.prefetchFlag(evalCtx, flagKey); prefetch != nil {
+			flagCtx.Segments = prefetch
+		}
+	}
+
 	res, err := evaluation.Evaluate[T](
 		flag,
 		flagKey,
@@ -482,6 +489,11 @@ func (e *Evaluator) GetFlagStates(
 		EvaluationContextEnrichment: e.enrichmentFor(set).values,
 		DefaultSdkValue:             nil,
 		Service:                     e.svc,
+	}
+
+	// one batch for the dynamic segments of all the flags of the request
+	if prefetch := set.prefetchFlags(evalCtx, flagsToEvaluate); prefetch != nil {
+		flagCtx.Segments = prefetch
 	}
 
 	states := flagstate.NewAllFlags()

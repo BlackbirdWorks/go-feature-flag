@@ -14,11 +14,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
 // Deps are the injected dependencies of a [Core]. Every field is optional.
@@ -50,6 +52,8 @@ type Deps struct {
 // Status is the status of a core: the joined status of the reader, the source and the engine, the one of the
 // exporters and notifiers, and the state directory. It holds no API key and no secret.
 type Status struct {
+	// Segments is the state of the dynamic segments: the stores, the served segments of each flag set, the counters.
+	Segments SegmentsStatus `json:"segments"`
 	// StateDirDisabled is the reason there is no state directory although one was asked for; empty otherwise.
 	StateDirDisabled string `json:"stateDirDisabled,omitempty"`
 	// Events is the status of the exporters and notifiers.
@@ -148,6 +152,8 @@ type Core struct {
 	source  *controlsource.Source
 	events  *events.Runtime
 	state   *statedir.Store
+	// segs owns the stores of the dynamic segments.
+	segs *segmentstore.Connections
 	// readerMetrics is the collector of the reader of the manifest, registered when there is a registry.
 	readerMetrics *metric.ManifestReader
 	collector     prometheus.Collector
@@ -172,6 +178,8 @@ type Core struct {
 	// shutdownStarted lets the first Shutdown do the work.
 	shutdownStarted atomic.Bool
 	phase           phase
+	// segCounters counts what the resolvers of the dynamic segments do.
+	segCounters resolver.Counters
 }
 
 // Holder returns the holder of the current runtime: handlers load the runtime from it for every request.
@@ -199,7 +207,7 @@ func (c *Core) Status() Status {
 	return Status{
 		StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: source,
 		Reloads: c.reloads.snapshot(), ShuttingDown: c.shutdownStarted.Load(),
-		Bootstrapped: c.engine.Bootstrapped(),
+		Bootstrapped: c.engine.Bootstrapped(), Segments: c.segmentsStatus(),
 	}
 }
 

@@ -67,6 +67,11 @@ func New(src Source, cfg *Config, opts ...api.Option) (api.Server, error) {
 		if err != nil {
 			return api.Server{}, fmt.Errorf("registering the config metrics: %w", err)
 		}
+
+		err = metrics.Registry.Register(NewSegmentCollector(src))
+		if err != nil {
+			return api.Server{}, fmt.Errorf("registering the segment metrics: %w", err)
+		}
 	}
 
 	services := &service.Services{

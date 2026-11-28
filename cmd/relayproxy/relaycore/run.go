@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
@@ -49,6 +51,15 @@ func (c *Core) Run(ctx context.Context) error {
 
 	loops.Go(func() { c.engine.Run(runCtx) })
 	loops.Go(func() { c.source.Run(runCtx) })
+	loops.Go(func() { c.segs.Run(runCtx) })
+	loops.Go(func() {
+		ticker := time.NewTicker(segmentVersionTick)
+		defer ticker.Stop()
+
+		flagruntime.RunSegmentVersions(runCtx, c.holder, ticker.C, func(err error) {
+			c.log.LogAttrs(runCtx, slog.LevelWarn, "a segment version could not be read", slog.Any("error", err))
+		})
+	})
 	loops.Go(func() {
 		readErr := c.reader.Run(runCtx)
 		if readErr != nil {
@@ -220,9 +231,20 @@ func (c *Core) releaseAll(ctx context.Context) {
 		}
 	}
 
+	if c.segs != nil {
+		err := c.segs.Shutdown(ctx)
+		if err != nil {
+			c.log.LogAttrs(ctx, slog.LevelError, "close the segment stores", slog.Any("error", err))
+		}
+	}
+
 	_ = c.factory.Replace(map[string]connection.Spec{})
 
 	if c.svc != nil {
 		c.svc.Close()
 	}
 }
+
+// segmentVersionTick is the resolution of the watcher of the version keys of the segments: a key is read when its
+// own interval is due (100ms is the shortest interval of a definition).
+const segmentVersionTick = 100 * time.Millisecond

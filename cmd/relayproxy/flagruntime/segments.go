@@ -91,7 +91,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 // noteDynamic checks the dynamic definitions of an accepted document against the connections and lists the ones that
 // are rejected, once for this content.
 func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocument) dynamicCheck {
-	check := checkDynamic(doc, st.b.opts.SegmentStores)
+	check := checkDynamic(doc, st.b.opts.SegmentStores, st.b.opts.Segments.enabled())
 	if len(check.reasons) > 0 {
 		st.built.SegmentRejections = append(st.built.SegmentRejections, SegmentRejection{
 			Object: name, Checksum: sum, Reason: "the dynamic definitions that the connections cannot serve are " +

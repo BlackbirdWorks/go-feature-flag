@@ -37,9 +37,9 @@ connections:
 		wantSnapshot bool
 		wantNoStore  bool
 	}{
-		{name: "redis", conn: "cache", wantKind: "redis", wantLookup: true, wantSnapshot: true},
+		{name: kindRedis, conn: connCache, wantKind: kindRedis, wantLookup: true, wantSnapshot: true},
 		{name: "valkey", conn: "fast", wantKind: "valkey", wantLookup: true, wantSnapshot: true},
-		{name: "file", conn: "control", wantKind: "file", wantNoStore: true},
+		{name: kindFile, conn: "control", wantKind: kindFile, wantNoStore: true},
 	}
 
 	for _, tt := range tests {

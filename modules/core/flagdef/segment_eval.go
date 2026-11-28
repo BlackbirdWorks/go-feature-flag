@@ -493,6 +493,11 @@ func walkDecoded(root any, path []string) (any, bool) {
 	return current, true
 }
 
+// SegmentID is the identifier that a segment lookup uses for the scalar value of an attribute, and false for a value
+// that is not an identifier (a missing, empty or non scalar value). A relay uses it to look the members up before the
+// rules are evaluated.
+func SegmentID(value any) (string, bool) { return identifier(value) }
+
 // identifier is the identifier of a scalar value.
 func identifier(current any) (string, bool) {
 	if str, ok := current.(string); ok {

@@ -19,4 +19,17 @@ type DynamicStatesInfo struct {
 	Valid int `json:"valid"`
 	// Rejected is the number of dynamic definitions that were rejected.
 	Rejected int `json:"rejected"`
+	// StoreError is the number of served segments, among Valid, whose store failed on the last call or whose breaker
+	// is open: they answer not a member with STORE_ERROR. Healthy is the number of the others.
+	StoreError int `json:"storeError"`
+	// Healthy is the number of served segments, among Valid, whose store answers.
+	Healthy int `json:"healthy"`
+}
+
+// SegmentStoreInfo is the state of one connection that can serve dynamic segments: idle (no segment uses it),
+// connecting, connected or error (the last dial failed; it is dialled again until it works).
+type SegmentStoreInfo struct {
+	Name  string `json:"name"`
+	Kind  string `json:"kind"`
+	State string `json:"state"`
 }

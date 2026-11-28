@@ -327,9 +327,9 @@ Settings of the store types `redis` and `valkey` (stores of [dynamic segments](.
 
 ### `segments`
 
-Process-level settings of the segment resolver (cache, breaker, timeouts). The segment definitions are not in this file: they are published with the flags and arrive through the control plane (not active yet). A definition names one of the `redis` or `valkey` connections above.
+Process-level settings of the segment resolver (cache, breaker, timeouts). The segment definitions are not in this file: they are published with the flags and arrive through the control plane. A definition names one of the `redis` or `valkey` connections above.
 
-The relay validates this section and logs that segment stores are configured but not active: the relay does not look a segment up yet.
+The relay validates this section and serves the `lookup` mode with it (see [Segments - dynamic](../configure-flags/segments-dynamic.md#lifecycle)). A change of this section needs a restart. `resolver.shutdownGrace` bounds the stop of a resolver at shutdown; a reload never stops the shared clients.
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|

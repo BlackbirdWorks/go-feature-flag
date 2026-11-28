@@ -64,7 +64,7 @@ type dynamicCheck struct {
 // checkDynamic checks every dynamic definition of the document against the connections of the bootstrap file: the
 // connection exists, its kind can serve segments, and it serves the mode of the definition. The shape of a definition
 // (the keys layout with the snapshot mode, the version block) is checked by [controlplane.ValidateSegments] before.
-func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores) dynamicCheck {
+func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores, snapshotUnserved bool) dynamicCheck {
 	var out dynamicCheck
 
 	if stores == nil {
@@ -93,6 +93,8 @@ func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores) dyna
 			err := segment.RequireMode(def.Name, segment.Mode(def.Mode), facts.Kind, facts.Store)
 			if err != nil {
 				out.reasons = append(out.reasons, path+".mode: "+err.Error())
+			} else if snapshotUnserved && segment.Mode(def.Mode).Effective() == segment.ModeSnapshot {
+				out.reasons = append(out.reasons, path+".mode: "+ErrSnapshotNotServed.Error())
 			}
 		}
 

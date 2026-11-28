@@ -35,7 +35,7 @@ Reasons (closed list): `starting`, `waiting-for-manifest`, `shutting-down`. Stat
 `config` holds: `generation` (applied manifest generation), `snapshot`, `lastReload` (the most recent round of any
 outcome), `lastApplied` and `lastRejected` (outcome, code, generation, time), `reloads` (rounds by outcome), `staleness` (last confirmation by the control plane, last successful
 reload, age in seconds), `flagSets` (state `ready`, `degraded` or `pending`, problems, flags, number of API keys,
-rejected flags, and `segments` with the number of `static` and `dynamic` segments and, when the flag set has dynamic segments, `dynamicStates` with how many are `valid` (served) and how many are `rejected` (the connections cannot serve them: they answer `NOT_CONFIGURED`), left out when the flag set has none), `objects` (state, reason, checksum held and listed, rejected flags, and `kept`: the rejected flags still served from an earlier version of the object), `state` (the state directory: `enabled`, `lastSaveError`, `saves`, `saveErrors`, and `keptFlags`: the flags a restart would not restore), `withdrawn` and `pendingRestart`.
+rejected flags, and `segments` with the number of `static` and `dynamic` segments and, when the flag set has dynamic segments, `dynamicStates` with how many are `valid` (served), how many are `rejected` (the connections cannot serve them: they answer `NOT_CONFIGURED`), and among the valid ones how many are `healthy` and how many have a `storeError` now; left out when the flag set has none), `segmentStores` (each connection that can serve segments: `name`, `kind`, `state`: `idle`, `connecting`, `connected`, `error`), `objects` (state, reason, checksum held and listed, rejected flags, and `kept`: the rejected flags still served from an earlier version of the object), `state` (the state directory: `enabled`, `lastSaveError`, `saves`, `saveErrors`, and `keptFlags`: the flags a restart would not restore), `withdrawn` and `pendingRestart`.
 The free text of a failure (the detail of a round, the text of a problem) is not served, because it can quote the content
 of an object: `/info` shows closed codes, and the text is in the logs. `lastRejected` stays until a later applied round supersedes it, then it is absent; ignored (unchanged) rounds do not clear
 it. It works with zero flag sets.
@@ -50,6 +50,11 @@ it. It works with zero flag sets.
 | `semaphore_config_last_success_timestamp_seconds` | | Unix time of the last applied round, 0 when none |
 | `semaphore_config_age_seconds` | | seconds since the control plane last confirmed the manifest |
 | `semaphore_resource_count` | `kind` (`flagset`, `object`, `dynamicSegment`), `state` | resources by state, always exported; `dynamicSegment` counts the dynamic segment definitions of the flag sets as `valid` or `rejected` |
+| `semaphore_segment_lookups_total` | `result` (`hit`, `miss`, `coalesced`, `short_circuited`, `unknown`) | segment lookups by how the resolvers answered them, since the start |
+| `semaphore_segment_store_calls_total` | `result` (`ok`, `failed`) | calls of the resolvers to the stores |
+| `semaphore_segment_breaker_transitions_total` | `to` (`open`, `half_open`, `closed`) | transitions of the circuit breakers |
+| `semaphore_segment_store_state` | `connection`, `state` | 1 for the state of each store connection, 0 for the others |
+| `semaphore_segment_dynamic` | `status` (`healthy`, `store_error`) | served dynamic segments by health now |
 | `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
 | `semaphore_config_pending_restart` | | settings that changed and need a restart |
 
