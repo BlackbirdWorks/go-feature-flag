@@ -232,6 +232,8 @@ type rig struct {
 	cancel context.CancelFunc
 	done   chan error
 	once   sync.Once
+	// revision is the revision of the last snapshot taken.
+	revision uint64
 }
 
 // startRig runs the reader with the jitter off and waits for its first round to end.
@@ -333,6 +335,13 @@ func (r *rig) snapshot() *manifestreader.Snapshot {
 
 	select {
 	case snap := <-r.reader.Snapshots():
+		// every snapshot has a revision of its own, and the revisions only grow: it is checked here and cleared on the
+		// snapshot, the tests compare the content (the reader does not touch a snapshot it sent)
+		require.Greater(r.t, snap.Revision, r.revision, "the revision of a snapshot is above the one before")
+
+		r.revision = snap.Revision
+		snap.Revision = 0
+
 		return snap
 	default:
 		return nil

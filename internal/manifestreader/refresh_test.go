@@ -21,6 +21,7 @@ func TestReader_Refresh(t *testing.T) {
 		wantPoll       string
 		publishGen     uint64
 		wantGeneration uint64
+		wantRevision   uint64
 		wantChanged    bool
 	}{
 		{
@@ -28,9 +29,10 @@ func TestReader_Refresh(t *testing.T) {
 			publishGen:     2,
 			wantPoll:       manifestreader.PollUpdated,
 			wantGeneration: 2,
+			wantRevision:   2,
 			wantChanged:    true,
 		},
-		{name: "nothing new", wantPoll: manifestreader.PollNotModified, wantGeneration: 1},
+		{name: "nothing new", wantPoll: manifestreader.PollNotModified, wantGeneration: 1, wantRevision: 1},
 	}
 
 	for _, tt := range tests {
@@ -51,6 +53,7 @@ func TestReader_Refresh(t *testing.T) {
 
 			assert.Equal(t, tt.wantPoll, result.Poll.Result)
 			assert.Equal(t, tt.wantGeneration, result.Generation)
+			assert.Equal(t, tt.wantRevision, result.Revision, "the revision of the last snapshot")
 			assert.Equal(t, tt.wantChanged, result.Changed)
 		})
 	}
@@ -91,11 +94,13 @@ func TestReader_RefreshesDoNotPostponeARetry(t *testing.T) {
 		name          string
 		advance       time.Duration
 		wantObjectGet int
+		wantRevision  uint64
 	}{
-		{name: "30s after the failure", advance: 30 * time.Second},
-		{name: "70s after it", advance: 40 * time.Second},
-		{name: "90s after it", advance: 20 * time.Second},
-		{name: "101s after it: the retry is due", advance: 11 * time.Second, wantObjectGet: 1},
+		{name: "30s after the failure", advance: 30 * time.Second, wantRevision: 1},
+		{name: "70s after it", advance: 40 * time.Second, wantRevision: 1},
+		{name: "90s after it", advance: 20 * time.Second, wantRevision: 1},
+		// the recovery of the object is a snapshot of its own, at the same generation
+		{name: "101s after it: the retry is due", advance: 11 * time.Second, wantObjectGet: 1, wantRevision: 2},
 	}
 
 	for _, tt := range tests {
@@ -104,6 +109,8 @@ func TestReader_RefreshesDoNotPostponeARetry(t *testing.T) {
 		result, err := rdr.reader.Refresh(t.Context())
 		require.NoError(t, err, tt.name)
 		assert.Equal(t, manifestreader.PollNotModified, result.Poll.Result, tt.name)
+		assert.Equal(t, uint64(1), result.Generation, tt.name)
+		assert.Equal(t, tt.wantRevision, result.Revision, "%s: the revision of the last snapshot", tt.name)
 
 		// the reader entered its next wait, and took the time it started on: the clock moves only after that
 		rdr.settle()
