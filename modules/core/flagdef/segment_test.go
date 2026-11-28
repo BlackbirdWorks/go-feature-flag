@@ -24,6 +24,9 @@ const (
 
 	keyAlice           = "alice"
 	keyBob             = "bob"
+	keyZed             = "zed"
+	keyM99             = "m99"
+	nameMember         = "member"
 	planPro            = "pro"
 	planFree           = "free"
 	segBeta            = "beta"
@@ -536,7 +539,7 @@ func TestSegmentEvaluationReasonStaysTheSame(t *testing.T) {
 		wantReason flagdef.ResolutionReason
 		wantRule   string
 	}{
-		{name: "member", key: keyAlice, wantReason: flagdef.ReasonTargetingMatch, wantRule: "r"},
+		{name: nameMember, key: keyAlice, wantReason: flagdef.ReasonTargetingMatch, wantRule: "r"},
 		{name: "not member", key: keyBob, wantReason: flagdef.ReasonDefault},
 	}
 

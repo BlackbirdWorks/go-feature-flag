@@ -156,7 +156,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, http.StatusOK, model.OFREPEvaluateSuccessResponse{
 		Key:      flagKey,
 		Value:    ofrepValue(flagValue.Reason, flagValue.Value),
-		Reason:   flagValue.Reason,
+		Reason:   ofrepReason(flagValue.Reason),
 		Variant:  flagValue.VariationType,
 		Metadata: metadata,
 	})
@@ -211,7 +211,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
 			Key:          key,
 			Value:        ofrepValue(val.Reason, val.Value),
-			Reason:       val.Reason,
+			Reason:       ofrepBulkReason(val.Reason),
 			Variant:      val.VariationType,
 			Metadata:     h.bulkMetadata(&val),
 			ErrorCode:    val.ErrorCode,
@@ -330,12 +330,13 @@ func writeJSON(w http.ResponseWriter, code int, v any) error {
 	return nil
 }
 
-// bulkMetadata is the metadata of a flag of a bulk evaluation: the metadata of the evaluation, which carries the
-// segment status when the lookups were not healthy, unless the Semaphore metadata is disabled.
+// bulkMetadata is the metadata of a flag of a bulk evaluation: the metadata of the evaluation, and the segment
+// status when the lookups were not healthy, unless the Semaphore metadata is disabled. The metadata of the flag is
+// not changed.
 func (h *EvaluateCtrl) bulkMetadata(val *flagstate.FlagState) map[string]any {
 	if h.legacyMetadataOnly {
-		delete(val.Metadata, flagstate.MetadataSegmentStatus)
+		return val.Metadata
 	}
 
-	return val.Metadata
+	return val.MetadataWithStatus()
 }

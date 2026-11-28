@@ -136,12 +136,14 @@ type v2 struct {
 	streams *corehttp.Streams
 	put     func(key string, data []byte)
 	flags   map[string][]byte
-	url     string
-	dir     string
-	metrics *metric.Metrics
-	ready   *corehttp.Readiness
-	sets    []controlplane.FlagSet
-	gen     uint64
+	// segments are the segments objects that publish writes, by name.
+	segments map[string][]byte
+	url      string
+	dir      string
+	metrics  *metric.Metrics
+	ready    *corehttp.Readiness
+	sets     []controlplane.FlagSet
+	gen      uint64
 }
 
 // publish writes the objects, then the manifest of the next generation.
@@ -174,6 +176,10 @@ func (rig *v2) publish(tb testing.TB) {
 
 	for name, data := range rig.flags {
 		add(name, controlplane.KindFlags, data)
+	}
+
+	for name, data := range rig.segments {
+		add(name, controlplane.KindSegments, data)
 	}
 
 	data, err := controlplane.MarshalManifest(manifest)

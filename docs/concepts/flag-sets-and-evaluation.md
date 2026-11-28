@@ -75,7 +75,7 @@ For the same flag files and contexts, the evaluator answers what the version 1 c
 ### The flag configuration and the change hashes
 
 - `FlagSet.Configuration(keys)` lists the flags of the flag set. The map is new for each call, the flags in it are the flag set's own (read only, see below).
-- `FlagSet.Change()` answers `/v1/flag/change`. The hashes are those of the JSON encoding of the flags, byte for byte as in version 1. A flag set is immutable, so the answer is computed once, by the first call (each flag is encoded once), and kept with the flag set: later calls return the same value without allocating. A flag set that a later generation carries over keeps it. The map of the answer is shared and read only.
+- `FlagSet.Change()` answers `/v1/flag/change`. The hashes are those of the JSON encoding of the flags, byte for byte as in version 1. The hash of a flag that uses segments also covers the definitions and the members of those segments (so a publish that only changes the members of a segment changes the hash of the flags that use it, and so does the hash of the whole flag set); the hashes of the other flags are unchanged. A flag set is immutable, so the answer is computed once, by the first call (each flag is encoded once), and kept with the flag set: later calls return the same value without allocating. A flag set that a later generation carries over keeps it. The map of the answer is shared and read only.
 - `FlagSet.ModifiedAt` is the time of the build that created the flag set. A flag set carried over by pointer keeps its time, a rebuilt one gets the time of its rebuild, a pending flag set has the time of its build. After the switch it will be the `Last-Modified` of the configuration endpoint.
 
 ## Who owns a value

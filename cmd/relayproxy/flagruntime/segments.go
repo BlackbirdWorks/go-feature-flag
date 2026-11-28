@@ -4,6 +4,7 @@ import (
 	"maps"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // A segments object is accepted and checked, not used yet: the relay decodes it strictly, validates it with the rules
@@ -15,6 +16,9 @@ import (
 // segState is the state of one segments object.
 type segState struct {
 	status    *ObjectStatus
+	doc       *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
+	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
+	hashes    map[string]uint64              // the content hash of each definition (members included), built once
 	name      string
 	checksum  string
 	attempted string
@@ -68,7 +72,10 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return next
 	}
 
-	next := &segState{name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments)}
+	next := &segState{
+		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
+		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc),
+	}
 	next.status = segStatus(next)
 
 	return next
@@ -94,6 +101,7 @@ func keepSeg(name string, prev *segState) *segState {
 
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
+		next.doc, next.sets, next.hashes = prev.doc, prev.sets, prev.hashes
 	}
 
 	return next

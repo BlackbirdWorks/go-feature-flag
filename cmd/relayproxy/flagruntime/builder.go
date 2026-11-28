@@ -114,6 +114,7 @@ type stage struct {
 	manif   *controlplane.Manifest
 	changed []string // names of objects (any kind) whose state changed or that were removed
 	chFlags []string // names of flags objects that changed or were removed
+	chSegs  []string // names of segments objects that changed or were removed
 	gen     uint64
 	cloneO  bool
 	cloneD  bool
@@ -272,6 +273,7 @@ func (st *stage) scan(content *Content) scanSums {
 			if next != prev {
 				st.putSeg(name, next)
 				st.changed = append(st.changed, name)
+				st.chSegs = append(st.chSegs, name)
 				st.segGood = st.segGood || (prev != nil && prev.loaded) != next.loaded
 			}
 		case KindFlagSets:
@@ -307,6 +309,7 @@ func (st *stage) removeGone(content *Content) {
 		if o, ok := content.Objects[name]; !ok || o.Kind != KindSegments {
 			st.delSeg(name)
 			st.changed = append(st.changed, name)
+			st.chSegs = append(st.chSegs, name)
 			st.segGood = st.segGood || ss.loaded
 		}
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/model"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/testdata/mock"
 	"github.com/blackbirdworks/semaphore/internal/protocol"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/fixtures"
 )
 
@@ -606,7 +607,7 @@ func Test_Evaluate_DisabledFlagOmitsValue(t *testing.T) {
 			{
 				name:       "falsy non-disabled flag preserves value",
 				flagKey:    targetingKeyRule,
-				wantReason: "DEFAULT",
+				wantReason: flagdef.ReasonStatic,
 				wantHasVal: true,
 				wantValue:  false,
 			},
@@ -700,6 +701,112 @@ func Test_Evaluate_DisabledFlagOmitsValue(t *testing.T) {
 		assert.Equal(t, "DISABLED", disabledEntry["reason"])
 		assert.NotContains(t, disabledEntry, "value")
 	})
+}
+
+func Test_Evaluate_OFREPReasonMapping(t *testing.T) {
+	t.Parallel()
+
+	validReq, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
+	require.NoError(t, err)
+
+	targetingKeyReq, err := os.ReadFile(testdataDir + "/ofrep/valid_targeting_key_query_request.json")
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		flagKey    string
+		reqBody    string
+		wantReason string
+	}{
+		{
+			name:       "default rule maps DEFAULT to STATIC",
+			flagKey:    numberFlag,
+			reqBody:    string(validReq),
+			wantReason: flagdef.ReasonStatic,
+		},
+		{
+			name:       "targeting rule split maps TARGETING_MATCH_SPLIT to SPLIT",
+			flagKey:    "array-flag",
+			reqBody:    `{"context":{"targetingKey":"user-1","anonymous":true}}`,
+			wantReason: flagdef.ReasonSplit,
+		},
+		{
+			name:       "percentage default rule keeps SPLIT",
+			flagKey:    "new-admin-access",
+			reqBody:    string(validReq),
+			wantReason: flagdef.ReasonSplit,
+		},
+		{
+			name:       "targeting match keeps TARGETING_MATCH",
+			flagKey:    targetingKeyRule,
+			reqBody:    string(targetingKeyReq),
+			wantReason: flagdef.ReasonTargetingMatch,
+		},
+		{
+			name:       "disabled flag keeps DISABLED",
+			flagKey:    "disable-flag",
+			reqBody:    string(validReq),
+			wantReason: flagdef.ReasonDisabled,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := mock.FileConfig(configFlagsLocation)
+			flagsetManager := mock.NewDefault(t, &cfg)
+
+			defer flagsetManager.Close()
+
+			ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
+			mux := http.NewServeMux()
+			mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
+
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				ofrepEvaluatePrefix+tt.flagKey,
+				strings.NewReader(tt.reqBody),
+			)
+			req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
+
+			rec := httptest.NewRecorder()
+			mux.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var single model.OFREPEvaluateSuccessResponse
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &single))
+			assert.Equal(t, tt.wantReason, single.Reason, "single evaluation reason")
+
+			bulkReq := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				fixtures.OFREPEvaluateFlagsPath,
+				strings.NewReader(tt.reqBody),
+			)
+			bulkReq.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
+
+			bulkRec := httptest.NewRecorder()
+			require.NoError(t, ctrl.BulkEvaluate(bulkRec, bulkReq))
+			require.Equal(t, http.StatusOK, bulkRec.Code)
+
+			var bulk model.OFREPBulkEvaluateSuccessResponse
+			require.NoError(t, json.Unmarshal(bulkRec.Body.Bytes(), &bulk))
+
+			var foundReason string
+
+			for _, flag := range bulk.Flags {
+				if flag.Key == tt.flagKey {
+					foundReason = flag.Reason
+
+					break
+				}
+			}
+
+			assert.Equal(t, tt.wantReason, foundReason, "bulk evaluation reason")
+		})
+	}
 }
 
 func mustEventStream(t *testing.T, baseURL string, delay int) ofrep.EventStream {

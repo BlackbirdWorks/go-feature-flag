@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // PublicName is the name of the public flag set: the merged view of the flag sets that are published without an API
@@ -92,6 +93,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	// older than the one it replaces (the flag sets that stay may have been built long ago)
 	if len(sources) == 1 {
 		fset.Flags, fset.Hash, fset.State = sources[0].Flags, sources[0].Hash, sources[0].State
+		fset.Segments, fset.flagSigs = sources[0].Segments, sources[0].flagSigs
 
 		return fset, nil
 	}
@@ -103,6 +105,8 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 
 	flags := make(map[string]*flagdef.InternalFlag, total)
 	owner := make(map[string]string, total)
+	catalogs := map[string]*segment.Catalog{}
+	sigs := map[string]uint64{}
 	pending := 0
 
 	for idx, source := range sources {
@@ -113,6 +117,8 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 
 			owner[key] = names[idx]
 			flags[key] = flag
+
+			noteSegments(catalogs, sigs, source, key)
 		}
 
 		fset.Hash = fset.Hash*publicHashFactor + source.Hash
@@ -129,6 +135,14 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 
 	fset.Flags = flags
 
+	if len(catalogs) > 0 {
+		fset.flagCatalogs = catalogs
+	}
+
+	if len(sigs) > 0 {
+		fset.flagSigs = sigs
+	}
+
 	if pending == len(sources) {
 		fset.State = StatePending
 	} else if pending > 0 {
@@ -136,6 +150,17 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	}
 
 	return fset, nil
+}
+
+// noteSegments records the catalog and the signature of the flag set that a public flag comes from.
+func noteSegments(catalogs map[string]*segment.Catalog, sigs map[string]uint64, source *FlagSet, key string) {
+	if catalog := source.SegmentCatalog(); catalog != nil {
+		catalogs[key] = catalog
+	}
+
+	if sig, ok := source.flagSigs[key]; ok {
+		sigs[key] = sig
+	}
 }
 
 // publicHashFactor mixes the hashes of the sources in order.

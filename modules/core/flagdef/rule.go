@@ -112,7 +112,7 @@ func (r *Rule) Evaluate(svc *Service, key string, ctx ffcontext.Context, flagNam
 		return "", errNoService
 	}
 
-	v, err := r.evaluateWith(key, &queryContext{svc: svc, ctx: ctx}, flagName, isDefault)
+	v, err := r.evaluateWith(key, &queryContext{svc: svc, ctx: ctx, catalog: svc.segments}, flagName, isDefault)
 	if errors.Is(err, errRuleNotApply) {
 		return "", &internalerror.RuleNotApplyError{Context: ctx}
 	}
@@ -134,6 +134,8 @@ type queryContext struct {
 	parsedEvalCtxAsData any
 	// segments answers the membership lookups of the segment() terms.
 	segments segment.Provider
+	// catalog is the catalog of the evaluation: the one of the Context, else the one of the Service.
+	catalog *segment.Catalog
 	// requestContext is the context of the calls of segments, see Context.RequestContext.
 	requestContext context.Context //nolint:containedctx // lives for one evaluation, like the Context it is copied from
 	// svc owns the caches and the pool that evaluating the queries uses.
