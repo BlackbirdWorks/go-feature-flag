@@ -75,7 +75,7 @@ func TestAMalformedPageKeepsTheLastKnownGood(t *testing.T) {
 	srv.answerOnly(nameSScan, "*2\r\n$0\r\n\r\n*0\r\n")
 
 	require.ErrorIs(t, holder.Refresh(context.Background()), valkeysegment.ErrProtocol)
-	assert.Equal(t, snapshot.ClassRead, holder.Status().LastError)
+	assert.Equal(t, snapshot.ClassSet, holder.Status().LastError)
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the old set survives")
 	assert.Equal(t, segment.NotMember, holder.Lookup("c"))
 }

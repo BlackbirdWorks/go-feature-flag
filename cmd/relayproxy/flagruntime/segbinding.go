@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -44,6 +43,8 @@ type segBinding struct {
 	// loop that polls touches it.
 	lastClass  map[string]snapshot.Class
 	connection string
+	// lastOK is, for each holder, the time (of the loop) of its last refresh that worked.
+	lastOK map[string]time.Time
 	// lookupID is the identity of the lookup definitions together.
 	lookupID  string
 	lookups   []string
@@ -54,6 +55,7 @@ type segBinding struct {
 	pullTimeout time.Duration
 	armed       atomic.Bool
 	versioned   bool
+	mu          sync.Mutex // guards lastOK
 }
 
 // bindCache builds the bindings of one segments object when a flag set first uses them, and keeps them for the life
@@ -88,12 +90,23 @@ type carriedLookup struct {
 }
 
 // defIdentity is what a binding needs to serve a definition the same way: everything of the definition except its name
-// and its failure policy (the catalog applies that one).
+// and its failure policy (the catalog applies that one). For a snapshot definition the cache block and the interval of
+// the version do not count: a snapshot has no cache, and the interval is the one of the binding.
 func defIdentity(def *controlplane.SegmentDefinition) string {
 	same := *def
 	same.Name, same.OnError = "", ""
 	same.Mode = string(segment.Mode(def.Mode).Effective())
 	same.MissingKey = string(segment.MissingKey(def.MissingKey).Effective())
+
+	if isSnapshot(def) {
+		same.Cache = nil
+
+		if same.Version != nil {
+			version := *same.Version
+			version.Interval = ""
+			same.Version = &version
+		}
+	}
 
 	data, err := json.Marshal(&same)
 	if err != nil {
@@ -103,9 +116,12 @@ func defIdentity(def *controlplane.SegmentDefinition) string {
 	return string(data)
 }
 
-// carryOf is what the new generation can take over from the cache of the previous one: the built bindings, and what
-// the previous one still carried for the bindings it never built. It keeps no reference to the previous cache.
-func carryOf(prev *bindCache, keyOf map[string]bindKey) *carry {
+// carryOf is what the new generation can take over from the cache of the previous one: only from bindings that were
+// built (a flag set of the previous generation used them, so the loop kept their sets fresh), and only for a name that
+// is still a snapshot definition with the same identity, or a connection that still has definitions. What nobody
+// references is not kept: a set that was not refreshed for a while must not come back as it was. It keeps no reference
+// to the previous cache.
+func carryOf(prev *bindCache, snapshots map[string]string, keys map[bindKey]struct{}) *carry {
 	out := &carry{holders: map[string]carriedHolder{}, lookups: map[bindKey]carriedLookup{}}
 	if prev == nil {
 		return out
@@ -114,30 +130,21 @@ func carryOf(prev *bindCache, keyOf map[string]bindKey) *carry {
 	prev.mu.Lock()
 	defer prev.mu.Unlock()
 
-	if prev.carry != nil {
-		maps.Copy(out.holders, prev.carry.holders)
-		maps.Copy(out.lookups, prev.carry.lookups)
-	}
-
 	for key, held := range prev.built {
 		if held.b == nil {
 			continue
 		}
 
 		for name, holder := range held.b.holders {
-			out.holders[name] = carriedHolder{holder: holder, id: held.b.ids[name]}
+			if id, ok := snapshots[name]; ok && id == held.b.ids[name] {
+				out.holders[name] = carriedHolder{holder: holder, id: id}
+			}
 		}
 
-		if held.b.res != nil {
+		if _, still := keys[key]; still && held.b.res != nil {
 			out.lookups[key] = carriedLookup{
 				res: held.b.res, versioner: held.b.versioner, id: held.b.lookupID, versioned: held.b.versioned,
 			}
-		}
-	}
-
-	for name := range out.holders {
-		if _, still := keyOf[name]; !still {
-			delete(out.holders, name)
 		}
 	}
 
@@ -177,7 +184,22 @@ func newBindCache(
 		return nil
 	}
 
-	cache.carry = carryOf(prev, cache.keyOf)
+	snapshots := map[string]string{}
+
+	for _, defs := range cache.defs {
+		for _, def := range defs {
+			if isSnapshot(def) {
+				snapshots[def.Name] = defIdentity(def)
+			}
+		}
+	}
+
+	keys := make(map[bindKey]struct{}, len(cache.defs))
+	for key := range cache.defs {
+		keys[key] = struct{}{}
+	}
+
+	cache.carry = carryOf(prev, snapshots, keys)
 
 	return cache
 }
@@ -198,6 +220,13 @@ func (c *bindCache) binding(name string) (*segBinding, error) {
 	b, err := c.env.bindObject(key, c.defs[key], c.carry)
 	c.built[key] = bound{b, err}
 
+	// what was not taken is not kept: the cache of a changed definition goes with the previous generation
+	delete(c.carry.lookups, key)
+
+	for _, def := range c.defs[key] {
+		delete(c.carry.holders, def.Name)
+	}
+
 	return b, err
 }
 
@@ -212,7 +241,10 @@ func (e *SegmentEnv) bindObject(
 	bounds := make([]BoundDefinition, 0, len(defs))
 	segs := map[string]resolver.SegmentOptions{}
 	out := &segBinding{
-		connection: key.connection, holders: map[string]*snapshot.Holder{}, ids: map[string]string{},
+		connection:  key.connection,
+		holders:     map[string]*snapshot.Holder{},
+		ids:         map[string]string{},
+		lastOK:      map[string]time.Time{},
 		pullTimeout: cmp.Or(e.PullTimeout, DefaultPullTimeout),
 	}
 	values := map[string]string{}
@@ -379,11 +411,25 @@ func (b *segBinding) due(now time.Time, jitter func(time.Duration) time.Duration
 	return now.UnixNano() >= b.next.Load()
 }
 
+// holderError is the failure of the refresh of one holder: the class says whether the store failed or answered with
+// an error about this set.
+type holderError struct {
+	err   error
+	name  string
+	class snapshot.Class
+}
+
+func (f *holderError) Error() string { return f.err.Error() }
+func (f *holderError) Unwrap() error { return f.err }
+
+// overdueAfter is how many intervals a held set may go without a refresh that worked before it answers STALE.
+const overdueAfter = 3
+
 // poll reads the version keys and refreshes the holders, then schedules the next poll. Each holder has a deadline of
-// its own ([DefaultPullTimeout]), so a slow set cannot starve the next one, and a pull may take longer than the
-// interval. The error joins the failures that are new: a holder that fails the same way as at the last poll is not
-// reported again. A holder that ran into its deadline ends the poll of the binding: the store does not answer.
-func (b *segBinding) poll(ctx context.Context, now time.Time) error {
+// its own ([DefaultPullTimeout]): a slow set cannot starve the next one, and a pull may take longer than the interval.
+// The failures are the ones that are new: a holder that fails the same way as at the last poll is not reported again.
+// Only the end of ctx stops the poll before the last holder.
+func (b *segBinding) poll(ctx context.Context, now time.Time) []error {
 	var errs []error
 
 	if b.versioned && b.res != nil {
@@ -401,19 +447,21 @@ func (b *segBinding) poll(ctx context.Context, now time.Time) error {
 		holder := b.holders[name]
 		call, cancel := context.WithTimeout(ctx, b.pullTimeout)
 		err := holder.Refresh(call)
-		timedOut := call.Err() != nil
 
 		cancel()
 
 		class := holder.Status().LastError
+		worked := err == nil || class == snapshot.ClassMissing
+
+		b.refreshed(name, holder, worked, now)
 
 		if err != nil && class != snapshot.ClassMissing && class != b.lastClass[name] {
-			errs = append(errs, fmt.Errorf("connection %q: %w", b.connection, err))
+			errs = append(errs, &holderError{name: name, class: class, err: err})
 		}
 
 		b.lastClass[name] = class
 
-		if timedOut {
+		if ctx.Err() != nil {
 			break
 		}
 	}
@@ -425,36 +473,117 @@ func (b *segBinding) poll(ctx context.Context, now time.Time) error {
 
 	b.next.Store(now.Add(wait).UnixNano())
 
-	return errors.Join(errs...)
+	return errs
 }
 
-// unhealthy reports whether the store of the binding fails: a lookup call failed or its breaker is open, a holder never
-// loaded or serves a set that could not be refreshed.
-func (b *segBinding) unhealthy() bool {
-	if b.res != nil {
-		if b.res.Health().Failure != "" {
-			return true
-		}
+// refreshed records the outcome of a refresh: a refresh that worked clears the overdue mark of the holder.
+func (b *segBinding) refreshed(name string, holder *snapshot.Holder, worked bool, now time.Time) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-		for _, seg := range b.res.Status().Segments {
-			if seg.Breaker == resolver.BreakerOpen {
-				return true
-			}
-		}
+	if worked {
+		b.lastOK[name] = now
+
+		holder.SetOverdue(false)
+
+		return
 	}
 
-	for _, held := range b.holders {
-		// a set over the limit is one bad set, not a store that fails: it keeps its own answer (STALE); a set that was
-		// not tried yet is not a failure either
-		status := held.Status()
-		if status.LastError == snapshot.ClassTooLarge || (!status.Loaded && status.LastError == snapshot.ClassNone) {
+	if b.lastOK[name].IsZero() {
+		b.lastOK[name] = now
+	}
+}
+
+// checkOverdue marks the holders whose set was not refreshed for longer than the bound: they answer STALE, whatever
+// keeps them from being refreshed (a store that fails, a pass that hangs, a pass that never gets to them).
+func (b *segBinding) checkOverdue(now time.Time) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	for name, holder := range b.holders {
+		last := b.lastOK[name]
+		if last.IsZero() {
+			b.lastOK[name] = now
+
 			continue
 		}
 
-		if _, answer := held.Answer(""); answer != segment.StatusHealthy {
+		if now.Sub(last) > overdueAfter*b.interval {
+			holder.SetOverdue(true)
+		}
+	}
+}
+
+// idle is called when no flag set of the served runtime uses the binding any more: nothing refreshes its sets, so they
+// answer STALE if the binding is used again before a refresh worked.
+func (b *segBinding) idle() {
+	for _, holder := range b.holders {
+		holder.SetOverdue(true)
+	}
+
+	b.next.Store(0) // due at once when it is used again
+}
+
+// lookupFailing reports whether the lookups of the binding fail: the store failed the last call or a breaker is open.
+func (b *segBinding) lookupFailing() bool {
+	if b.res == nil {
+		return false
+	}
+
+	if b.res.Health().Failure != "" {
+		return true
+	}
+
+	for _, seg := range b.res.Status().Segments {
+		if seg.Breaker == resolver.BreakerOpen {
 			return true
 		}
 	}
 
 	return false
+}
+
+// holderHealth counts the holders that were tried and are not a problem of their set alone, and among them the ones
+// that fail because the store fails (not reached, a timeout, a version that cannot be read). A set that the store
+// answered about (a key of the wrong type, a reply that is not the one of the command, a set over the limit) is not
+// counted: one broken set is not a store that fails.
+func (b *segBinding) holderHealth() (int, int) {
+	var failing, total int
+
+	for _, held := range b.holders {
+		status := held.Status()
+
+		switch status.LastError {
+		case snapshot.ClassSet, snapshot.ClassTooLarge:
+			continue
+		case snapshot.ClassNone:
+			if !status.Loaded {
+				continue // not tried yet
+			}
+		case snapshot.ClassMissing:
+		case snapshot.ClassVersion, snapshot.ClassRead, snapshot.ClassCanceled:
+			failing++
+		}
+
+		total++
+	}
+
+	return failing, total
+}
+
+// connectionDown reports whether the store of a connection fails: its lookups fail, or every set that was tried fails
+// to refresh because the store does (and at least one was tried).
+func connectionDown(bindings []*segBinding) bool {
+	var failing, total int
+
+	for _, b := range bindings {
+		if b.lookupFailing() {
+			return true
+		}
+
+		f, t := b.holderHealth()
+		failing, total = failing+f, total+t
+	}
+
+	return total > 0 && failing == total
 }

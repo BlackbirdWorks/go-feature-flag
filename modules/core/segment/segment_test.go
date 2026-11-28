@@ -3,6 +3,7 @@ package segment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"testing"
@@ -536,3 +537,35 @@ func TestTheEvaluationLookupsOfAVersionedSegmentAllocateNothing(t *testing.T) {
 	assert.False(t, (*segment.Catalog)(nil).Has("alpha"))
 	assert.Equal(t, segment.NotMember, (*segment.Catalog)(nil).ResolveFor("alpha", segment.Unknown))
 }
+
+var errNotAnswered = errors.New("the store is down")
+
+func TestIsStoreAnswered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err  error
+		name string
+		want bool
+	}{
+		{name: "an answer", err: answeredError("wrong type"), want: true},
+		{name: "wrapped", err: fmt.Errorf("scan: %w", answeredError("wrong type")), want: true},
+		{name: "a failure", err: errNotAnswered, want: false},
+		{name: "none", err: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, segment.IsStoreAnswered(tt.err))
+		})
+	}
+}
+
+// answeredError is a failure of a store that answered about one set.
+type answeredError string
+
+func (e answeredError) Error() string { return string(e) }
+
+func (answeredError) StoreAnswered() bool { return true }

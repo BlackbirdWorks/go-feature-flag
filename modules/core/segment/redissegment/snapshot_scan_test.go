@@ -212,7 +212,7 @@ func TestAMalformedPageKeepsTheLastKnownGood(t *testing.T) {
 	}
 
 	require.ErrorIs(t, holder.Refresh(context.Background()), redissegment.ErrProtocol)
-	assert.Equal(t, snapshot.ClassRead, holder.Status().LastError)
+	assert.Equal(t, snapshot.ClassSet, holder.Status().LastError)
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the old set survives")
 	assert.Equal(t, segment.NotMember, holder.Lookup("c"))
 }

@@ -3,6 +3,7 @@ package snapshot_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,6 +81,30 @@ func failedFirstLoad(t *testing.T) *snapshot.Holder {
 	return holder
 }
 
+func missingUnknownThenFails(t *testing.T) *snapshot.Holder {
+	t.Helper()
+
+	src := segment.NewMemorySource(nil)
+
+	holder, err := snapshot.New(segAlpha, src, snapshot.Options{Missing: segment.MissingUnknown})
+	require.NoError(t, err)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	src.Fail(segment.OpVersion, errAnswerStore)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	return holder
+}
+
+func overdueHolder(t *testing.T) *snapshot.Holder {
+	t.Helper()
+
+	holder := loadedHolder(t)
+	holder.SetOverdue(true)
+
+	return holder
+}
+
 func TestHolderAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -111,6 +136,14 @@ func TestHolderAnswer(t *testing.T) {
 			wantState: segment.Member, wantStatus: segment.StatusStale,
 		},
 		{
+			name: "overdue", setup: overdueHolder, id: answerMember,
+			wantState: segment.Member, wantStatus: segment.StatusStale,
+		},
+		{
+			name: "missing under unknown, then the store fails", setup: missingUnknownThenFails, id: answerMember,
+			wantState: segment.Unknown, wantStatus: segment.StatusStoreError,
+		},
+		{
 			name: "missing under unknown is an answer", setup: missingUnknownHolder, id: answerMember,
 			wantState: segment.Unknown, wantStatus: segment.StatusHealthy,
 		},
@@ -131,3 +164,43 @@ func TestHolderAnswer(t *testing.T) {
 		})
 	}
 }
+
+// An error in which the store answered about the set (a key of the wrong type) is the class of the set, not a read
+// failure: the consumer tells a broken set from a store that fails.
+func TestHolderClassOfAnAnsweredError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		err       error
+		name      string
+		wantClass snapshot.Class
+	}{
+		{
+			name:      "the store answered",
+			err:       fmt.Errorf("scan: %w", answeredError("wrong type")),
+			wantClass: snapshot.ClassSet,
+		},
+		{name: "the store failed", err: errAnswerStore, wantClass: snapshot.ClassRead},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			holder, src := loaded(t, answerMember)
+			src.Set(segAlpha, []string{answerMember, "bob"}) // a new version: the members are pulled
+			src.Fail(segment.OpMembers, tt.err)
+
+			require.Error(t, holder.Refresh(context.Background()))
+			assert.Equal(t, tt.wantClass, holder.Status().LastError)
+			assert.True(t, holder.Stale())
+		})
+	}
+}
+
+// answeredError is a failure of a store that answered about one set.
+type answeredError string
+
+func (e answeredError) Error() string { return string(e) }
+
+func (answeredError) StoreAnswered() bool { return true }

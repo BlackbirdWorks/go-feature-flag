@@ -1,6 +1,7 @@
 package flagruntime
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -35,6 +36,8 @@ type SegmentPoll struct {
 	OnConnection func(connection string, down bool)
 	// Tick is the resolution of the loop: a binding is polled when its interval is due.
 	Tick time.Duration
+	// JoinTimeout bounds the wait for the passes when the loop ends. Zero means [DefaultJoinTimeout].
+	JoinTimeout time.Duration
 }
 
 // RandomSpread returns a random duration in [0, limit), zero for a limit that is not positive: the production source of
@@ -52,19 +55,27 @@ func RandomSpread(limit time.Duration) time.Duration {
 	return time.Duration(n.Int64())
 }
 
+// DefaultJoinTimeout bounds the wait of [RunSegmentVersions] for the passes at its end: a store call that ignores its
+// context must not keep the relay from stopping.
+const DefaultJoinTimeout = 5 * time.Second
+
 // RunSegmentVersions refreshes the dynamic segments of the current runtime every tick, off the request path, until ctx
 // ends (or Wait fails): it reads the version keys of the lookup segments and refreshes the holders of the snapshot
 // segments. Each distinct binding is polled once when its interval is due, however many flag sets use it. The bindings
 // of one connection are polled in order in a pass of their own; the loop never waits for a pass, and a connection whose
 // pass still runs is skipped, so a store that hangs delays no other connection and there is at most one pass for each
-// connection. Each holder refresh has its own deadline ([DefaultPullTimeout]). The time of the loop is the sum of the
-// ticks it waited, so it needs no wall clock and a test that drives Wait drives the polls. The loop is owned by the run
-// context of the relay; the passes end with it, and it returns after them.
+// connection. Each holder refresh has its own deadline ([DefaultPullTimeout]). A pass that runs for more than twice
+// that deadline is hung (a store call that ignores its context): it is logged once, the connection counts as down, and
+// the sets that nothing refreshes answer STALE after three intervals. The time of the loop is the sum of the ticks it
+// waited, so it needs no wall clock and a test that drives Wait drives the polls. The loop is owned by the run context
+// of the relay; the passes end with it, and it returns after them, or after [SegmentPoll.JoinTimeout] for a pass that
+// does not end.
 func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) {
-	run := &passRunner{poll: poll, running: map[string]*atomic.Bool{}}
+	run := &passRunner{poll: poll, running: map[string]*passState{}, hung: map[string]bool{}}
+	known := map[*segBinding]struct{}{}
 	now := time.Unix(0, 0)
 
-	defer run.passes.Wait()
+	defer run.join(ctx)
 
 	for {
 		if poll.Wait(ctx, poll.Tick) != nil {
@@ -74,54 +85,128 @@ func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) 
 		now = now.Add(poll.Tick)
 		bindings := holder.Load().liveBindings()
 		due := map[string][]*segBinding{}
+		byConn := map[string][]*segBinding{}
+		live := make(map[*segBinding]struct{}, len(bindings))
 
 		for _, b := range bindings {
+			live[b] = struct{}{}
+			byConn[b.connection] = append(byConn[b.connection], b)
+			b.checkOverdue(now)
+
 			if !run.busy(b.connection) && b.due(now, poll.Jitter) {
 				due[b.connection] = append(due[b.connection], b)
 			}
 		}
 
-		byConn := map[string][]*segBinding{}
-		for _, b := range bindings {
-			byConn[b.connection] = append(byConn[b.connection], b)
+		for b := range known {
+			if _, still := live[b]; !still {
+				b.idle()
+			}
 		}
+
+		known = live
 
 		for _, name := range slices.Sorted(maps.Keys(due)) {
 			run.start(ctx, name, due[name], byConn[name], now)
 		}
 
 		for _, name := range slices.Sorted(maps.Keys(byConn)) {
+			run.checkHung(ctx, name, byConn[name], now)
 			run.report(ctx, name, byConn[name])
 		}
 	}
 }
 
+// passState is the pass of one connection: whether it runs, and since when (the time of the loop).
+type passState struct {
+	since   atomic.Int64
+	running atomic.Bool
+	warned  bool // only the loop touches it
+}
+
 // passRunner starts the passes of the loop and keeps what they share.
 type passRunner struct {
 	poll    *SegmentPoll
-	running map[string]*atomic.Bool // only the loop touches the map
+	running map[string]*passState // only the loop touches the map
+	hung    map[string]bool
 	down    map[string]bool
 	passes  sync.WaitGroup
-	mu      sync.Mutex // guards down
+	mu      sync.Mutex // guards hung and down
 }
 
 func (r *passRunner) busy(connection string) bool {
-	flag := r.running[connection]
+	state := r.running[connection]
 
-	return flag != nil && flag.Load()
+	return state != nil && state.running.Load()
+}
+
+// join waits for the passes, for at most the join timeout: a pass that ignores its context is left behind, with one
+// line.
+func (r *passRunner) join(ctx context.Context) {
+	done := make(chan struct{})
+
+	go func() {
+		r.passes.Wait()
+		close(done)
+	}()
+
+	timeout := cmp.Or(r.poll.JoinTimeout, DefaultJoinTimeout)
+
+	select {
+	case <-done:
+	case <-time.After(timeout):
+		if r.poll.Logger != nil {
+			r.poll.Logger.LogAttrs(context.WithoutCancel(ctx), slog.LevelWarn,
+				"a segment pass did not end with the relay: a store call ignores its context")
+		}
+	}
+}
+
+// hungFactor is how many pull deadlines a pass may run before it is hung.
+const hungFactor = 2
+
+// checkHung marks a connection whose pass runs for more than twice the deadline of a refresh, and logs it once.
+func (r *passRunner) checkHung(ctx context.Context, connection string, bindings []*segBinding, now time.Time) {
+	state := r.running[connection]
+	hung := false
+
+	if state != nil && state.running.Load() {
+		var bound time.Duration
+		for _, b := range bindings {
+			bound = max(bound, b.pullTimeout)
+		}
+
+		hung = now.Sub(time.Unix(0, state.since.Load())) > hungFactor*bound
+		if hung && !state.warned {
+			state.warned = true
+
+			if r.poll.Logger != nil {
+				r.poll.Logger.LogAttrs(ctx, slog.LevelWarn,
+					"a segment pass is hung: a store call does not return, its sets go stale",
+					slog.String("connection", connection))
+			}
+		}
+	} else if state != nil {
+		state.warned = false
+	}
+
+	r.mu.Lock()
+	r.hung[connection] = hung
+	r.mu.Unlock()
 }
 
 // start runs the pass of a connection: its due bindings in order, one after the other.
 func (r *passRunner) start(
 	ctx context.Context, connection string, list, all []*segBinding, now time.Time,
 ) {
-	flag := r.running[connection]
-	if flag == nil {
-		flag = &atomic.Bool{}
-		r.running[connection] = flag
+	state := r.running[connection]
+	if state == nil {
+		state = &passState{}
+		r.running[connection] = state
 	}
 
-	flag.Store(true)
+	state.since.Store(now.UnixNano())
+	state.running.Store(true)
 
 	if r.poll.OnPass != nil {
 		r.poll.OnPass(connection, true)
@@ -129,41 +214,46 @@ func (r *passRunner) start(
 
 	r.passes.Go(func() {
 		defer func() {
-			flag.Store(false)
+			state.running.Store(false)
 
 			if r.poll.OnPass != nil {
 				r.poll.OnPass(connection, false)
 			}
 		}()
 
-		var errs []error
+		errs := make([]error, 0, len(list))
 
 		for _, b := range list {
-			err := b.poll(ctx, now)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, b.poll(ctx, now)...)
 		}
 
-		r.reportErrors(ctx, list, errs)
+		r.reportErrors(ctx, all, errs)
 		r.report(ctx, connection, all)
 	})
 }
 
-// reportErrors passes the failures of a pass to OnError. A store that fails writes its one line (see
-// report), and the failure of each set is detail; when the store works, a set that fails is a line of its own.
-func (r *passRunner) reportErrors(ctx context.Context, list []*segBinding, errs []error) {
-	level := slog.LevelWarn
-
-	for _, b := range list {
-		if b.unhealthy() {
-			level = slog.LevelDebug
-		}
-	}
+// reportErrors passes the failures of a pass to OnError. The failure of a set that the store answered about (a key of
+// the wrong type, a set over the limit) is a line of its own, once for the set and the class. The failure of a store
+// that is down is detail: the connection writes its one line (see report).
+func (r *passRunner) reportErrors(ctx context.Context, all []*segBinding, errs []error) {
+	down := connectionDown(all)
 
 	for _, err := range errs {
 		if r.poll.Logger != nil {
-			r.poll.Logger.LogAttrs(ctx, level, "a segment could not be refreshed", slog.Any("error", err))
+			level := slog.LevelWarn
+			attrs := []slog.Attr{slog.Any("error", err)}
+
+			if failure, ok := errors.AsType[*holderError](err); ok {
+				attrs = append(attrs, slog.String("segment", failure.name), slog.String("class", string(failure.class)))
+
+				if down && failure.class != snapshot.ClassSet && failure.class != snapshot.ClassTooLarge {
+					level = slog.LevelDebug
+				}
+			} else if down {
+				level = slog.LevelDebug
+			}
+
+			r.poll.Logger.LogAttrs(ctx, level, "a segment could not be refreshed", attrs...)
 		}
 
 		if r.poll.OnError != nil {
@@ -172,12 +262,13 @@ func (r *passRunner) reportErrors(ctx context.Context, list []*segBinding, errs 
 	}
 }
 
-// report logs and reports the connection when its state changed since the last call: down when a binding of it fails.
+// report logs and reports the connection when its state changed since the last call: down when its store fails or its
+// pass is hung.
 func (r *passRunner) report(ctx context.Context, name string, bindings []*segBinding) {
-	down := slices.ContainsFunc(bindings, (*segBinding).unhealthy)
-
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	down := r.hung[name] || connectionDown(bindings)
 
 	if r.down == nil {
 		r.down = map[string]bool{}
@@ -309,10 +400,7 @@ func (v *SegmentView) RefreshVersions(ctx context.Context, now time.Time) error 
 
 	for _, group := range v.groups {
 		if group.bind.due(now, nil) {
-			err := group.bind.poll(ctx, now)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			errs = append(errs, group.bind.poll(ctx, now)...)
 		}
 	}
 

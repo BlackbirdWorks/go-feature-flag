@@ -2,6 +2,7 @@ package flagruntime_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -420,16 +421,21 @@ func TestRunSegmentVersionsSnapshot(t *testing.T) {
 type gateSource struct {
 	*segment.MemorySource
 
-	gates     map[string]chan struct{}
-	deadlines map[string][]time.Time
-	asks      map[string]int
-	mu        sync.Mutex
+	gates      map[string]chan struct{}
+	deadlines  map[string][]time.Time
+	asks       map[string]int
+	versionErr map[string]error
+	membersErr map[string]error
+	hang       chan struct{}
+	entered    chan string
+	mu         sync.Mutex
 }
 
 func newGateSource(source *segment.MemorySource, gated ...string) *gateSource {
 	out := &gateSource{
 		MemorySource: source, gates: map[string]chan struct{}{}, deadlines: map[string][]time.Time{},
-		asks: map[string]int{},
+		asks: map[string]int{}, entered: make(chan string, 256),
+		versionErr: map[string]error{}, membersErr: map[string]error{},
 	}
 
 	for _, name := range gated {
@@ -447,6 +453,23 @@ func (g *gateSource) Version(ctx context.Context, name string) (string, error) {
 	g.asks[name]++
 	g.mu.Unlock()
 
+	select {
+	case g.entered <- name:
+	default:
+	}
+
+	g.mu.Lock()
+	hang, failure := g.hang, g.versionErr[name]
+	g.mu.Unlock()
+
+	if hang != nil {
+		<-hang // a store call that ignores its context
+	}
+
+	if failure != nil {
+		return "", failure
+	}
+
 	version, err := g.MemorySource.Version(ctx, name)
 	if err != nil {
 		return "", fmt.Errorf("version: %w", err)
@@ -458,7 +481,17 @@ func (g *gateSource) Version(ctx context.Context, name string) (string, error) {
 func (g *gateSource) Members(ctx context.Context, name string) iter.Seq2[string, error] {
 	gate := g.gates[name]
 
+	g.mu.Lock()
+	failure := g.membersErr[name]
+	g.mu.Unlock()
+
 	return func(yield func(string, error) bool) {
+		if failure != nil {
+			yield("", failure)
+
+			return
+		}
+
 		if gate != nil {
 			select {
 			case <-gate:
@@ -473,6 +506,49 @@ func (g *gateSource) Members(ctx context.Context, name string) iter.Seq2[string,
 			if !yield(id, err) {
 				return
 			}
+		}
+	}
+}
+
+// failVersion makes the version read of a set fail, nil makes it work again.
+func (g *gateSource) failVersion(name string, err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.versionErr[name] = err
+}
+
+// failMembers makes the pull of a set fail, nil makes it work again.
+func (g *gateSource) failMembers(name string, err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.membersErr[name] = err
+}
+
+// hangVersions makes every version read wait for release, whatever its context says; the returned function releases.
+func (g *gateSource) hangVersions() func() {
+	release := make(chan struct{})
+
+	g.mu.Lock()
+	g.hang = release
+	g.mu.Unlock()
+
+	return func() { close(release) }
+}
+
+// awaitAsk waits until the source was asked for the version of the set.
+func (g *gateSource) awaitAsk(t *testing.T, name string) {
+	t.Helper()
+
+	for {
+		select {
+		case got := <-g.entered:
+			if got == name {
+				return
+			}
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "the source was not asked", name)
 		}
 	}
 }
@@ -508,10 +584,30 @@ func (b *twoBinder) Bind(
 	return &flagruntime.Binding{Source: source}, nil
 }
 
-// startPoll builds a runtime on the doc and runs the loop on it; the cleanup stops both and joins them.
+// pollRig is a runtime with the loop of the segments running on it.
+type pollRig struct {
+	holder *flagruntime.Holder
+	eng    *flagruntime.Engine
+	stop   func()
+	rev    uint64
+}
+
+// submit publishes the content as the next revision and waits until the engine applied it.
+func (r *pollRig) submit(t *testing.T, content *flagruntime.Content) {
+	t.Helper()
+
+	r.rev++
+	r.eng.Submit(revision(content, r.rev))
+
+	_, err := r.eng.Await(t.Context(), r.rev)
+	require.NoError(t, err)
+}
+
+// startPoll builds a runtime on the doc and runs the loop on it; the cleanup stops both and joins them. A pull timeout
+// of zero is the default.
 func startPoll(
-	t *testing.T, binder flagruntime.SegmentBinder, doc string, poll *flagruntime.SegmentPoll,
-) (*flagruntime.Holder, func()) {
+	t *testing.T, binder flagruntime.SegmentBinder, doc string, poll *flagruntime.SegmentPoll, pull time.Duration,
+) *pollRig {
 	t.Helper()
 
 	stores := flagruntime.StoreTable{
@@ -519,28 +615,25 @@ func startPoll(
 	}
 	holder := flagruntime.NewHolder()
 	eng := flagruntime.NewEngine(nil, newService(t), holder, flagruntime.WithSegmentStores(stores),
-		flagruntime.WithSegments(&flagruntime.SegmentEnv{Binder: binder}))
+		flagruntime.WithSegments(&flagruntime.SegmentEnv{Binder: binder, PullTimeout: pull}))
 
 	ctx, cancel := context.WithCancel(t.Context())
 
 	var loops sync.WaitGroup
 
-	stop := func() {
+	rig := &pollRig{holder: holder, eng: eng, stop: func() {
 		cancel()
 		loops.Wait()
-	}
+	}}
 
-	t.Cleanup(stop)
+	t.Cleanup(rig.stop)
 
 	loops.Go(func() { eng.Run(ctx) })
-	eng.Submit(revision(viewContent(t, doc), 1))
-
-	_, err := eng.Await(ctx, 1)
-	require.NoError(t, err)
+	rig.submit(t, viewContent(t, doc))
 
 	loops.Go(func() { flagruntime.RunSegmentVersions(ctx, holder, poll) })
 
-	return holder, stop
+	return rig
 }
 
 // The first poll of a binding is spread by the injected random source, and a store that hangs delays the poll of no
@@ -558,14 +651,14 @@ func TestSegmentPollPasses(t *testing.T) {
 		spreads atomic.Int32
 	)
 
-	_, stop := startPoll(t, binder, doc, &flagruntime.SegmentPoll{
+	rig := startPoll(t, binder, doc, &flagruntime.SegmentPoll{
 		Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second,
 		Jitter: func(limit time.Duration) time.Duration {
 			spreads.Add(1)
 
 			return limit / 2
 		},
-	})
+	}, 0)
 
 	// the first tick arms both bindings with half a second of spread: none is due yet
 	tick.tick(t, 1)
@@ -586,7 +679,7 @@ func TestSegmentPollPasses(t *testing.T) {
 	assert.Equal(t, 2, tick.passes(connAudiences))
 
 	// the loop ends with its context and joins the pass that still runs: nothing is left behind
-	stop()
+	rig.stop()
 
 	var ended []string
 
@@ -609,15 +702,17 @@ func TestSegmentPullDeadlines(t *testing.T) {
 	doc := audienceDoc(connAudiences, "") + "  - name: second\n    connection: audiences\n"
 	tick := newTicker()
 
-	holder, _ := startPoll(
+	rig := startPoll(
 		t,
 		binder,
 		doc,
 		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second},
+		0,
 	)
 
 	// the pull of the first set is held for twelve ticks, more than twice the interval: no second pass starts
 	tick.step(t, 12)
+	source.awaitAsk(t, audienceSegmentName)
 	assert.Equal(t, 1, source.asked(audienceSegmentName))
 	assert.Zero(t, source.asked("second"))
 
@@ -626,7 +721,7 @@ func TestSegmentPullDeadlines(t *testing.T) {
 
 	assert.Equal(t, flagruntime.SegmentBindingsStatus{
 		Live: 1, Connections: []flagruntime.ConnectionSnapshots{{Connection: connAudiences, Loaded: 2, Members: 2}},
-	}, holder.Load().SegmentBindings())
+	}, rig.holder.Load().SegmentBindings())
 
 	assert.True(t, source.deadline("second", 0).After(source.deadline(audienceSegmentName, 0)),
 		"the second set has a deadline of its own, started after the first")
@@ -831,14 +926,17 @@ func TestMissingSegmentWithUnknownPolicyIsHealthy(t *testing.T) {
 }
 
 const (
-	manyNames = 50
-	ttl30     = "30s"
+	interval10 = "10s"
+	manyNames  = 50
+	ttl30      = "30s"
 )
 
 // manyDoc is one segments object: a static segment, a lookup segment and fifty snapshot segments.
 type manyDoc struct {
-	beta       string
-	lookupTTL  string
+	beta      string
+	lookupTTL string
+	// interval is the interval of the version of seg3; empty means no version.
+	interval   string
 	changedKey int
 	extra      bool
 }
@@ -856,6 +954,10 @@ func (d manyDoc) String() string {
 		if i == d.changedKey {
 			doc.WriteString("    key: moved\n")
 		}
+
+		if i == 3 && d.interval != "" {
+			doc.WriteString("    version: {key: v3, interval: " + d.interval + "}\n")
+		}
 	}
 
 	if d.extra {
@@ -871,30 +973,48 @@ func (d manyDoc) String() string {
 func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 	t.Parallel()
 
-	base := manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: -1}
+	base := manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: -1, interval: interval10}
 
 	tests := []struct {
-		name         string
 		wantCold     []string
+		name         string
 		next         manyDoc
 		wantMembers  int
 		wantContains int
 	}{
 		{
-			name: "static segment edited", next: manyDoc{beta: memberAlice + ", bob", lookupTTL: ttl30, changedKey: -1},
+			name:         "static segment edited",
+			next:         manyDoc{beta: memberAlice + ", bob", lookupTTL: ttl30, changedKey: -1, interval: interval10},
+			wantMembers:  manyNames,
+			wantContains: 1,
+		},
+		{
+			name:        "snapshot version interval changed",
+			next:        manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: -1, interval: "20s"},
 			wantMembers: manyNames, wantContains: 1,
 		},
 		{
-			name: "one snapshot definition changed", next: manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: 7},
-			wantCold: []string{"seg7"}, wantMembers: manyNames + 1, wantContains: 1,
+			name:         "one snapshot definition changed",
+			next:         manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: 7, interval: interval10},
+			wantCold:     []string{"seg7"},
+			wantMembers:  manyNames + 1,
+			wantContains: 1,
 		},
 		{
-			name: "lookup definition changed", next: manyDoc{beta: memberAlice, lookupTTL: "1m", changedKey: -1},
-			wantMembers: manyNames, wantContains: 2,
+			name:         "lookup definition changed",
+			next:         manyDoc{beta: memberAlice, lookupTTL: "1m", changedKey: -1, interval: interval10},
+			wantMembers:  manyNames,
+			wantContains: 2,
 		},
 		{
-			name:         "snapshot definition added",
-			next:         manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: -1, extra: true},
+			name: "snapshot definition added",
+			next: manyDoc{
+				beta:       memberAlice,
+				lookupTTL:  ttl30,
+				changedKey: -1,
+				extra:      true,
+				interval:   interval10,
+			},
 			wantCold:     []string{"fresh"},
 			wantMembers:  manyNames + 1,
 			wantContains: 1,
@@ -995,3 +1115,315 @@ func TestStoreDownWritesOneLineForAllSets(t *testing.T) {
 	assert.Equal(t, []string{"a segment store fails: its segments are STORE_ERROR or STALE"}, rig.logs.all(t))
 	assert.Contains(t, rig.drained(), reportError, "the failures of the sets reach OnError, joined")
 }
+
+const threeDoc = "  - name: second\n    connection: audiences\n  - name: third\n    connection: audiences\n"
+
+func threeSets() map[string][]string {
+	return map[string][]string{
+		audienceSegmentName: {memberAlice}, "second": {memberAlice}, "third": {memberAlice},
+	}
+}
+
+// A set whose refresh always runs into its deadline does not keep the sets after it from being refreshed: the pass goes
+// on to the next holder, at every poll.
+func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(threeSets()), audienceSegmentName) // its gate is never opened
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	tick := newTicker()
+	rig := startPoll(t, binder, audienceDoc(connAudiences, "")+threeDoc,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second}, 50*time.Millisecond)
+
+	tick.tick(t, 1)
+
+	want := flagruntime.SegmentBindingsStatus{
+		Live: 1, Connections: []flagruntime.ConnectionSnapshots{
+			{Connection: connAudiences, Loaded: 2, NeverLoaded: 1, Members: 2},
+		},
+	}
+	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
+
+	// the next poll (a second later, as one set is not loaded) tries the first one again and reaches the others again
+	tick.tick(t, 2)
+	assert.Equal(t, 2, source.asked(audienceSegmentName))
+	assert.Equal(t, 2, source.asked("third"))
+	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
+}
+
+// A pass that hangs (a store call that ignores its context) is logged once, the connection counts as down, the sets
+// that nothing refreshes answer STALE after three intervals, and the loop still ends with its context.
+func TestSegmentPassThatHangsIsReported(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}}))
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	logs := &logLines{}
+	reports := make(chan string, 16)
+	tick := newTicker()
+	rig := startPoll(t, binder, audienceDoc(connAudiences, ""), &flagruntime.SegmentPoll{
+		Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second, JoinTimeout: 50 * time.Millisecond,
+		Logger:       slog.New(slog.NewJSONHandler(logs, nil)),
+		OnConnection: func(name string, down bool) { reports <- fmt.Sprintf("%s down=%t", name, down) },
+	}, 0)
+
+	catalog := func() *segment.Catalog { return rig.holder.Load().FlagSets["a"].Segments.Catalog }
+
+	tick.tick(t, 1)
+	source.awaitAsk(t, audienceSegmentName)
+
+	_, status, _ := catalog().Answer(audienceSegmentName, memberAlice)
+	assert.Equal(t, segment.StatusHealthy, status)
+
+	var once sync.Once
+
+	release := source.hangVersions()
+	releaseOnce := func() { once.Do(release) }
+
+	t.Cleanup(releaseOnce)
+
+	// the poll that is due five seconds later hangs; more than twice the deadline of a refresh (one minute) later the
+	// pass is hung
+	tick.step(t, 5)
+	source.awaitAsk(t, audienceSegmentName)
+	tick.step(t, 125)
+
+	_, status, _ = catalog().Answer(audienceSegmentName, memberAlice)
+	assert.Equal(t, segment.StatusStale, status, "a set that nothing refreshes goes stale")
+	assert.Equal(t, []string{connAudiences + " down=true"}, drainLines(reports))
+
+	rig.stop() // returns after the join timeout, with the pass still stuck
+
+	assert.Equal(t, []string{
+		"a segment pass is hung: a store call does not return, its sets go stale",
+		"a segment store fails: its segments are STORE_ERROR or STALE",
+		"a segment pass did not end with the relay: a store call ignores its context",
+	}, logs.all(t))
+
+	releaseOnce()
+}
+
+func drainLines(ch chan string) []string {
+	var out []string
+
+	for {
+		select {
+		case line := <-ch:
+			out = append(out, line)
+		default:
+			return out
+		}
+	}
+}
+
+// One set that the store cannot give is not a store that fails: it has a line of its own, once, and is counted in its
+// state, and the connection stays up. A store that fails for every set is down, with the one line of the connection.
+func TestSingleBrokenSetDoesNotFlipTheConnection(t *testing.T) {
+	t.Parallel()
+
+	const (
+		failed = "a segment could not be refreshed"
+		down   = "a segment store fails: its segments are STORE_ERROR or STALE"
+	)
+
+	wrongType := fmt.Errorf("members: %w", answeredError("a key of the wrong type"))
+
+	tests := []struct {
+		setup          func(*gateSource)
+		name           string
+		doc            string
+		wantLines      []string
+		wantConn       []string
+		wantConnStates flagruntime.ConnectionSnapshots
+	}{
+		{
+			name:      "a key of the wrong type",
+			setup:     func(s *gateSource) { s.failMembers("second", wrongType) },
+			wantLines: []string{failed},
+			wantConnStates: flagruntime.ConnectionSnapshots{
+				Connection:  connAudiences,
+				Loaded:      2,
+				NeverLoaded: 1,
+				Members:     2,
+			},
+		},
+		{
+			name: "the only set has a key of the wrong type", doc: audienceDoc(connAudiences, ""),
+			setup:          func(s *gateSource) { s.failMembers(audienceSegmentName, wrongType) },
+			wantLines:      []string{failed},
+			wantConnStates: flagruntime.ConnectionSnapshots{Connection: connAudiences, NeverLoaded: 1},
+		},
+		{
+			name:      "one set cannot be read for a transport failure",
+			setup:     func(s *gateSource) { s.failVersion("second", errStoreDown) },
+			wantLines: []string{failed},
+			wantConnStates: flagruntime.ConnectionSnapshots{
+				Connection:  connAudiences,
+				Loaded:      2,
+				NeverLoaded: 1,
+				Members:     2,
+			},
+		},
+		{
+			name: "every set fails for a transport failure",
+			setup: func(s *gateSource) {
+				for name := range threeSets() {
+					s.failVersion(name, errStoreDown)
+				}
+			},
+			wantLines:      []string{down},
+			wantConn:       []string{connAudiences + " down=true"},
+			wantConnStates: flagruntime.ConnectionSnapshots{Connection: connAudiences, NeverLoaded: 3},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := newGateSource(segment.NewMemorySource(threeSets()))
+			tt.setup(source)
+
+			binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+			logs := &logLines{}
+			reports := make(chan string, 16)
+			tick := newTicker()
+			doc := cmp.Or(tt.doc, audienceDoc(connAudiences, "")+threeDoc)
+			rig := startPoll(t, binder, doc, &flagruntime.SegmentPoll{
+				Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second,
+				Logger:       slog.New(slog.NewJSONHandler(logs, nil)),
+				OnConnection: func(name string, down bool) { reports <- fmt.Sprintf("%s down=%t", name, down) },
+			}, 0)
+
+			tick.tick(t, 8) // the failing set is read again every second, and reported once
+
+			assert.Equal(t, tt.wantLines, logs.all(t))
+			assert.Equal(t, tt.wantConn, drainLines(reports))
+			assert.Equal(t, flagruntime.SegmentBindingsStatus{
+				Live: 1, Connections: []flagruntime.ConnectionSnapshots{tt.wantConnStates},
+			}, rig.holder.Load().SegmentBindings())
+		})
+	}
+}
+
+// A new generation does not bring back a held set that its predecessor did not keep: a definition that went through
+// another identity, another mode or no flag set starts empty, never with a set that may be hours old.
+func TestHeldSetsAreNotRevived(t *testing.T) {
+	t.Parallel()
+
+	moved := audienceDoc(connAudiences, "") + "    key: moved\n"
+
+	tests := []struct {
+		name     string
+		docs     []string
+		wantCold bool
+	}{
+		{
+			name: "same identity again",
+			docs: []string{audienceDoc(connAudiences, ""), audienceDoc(connAudiences, "") + "\n"},
+		},
+		{
+			name:     "other identity and back",
+			docs:     []string{audienceDoc(connAudiences, ""), moved, audienceDoc(connAudiences, "")},
+			wantCold: true,
+		},
+		{
+			name:     "lookup and back",
+			docs:     []string{audienceDoc(connAudiences, ""), lookupDoc, audienceDoc(connAudiences, "")},
+			wantCold: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+			builder := viewBuilder(t, &memBinder{source: source})
+			now := time.Unix(1_000, 0)
+
+			var last *flagruntime.Built
+
+			for gen, doc := range tt.docs {
+				last = buildAndCommit(t, builder, revisionContent(t, uint64(gen+1), doc))
+
+				// every generation but the last is served long enough for the loop to refresh it
+				if gen < len(tt.docs)-1 {
+					require.NoError(t, last.Runtime.FlagSets["a"].Segments.View.RefreshVersions(t.Context(), now))
+				}
+			}
+
+			// what a request sees first in the last generation, before any refresh of it
+			_, status, ok := last.Runtime.FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
+
+			assert.True(t, ok)
+			assert.Equal(t, tt.wantCold, status == segment.StatusStoreError)
+		})
+	}
+}
+
+// A binding that no flag set of the served runtime uses is not refreshed: when a flag set uses it again its sets answer
+// STALE until a refresh worked, never healthy with what they held.
+func TestUnreferencedBindingGoesStale(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+	tick := newTicker()
+	rig := startPoll(t, &memBinder{source: source}, audienceDoc(connAudiences, ""),
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second}, 0)
+
+	answer := func() segment.Status {
+		_, status, _ := rig.holder.Load().FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
+
+		return status
+	}
+
+	tick.tick(t, 2)
+	assert.Equal(t, segment.StatusHealthy, answer())
+
+	rig.submit(t, plainContent(t, 2))
+	tick.tick(t, 1) // the loop sees that nothing uses the binding any more
+	rig.submit(t, revisionContent(t, 3, audienceDoc(connAudiences, "")))
+
+	assert.Equal(t, segment.StatusStale, answer(), "used again before any refresh")
+
+	tick.tick(t, 1)
+	assert.Equal(t, segment.StatusHealthy, answer(), "a refresh worked")
+}
+
+// plainContent is viewContent with a flag set that names no segments object.
+func plainContent(tb testing.TB, gen uint64) *flagruntime.Content {
+	tb.Helper()
+
+	return content(gen, objs{
+		"f1":      obj(flagruntime.KindFlags, []byte(viewFlagsYAML)),
+		segObject: segObj(audienceDoc(connAudiences, "")),
+		setsName:  setsObj(tb, controlplane.FlagSet{Name: "a", Sources: src("f1"), APIKeys: []string{keyA}}),
+	})
+}
+
+// The cache of the lookups of a connection that went away is not kept for a later generation that brings it back.
+func TestRemovedConnectionLookupCacheIsNotKept(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+	builder := viewBuilder(t, &memBinder{source: source})
+	eval := flagruntime.NewEvaluator(newService(t), nil)
+	ctx := ffcontext.NewEvaluationContext(memberAlice)
+
+	for gen, doc := range []string{lookupDoc, segHeader + "  - name: beta\n    members: [alice]\n", lookupDoc} {
+		built := buildAndCommit(t, builder, revisionContent(t, uint64(gen+1), doc))
+
+		_, err := eval.BoolVariationDetails(built.Runtime.FlagSets["a"], audienceFlag, ctx, false)
+		require.NoError(t, err)
+	}
+
+	assert.Equal(t, 2, source.Calls(segment.OpContains), "the third generation starts with a cold cache")
+}
+
+// answeredError is a failure of a store that answered about one set.
+type answeredError string
+
+func (e answeredError) Error() string { return string(e) }
+
+func (answeredError) StoreAnswered() bool { return true }
