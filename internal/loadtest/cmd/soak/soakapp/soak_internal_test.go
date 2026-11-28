@@ -42,7 +42,7 @@ const (
 
 // driveSamples returns a deterministic soakRunner that drives a fixed number of sampler ticks and
 // evaluations against target without depending on wall-clock ticks, GC, or process memory metrics.
-func driveSamples(sampleCount, evalsPerSample int, gotOpts *loadtest.Options) soakRunner {
+func driveSamples(sampleCount, evalsPerSample int, gotOpts *loadtest.Options, gotFlagsPerCall *int) soakRunner {
 	return func(
 		ctx context.Context,
 		target loadtest.Target,
@@ -67,17 +67,7 @@ func driveSamples(sampleCount, evalsPerSample int, gotOpts *loadtest.Options) so
 		var totalEval, totalErr, windowErr int64
 
 		for sampleIdx := range sampleCount {
-			var sampleErr int64
-
-			for evalIdx := range evalsPerSample {
-				worker := evalIdx % max(1, opts.Workers)
-
-				err := target.Eval(worker, sampleIdx*evalsPerSample+evalIdx)
-				if err != nil {
-					sampleErr++
-				}
-			}
-
+			sampleErr := evalSampleBatch(target, opts.Workers, sampleIdx, evalsPerSample)
 			totalEval += int64(evalsPerSample)
 			totalErr += sampleErr
 
@@ -102,55 +92,84 @@ func driveSamples(sampleCount, evalsPerSample int, gotOpts *loadtest.Options) so
 			flagsPerCall = weighted.FlagsPerCall()
 		}
 
-		rep := loadtest.Report{
-			Name:      opts.Name,
-			Samples:   samples,
-			TotalEval: totalEval,
-			TotalErr:  totalErr,
-			Extra:     target.Extra(),
-			Pass:      true,
+		if gotFlagsPerCall != nil {
+			*gotFlagsPerCall = flagsPerCall
 		}
 
-		measured := sampleCount - warm
-		if measured > 0 {
-			rep.Window = loadtest.Window{
-				Samples:      measured,
-				CallsPerSec:  testCallsPerSec,
-				FlagsPerCall: flagsPerCall,
-				FlagsPerSec:  testCallsPerSec * float64(flagsPerCall),
-				Errors:       windowErr,
-			}
-		}
-
-		if totalErr > 0 {
-			rep.Pass = false
-			rep.Reasons = append(rep.Reasons, fmt.Sprintf("%d of %d evaluations failed", totalErr, totalEval))
-		}
-
-		if measured < testMinMeasured {
-			rep.Pass = false
-			rep.Reasons = append(rep.Reasons, fmt.Sprintf(
-				"insufficient samples: %d samples, %d warm-up, need at least %d measured",
-				sampleCount,
-				warm,
-				testMinMeasured,
-			))
-		}
-
-		return rep
+		return buildSampleReport(target, opts.Name, samples, warm, flagsPerCall, totalEval, totalErr, windowErr)
 	}
+}
+
+func evalSampleBatch(target loadtest.Target, workers, sampleIdx, evalsPerSample int) int64 {
+	var errs int64
+
+	workerCount := max(1, workers)
+	for evalIdx := range evalsPerSample {
+		err := target.Eval(evalIdx%workerCount, sampleIdx*evalsPerSample+evalIdx)
+		if err != nil {
+			errs++
+		}
+	}
+
+	return errs
+}
+
+func buildSampleReport(
+	target loadtest.Target,
+	name string,
+	samples []loadtest.Sample,
+	warm, flagsPerCall int,
+	totalEval, totalErr, windowErr int64,
+) loadtest.Report {
+	rep := loadtest.Report{
+		Name:      name,
+		Samples:   samples,
+		TotalEval: totalEval,
+		TotalErr:  totalErr,
+		Extra:     target.Extra(),
+		Pass:      true,
+	}
+
+	measured := len(samples) - warm
+	if measured > 0 {
+		rep.Window = loadtest.Window{
+			Samples:      measured,
+			CallsPerSec:  testCallsPerSec,
+			FlagsPerCall: flagsPerCall,
+			FlagsPerSec:  testCallsPerSec * float64(flagsPerCall),
+			Errors:       windowErr,
+		}
+	}
+
+	if totalErr > 0 {
+		rep.Pass = false
+		rep.Reasons = append(rep.Reasons, fmt.Sprintf("%d of %d evaluations failed", totalErr, totalEval))
+	}
+
+	if measured < testMinMeasured {
+		rep.Pass = false
+		rep.Reasons = append(rep.Reasons, fmt.Sprintf(
+			"insufficient samples: %d samples, %d warm-up, need at least %d measured",
+			len(samples),
+			warm,
+			testMinMeasured,
+		))
+	}
+
+	return rep
 }
 
 func TestRun_Verdicts(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		wantOpts   func(*testing.T, loadtest.Options)
-		name       string
-		args       []string
-		wantStdout []string
-		samples    int
-		wantCode   int
+		wantOpts         func(*testing.T, loadtest.Options)
+		wantFlagsPerCall func(*testing.T, int, string)
+		name             string
+		args             []string
+		wantStdout       []string
+		samples          int
+		wantCode         int
 	}{
 		{
 			name: "library target",
@@ -176,6 +195,11 @@ func TestRun_Verdicts(t *testing.T) {
 				assert.Equal(t, time.Second, opts.Duration)
 				assert.Equal(t, 100*time.Millisecond, opts.Interval)
 				assert.InDelta(t, testHeapTolerance, opts.HeapTolerance, 1e-9)
+			},
+			wantFlagsPerCall: func(t *testing.T, flagsPerCall int, stdout string) {
+				t.Helper()
+				assert.Equal(t, 1, flagsPerCall)
+				assert.Contains(t, stdout, "(1 per call)")
 			},
 		},
 		{
@@ -234,6 +258,11 @@ func TestRun_Verdicts(t *testing.T) {
 			samples:    testSamplesPass,
 			wantCode:   0,
 			wantStdout: []string{"endpoint=ofrep-bulk protocol=h2c", passVerdict, "flags/s"},
+			wantFlagsPerCall: func(t *testing.T, flagsPerCall int, stdout string) {
+				t.Helper()
+				assert.Greater(t, flagsPerCall, 1)
+				assert.Contains(t, stdout, fmt.Sprintf("(%d per call)", flagsPerCall))
+			},
 		},
 	}
 
@@ -244,9 +273,10 @@ func TestRun_Verdicts(t *testing.T) {
 			var (
 				stdout, stderr bytes.Buffer
 				gotOpts        loadtest.Options
+				gotFlags       int
 			)
 
-			runner := driveSamples(tt.samples, testEvalsPerSample, &gotOpts)
+			runner := driveSamples(tt.samples, testEvalsPerSample, &gotOpts, &gotFlags)
 			code := run(t.Context(), tt.args, &stdout, &stderr, runner)
 			assert.Equal(t, tt.wantCode, code, "stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
 			assert.Empty(t, stderr.String())
@@ -258,6 +288,10 @@ func TestRun_Verdicts(t *testing.T) {
 			if tt.wantOpts != nil {
 				tt.wantOpts(t, gotOpts)
 			}
+
+			if tt.wantFlagsPerCall != nil {
+				tt.wantFlagsPerCall(t, gotFlags, stdout.String())
+			}
 		})
 	}
 }
@@ -266,30 +300,71 @@ func TestRun_Verdicts(t *testing.T) {
 func TestRun_CPUProfile(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "cpu.pprof")
+	tests := []struct {
+		makeArgs     func(t *testing.T) ([]string, string)
+		name         string
+		wantStdout   string
+		wantStderr   string
+		wantCode     int
+		wantNonEmpty bool
+	}{
+		{
+			name: "writes cpu profile when path is writable",
+			makeArgs: func(t *testing.T) ([]string, string) {
+				t.Helper()
+				path := filepath.Join(t.TempDir(), "cpu.pprof")
 
-	var stdout, stderr bytes.Buffer
+				return []string{
+					flagLongTarget, targetLibrary, "--cpuprofile", path,
+					flagLongWarmup, "1", flagLongWorker, "2",
+				}, path
+			},
+			wantCode:     0,
+			wantStdout:   passVerdict,
+			wantNonEmpty: true,
+		},
+		{
+			name: "unwritable profile path returns usage error",
+			makeArgs: func(t *testing.T) ([]string, string) {
+				t.Helper()
 
-	code := run(
-		t.Context(),
-		[]string{flagLongTarget, targetLibrary, "--cpuprofile", path, flagLongWarmup, "1", flagLongWorker, "2"},
-		&stdout,
-		&stderr,
-		driveSamples(testSamplesPass, testEvalsPerSample, nil),
-	)
-	require.Equal(t, 0, code, stderr.String())
-	assert.Contains(t, stdout.String(), passVerdict)
+				return []string{"--cpuprofile", filepath.Join(t.TempDir(), "missing", "cpu.pprof")}, ""
+			},
+			wantCode:   exitUsage,
+			wantStderr: "create CPU profile file",
+		},
+	}
 
-	st, err := os.Stat(path)
-	require.NoError(t, err)
-	assert.NotZero(t, st.Size())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	code = run(
-		t.Context(),
-		[]string{"--cpuprofile", filepath.Join(t.TempDir(), "missing", "cpu.pprof")},
-		&stdout,
-		&stderr,
-		driveSamples(testSamplesPass, testEvalsPerSample, nil),
-	)
-	assert.Equal(t, exitUsage, code, "an unwritable profile path is a usage error")
+			args, profilePath := tt.makeArgs(t)
+
+			var stdout, stderr bytes.Buffer
+
+			code := run(
+				t.Context(),
+				args,
+				&stdout,
+				&stderr,
+				driveSamples(testSamplesPass, testEvalsPerSample, nil, nil),
+			)
+			require.Equal(t, tt.wantCode, code, "stdout:\n%s\nstderr:\n%s", stdout.String(), stderr.String())
+
+			if tt.wantStdout != "" {
+				assert.Contains(t, stdout.String(), tt.wantStdout)
+			}
+
+			if tt.wantStderr != "" {
+				assert.Contains(t, stderr.String(), tt.wantStderr)
+			}
+
+			if tt.wantNonEmpty {
+				st, err := os.Stat(profilePath)
+				require.NoError(t, err)
+				assert.NotZero(t, st.Size())
+			}
+		})
+	}
 }

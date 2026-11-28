@@ -46,6 +46,15 @@ type soakTarget struct {
 	loadtest.Target
 }
 
+// FlagsPerCall forwards [loadtest.Weighted] when the wrapped target implements it.
+func (s soakTarget) FlagsPerCall() int {
+	if weighted, ok := s.Target.(loadtest.Weighted); ok {
+		return weighted.FlagsPerCall()
+	}
+
+	return 1
+}
+
 func run(ctx context.Context, args []string, stdout, stderr io.Writer, execute soakRunner) int {
 	opts, err := parseCommandLine(args)
 	if err != nil {
