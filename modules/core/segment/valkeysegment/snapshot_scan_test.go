@@ -236,18 +236,28 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 	}
 
 	tests := []struct {
-		segs      map[string]valkeysegment.SegmentOptions
-		name      string
-		wantScans int
-		wantGets  int
+		segs        map[string]valkeysegment.SegmentOptions
+		name        string
+		wantScans   int
+		wantGets    int
+		wantLookups int
 	}{
 		{
-			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1,
+			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1, wantLookups: 1,
 			segs: map[string]valkeysegment.SegmentOptions{"a": shared, "b": shared, "c": shared},
 		},
-		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2},
-		{name: "the cap of the probes is shared with the lookup probes", segs: distinct(10), wantScans: 3, wantGets: 3},
-		{name: "the lookup probes use the whole cap", segs: distinct(20)},
+		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2, wantLookups: 2},
+		{
+			// the snapshot probes come first: 10 segments make 20 probes, and the cap of 16 leaves none for the lookups
+			name: "the snapshot probes take the cap before the lookup probes", segs: distinct(10),
+			wantScans: 8, wantGets: 8, wantLookups: 0,
+		},
+		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 8, wantLookups: 0},
+		{
+			// 16 lookup namespaces and one snapshot segment: its two probes run, the lookups give way to 14
+			name: "16 lookup namespaces and a snapshot segment", segs: lookupAndSnapshot(), wantScans: 1, wantGets: 1,
+			wantLookups: 14,
+		},
 	}
 
 	for _, tt := range tests {
@@ -269,6 +279,7 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 			require.NoError(t, prov.Init(context.Background()))
 			assert.Equal(t, tt.wantScans, srv.count("sscan"), "SSCAN probes")
 			assert.Equal(t, tt.wantGets, srv.count("get"), "GET probes")
+			assert.Equal(t, tt.wantLookups, srv.count("smismember"), "lookup probes")
 		})
 	}
 }
@@ -299,4 +310,18 @@ func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
 
 	srv.Release()
 	wait.Wait()
+}
+
+// lookupAndSnapshot is 16 segments of the lookup mode, each in its own namespace, and one segment of the snapshot mode.
+func lookupAndSnapshot() map[string]valkeysegment.SegmentOptions {
+	segs := map[string]valkeysegment.SegmentOptions{
+		"zsnap": {Key: "zsnap:{x}", VersionKey: "v:zsnap", Snapshot: true},
+	}
+
+	for i := range 16 {
+		name := "l" + strconv.Itoa(100+i)
+		segs[name] = valkeysegment.SegmentOptions{Key: name + ":{x}"}
+	}
+
+	return segs
 }

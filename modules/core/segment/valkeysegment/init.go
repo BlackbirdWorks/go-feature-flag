@@ -108,7 +108,9 @@ func (p *Provider) probeCommands(builder *valkey.Builder) ([]valkey.Completed, [
 		names []string
 	)
 
-	for _, key := range p.probeSets {
+	sets, keys, snaps := p.probePlan()
+
+	for _, key := range sets {
 		cmds = append(cmds, builder.Smismember().Key(key).Member(probeID).Build())
 		names = append(names, "SMISMEMBER")
 
@@ -118,14 +120,12 @@ func (p *Provider) probeCommands(builder *valkey.Builder) ([]valkey.Completed, [
 		}
 	}
 
-	for _, key := range p.probeKeys {
+	for _, key := range keys {
 		cmds = append(cmds, builder.Exists().Key(key).Build())
 		names = append(names, "EXISTS")
 	}
 
-	budget := max(MaxInitProbes-len(p.probeSets)-len(p.probeKeys), 0)
-
-	for _, probe := range snapshotProbes(p.segs, budget) {
+	for _, probe := range snaps {
 		if probe.name == cmdSScan {
 			cmds = append(cmds, builder.Sscan().Key(probe.key).Cursor(0).Count(1).Build())
 		} else {
@@ -263,6 +263,18 @@ func (r *result) readExists(out []segment.State, slots []int, results []valkey.V
 			out[slots[i]] = segment.Member
 		}
 	}
+}
+
+// probePlan splits the cap of MaxInitProbes between the probes of Init: the snapshot probes come first, so a provider
+// with many lookup namespaces cannot crowd out the permission check of a snapshot segment, and the lookup probes take
+// what is left.
+func (p *Provider) probePlan() ([]string, []string, []snapshotProbe) {
+	snaps := snapshotProbes(p.segs, MaxInitProbes)
+	room := MaxInitProbes - len(snaps)
+	sets := p.probeSets[:min(len(p.probeSets), room)]
+	keys := p.probeKeys[:min(len(p.probeKeys), room-len(sets))]
+
+	return sets, keys, snaps
 }
 
 // snapshotProbe is one probe of the snapshot mode: the command name and its key.

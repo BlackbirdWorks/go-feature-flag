@@ -930,7 +930,9 @@ func (p *Provider) probe(ctx context.Context) error {
 
 	var scripts []initCheck
 
-	for _, key := range p.probeSets {
+	sets, keys, snaps := p.probePlan()
+
+	for _, key := range sets {
 		switch {
 		case scripted:
 			scripts = append(scripts,
@@ -946,7 +948,7 @@ func (p *Provider) probe(ctx context.Context) error {
 		}
 	}
 
-	for _, key := range p.probeKeys {
+	for _, key := range keys {
 		checks = append(checks, initCheck{pipe.Do(callCtx, "exists", key), "EXISTS", shapeInt})
 	}
 
@@ -964,13 +966,13 @@ func (p *Provider) probe(ctx context.Context) error {
 	}
 
 	if len(scripts) > 0 {
-		err = p.probeScripts(&res, scripts)
+		err = p.probeScripts(&res, scripts, sets)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = p.probeSnapshot(ctx)
+	err = p.probeSnapshot(ctx, snaps)
 	if err != nil {
 		return err
 	}
@@ -1017,14 +1019,24 @@ func snapshotProbes(segs map[string]*segmentConfig, budget int) []snapshotProbe 
 	return probes
 }
 
+// probePlan splits the cap of MaxInitProbes between the probes of Init: the snapshot probes come first, so a provider
+// with many lookup namespaces cannot crowd out the permission check of a snapshot segment, and the lookup probes take
+// what is left.
+func (p *Provider) probePlan() ([]string, []string, []snapshotProbe) {
+	snaps := snapshotProbes(p.segs, MaxInitProbes)
+	room := MaxInitProbes - len(snaps)
+	sets := p.probeSets[:min(len(p.probeSets), room)]
+	keys := p.probeKeys[:min(len(p.probeKeys), room-len(sets))]
+
+	return sets, keys, snaps
+}
+
 // probeSnapshot probes the commands of the snapshot mode on the segments that are configured for it, on the node that
 // the snapshot reads use (the primary of the slot of the key). The probes count inside MaxInitProbes with the lookup
 // probes, and each key is probed once. A missing version key is the answer nil, not a failure. A refused command is
 // an error of Init that names it.
-func (p *Provider) probeSnapshot(ctx context.Context) error {
-	budget := max(MaxInitProbes-len(p.probeSets)-len(p.probeKeys), 0)
-
-	for _, probe := range snapshotProbes(p.segs, budget) {
+func (p *Provider) probeSnapshot(ctx context.Context, probes []snapshotProbe) error {
+	for _, probe := range probes {
 		node, err := p.primaryOf(ctx, probe.key)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInit, err)
@@ -1100,7 +1112,7 @@ func (p *Provider) initFailure(res *result, checks []initCheck) error {
 
 // probeScripts reads the probes of the read-only script commands. When the store refuses them, it probes the plain
 // commands in a second pipeline, and the provider uses those from then on.
-func (p *Provider) probeScripts(res *result, readOnly []initCheck) error {
+func (p *Provider) probeScripts(res *result, readOnly []initCheck, sets []string) error {
 	err := p.initFailure(res, readOnly)
 	if err == nil {
 		p.roScript.Store(true)
@@ -1117,7 +1129,7 @@ func (p *Provider) probeScripts(res *result, readOnly []initCheck) error {
 
 	var plain []initCheck
 
-	for _, key := range p.probeSets {
+	for _, key := range sets {
 		plain = append(plain,
 			initCheck{pipe.Do(callCtx, "eval", Script, 1, key, probeID), "EVAL", scriptShape},
 			initCheck{pipe.Do(callCtx, "evalsha", ScriptSHA, 1, key, probeID), "EVALSHA", scriptShape},
