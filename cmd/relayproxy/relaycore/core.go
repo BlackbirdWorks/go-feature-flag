@@ -96,7 +96,7 @@ type reloadCounter struct {
 	mu    sync.Mutex
 }
 
-func (r *reloadCounter) record(res flagruntime.RoundResult) {
+func (r *reloadCounter) record(res *flagruntime.RoundResult) {
 	now := clock.Now().UTC()
 	round := &RoundSummary{At: now, Outcome: string(res.Outcome), Code: res.Code, Generation: res.Generation}
 

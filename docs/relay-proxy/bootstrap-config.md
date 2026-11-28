@@ -232,6 +232,21 @@ endpoints. It is off by default. Use it for a relay that only the trusted networ
 | `manifest.maxObjects` | integer | `20000` | 1 or more |
 | `stateDir` | string | none | a directory path |
 
+`controlPlane.stateDir` is where the relay keeps the generation it serves, so that a restart while the control plane is
+unreachable serves it at once. The directory holds **what the engine applied**, and only that:
+
+- A generation is written after the engine applied it, with the content the relay serves. A generation that the engine
+  rejects (a build failure, a flag key defined in two public flag sets) is never written: the directory keeps the
+  last applied one. A first generation that is never applied leaves nothing on disk.
+- A generation applied with an object whose content the engine could not decode keeps, for that object, the last
+  content that was written (the object is stale on restart, as it is in the running relay), not the rejected body.
+- The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. The
+  files are written to a temporary name and renamed, so a crash leaves the previous state readable, and a half
+  written file is never loaded.
+- A write that fails (a full disk, a permission) is logged, counted in `state_saves_total` with `result="error"`, and
+  its closed reason is `lastSaveError` in the state status of the reader. The relay goes on serving. At shutdown the
+  last applied generation is written within the shutdown deadline.
+
 ### `connections.<name>`
 
 Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis` and `valkey` are supported. Types that are planned

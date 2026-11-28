@@ -78,7 +78,8 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 
 	// the seed carries values of neither generation, so the first iteration is a full rebuild too
 	eng.Submit(scaleSeed(b))
-	requireApplied(b, <-rounds)
+	res := <-rounds
+	requireApplied(b, &res)
 
 	eval := flagruntime.NewEvaluator(svc, nil)
 
@@ -127,7 +128,8 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 		gen++
 
 		eng.Submit(&flagruntime.Content{Generation: gen, Objects: gens[gen%2].Objects})
-		requireApplied(b, <-rounds)
+		res := <-rounds
+		requireApplied(b, &res)
 	}
 
 	b.StopTimer()
@@ -146,7 +148,7 @@ func BenchmarkScaleReadersDuringSwaps(b *testing.B) {
 }
 
 // requireApplied fails the benchmark on a round that did not swap: the old runtime would keep serving.
-func requireApplied(b *testing.B, res flagruntime.RoundResult) {
+func requireApplied(b *testing.B, res *flagruntime.RoundResult) {
 	b.Helper()
 
 	if res.Outcome != flagruntime.OutcomeApplied {

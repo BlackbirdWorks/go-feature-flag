@@ -767,7 +767,7 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 		final = *applied
 	}
 
-	result := RoundResult{Reload: final}
+	result := RoundResult{Reload: final, Revision: e.roundRevision}
 	if applied != nil {
 		result.Events = events
 	}

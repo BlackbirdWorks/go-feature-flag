@@ -73,7 +73,7 @@ func TestReloadCounter(t *testing.T) {
 
 			var counter reloadCounter
 			for _, r := range tt.rounds {
-				counter.record(r)
+				counter.record(&r)
 			}
 
 			assert.Equal(t, tt.want, counter.snapshot())
