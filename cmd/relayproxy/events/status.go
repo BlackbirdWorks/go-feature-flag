@@ -10,6 +10,10 @@ const (
 	ReasonNoExporter = "no_exporter"
 	// ReasonOverflow: the queue of an exporter overflowed (its manager dropped the event).
 	ReasonOverflow = "overflow"
+	// ReasonBlockTimeout: the exporter has the block policy and its queue stayed full until the block deadline.
+	ReasonBlockTimeout = "block_timeout"
+	// ReasonRetryExhausted: the export of the batch failed through every attempt of the retry.
+	ReasonRetryExhausted = "retry_exhausted"
 	// ReasonNotPublic: the event came from a caller without an API key and its flag is not one of the public flags.
 	ReasonNotPublic = "not_public"
 	// ReasonDrain: the event was not delivered when its exporter closed: the drain deadline passed or the final
@@ -50,11 +54,16 @@ type Drops struct {
 	Overflow   uint64 `json:"overflow"`
 	Drain      uint64 `json:"drain"`
 	NotPublic  uint64 `json:"notPublic"`
+	// BlockTimeout and RetryExhausted are the drops of an exporter, see [ReasonBlockTimeout] and
+	// [ReasonRetryExhausted].
+	BlockTimeout   uint64 `json:"blockTimeout"`
+	RetryExhausted uint64 `json:"retryExhausted"`
 }
 
 // Total is the sum of every reason.
 func (d Drops) Total() uint64 {
-	return d.QueueFull + d.Shutdown + d.NoExporter + d.Overflow + d.Drain + d.NotPublic
+	return d.QueueFull + d.Shutdown + d.NoExporter + d.Overflow + d.Drain + d.NotPublic + d.BlockTimeout +
+		d.RetryExhausted
 }
 
 // QueueStatus is the state of the event channel.
@@ -70,6 +79,8 @@ type ExporterStatus struct {
 	Name  string `json:"name"`
 	Kind  string `json:"kind"`
 	State string `json:"state"`
+	// OverflowPolicy is what a full queue of the exporter does: dropNewest, dropOldest or block.
+	OverflowPolicy string `json:"overflowPolicy"`
 	// LastError is the class of the error of the last flush.
 	LastError ErrorClass `json:"lastError"`
 	Dropped   Drops      `json:"dropped"`

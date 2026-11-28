@@ -2,6 +2,8 @@ package exporter
 
 import (
 	"log/slog"
+	"math"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -58,16 +60,23 @@ type managerImpl[T ExportableEvent] struct {
 	// flushThresholds is, per consumer, the number of pending events that triggers a flush: its
 	// MaxEventInMemory, capped by its queue limit (a threshold above the limit could never be reached).
 	flushThresholds []int64
-	flushAgain      []atomic.Bool
+	// maxBytes is, per consumer, the size of pending events that triggers a flush (0: no limit); the store keeps
+	// the sizes.
+	maxBytes   []int64
+	flushAgain []atomic.Bool
 	// flushStalled[i] is set when a handoff gave up waiting for the running flush of the consumer i,
 	// until that flush ends: the next handoffs do not wait for it again.
 	flushStalled []atomic.Bool
 	// nextFlushAfter (unix nano), per consumer, is the time before which the "pending events
 	// reached MaxEventInMemory" trigger does not retry a flush that has just failed.
 	nextFlushAfter []atomic.Int64
-	consumers      []DataExporter[T]
-	flushWg        sync.WaitGroup
-	stopMu         sync.RWMutex
+	// flushFailures counts the failed flushes in a row of each consumer; maxFlushBackoff and clocks are its settings.
+	flushFailures   []atomic.Int64
+	maxFlushBackoff []time.Duration
+	clocks          []func() time.Time
+	consumers       []DataExporter[T]
+	flushWg         sync.WaitGroup
+	stopMu          sync.RWMutex
 	// flushEnded is closed (and replaced) each time a background flush round ends, see waitForRoom.
 	flushEndedMu sync.Mutex
 	stopped      bool
@@ -81,6 +90,9 @@ const flushWaitBudget = 200 * time.Millisecond
 // it, a failing exporter would be called (with all the pending events) on every added event.
 // The periodic flush (FlushInterval) is not affected.
 const flushRetryBackoff = 1 * time.Second
+
+// flushBackoffFactor is the growth of the pause with each failed flush in a row.
+const flushBackoffFactor = 2
 
 // NewManager returns a manager that sends evaluation events to the exporters.
 func NewManager[T ExportableEvent](exporters []Config,
@@ -139,7 +151,20 @@ func NewManager[T ExportableEvent](exporters []Config,
 		mgr.flushThresholds[idx] = min(consumer.GetMaxEventInMemory(), limits[idx])
 	}
 
-	mgr.nextFlushAfter = make([]atomic.Int64, len(consumers))
+	mgr.maxBytes = make([]int64, len(consumers))
+
+	for idx, exporter := range exporters {
+		mgr.maxBytes[idx] = max(exporter.MaxBytes, 0)
+	}
+
+	if slices.ContainsFunc(mgr.maxBytes, func(limit int64) bool { return limit > 0 }) {
+		if sized, ok := evStore.(interface{ SetSizer(func(T) int) }); ok {
+			sized.SetSizer(func(event T) int { return EventSize(event) })
+		}
+	}
+
+	mgr.initFlushPauses(exporters)
+
 	mgr.flushRunning = make([]atomic.Bool, len(consumers))
 	mgr.flushAgain = make([]atomic.Bool, len(consumers))
 
@@ -147,6 +172,23 @@ func NewManager[T ExportableEvent](exporters []Config,
 	go mgr.reportDrops()
 
 	return mgr
+}
+
+// initFlushPauses sets up the pause after a failed flush of each consumer.
+func (m *managerImpl[T]) initFlushPauses(exporters []Config) {
+	m.nextFlushAfter = make([]atomic.Int64, len(exporters))
+	m.flushFailures = make([]atomic.Int64, len(exporters))
+	m.maxFlushBackoff = make([]time.Duration, len(exporters))
+	m.clocks = make([]func() time.Time, len(exporters))
+
+	for idx := range exporters {
+		m.maxFlushBackoff[idx] = exporters[idx].MaxFlushBackoff
+
+		m.clocks[idx] = time.Now
+		if exporters[idx].Now != nil {
+			m.clocks[idx] = exporters[idx].Now
+		}
+	}
 }
 
 // onDrop is called by the store, in the goroutine that adds the events (an evaluation for
@@ -335,7 +377,7 @@ func (m *managerImpl[T]) consumersToWaitFor(store EventStore[T]) []int {
 
 	for i, count := range counts {
 		if count == most && most >= 0 && m.flushRunning[i].Load() && !m.flushStalled[i].Load() &&
-			time.Now().UnixNano() >= m.nextFlushAfter[i].Load() {
+			!m.paused(i) {
 			waitFor = append(waitFor, i)
 		}
 	}
@@ -361,7 +403,7 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 			continue
 		}
 
-		if time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
+		if m.paused(i) {
 			continue
 		}
 
@@ -372,10 +414,21 @@ func (m *managerImpl[T]) triggerFlushes(store EventStore[T], async bool) {
 			continue
 		}
 
-		if count >= m.flushThresholds[i] {
+		if count >= m.flushThresholds[i] || m.bytesReached(store, i, consumer.GetConsumerID()) {
 			m.flush(i, async, true)
 		}
 	}
+}
+
+// bytesReached says whether the events pending for the consumer reached its byte limit.
+func (m *managerImpl[T]) bytesReached(store EventStore[T], i int, consumerID string) bool {
+	if m.maxBytes[i] <= 0 {
+		return false
+	}
+
+	sized, ok := store.(interface{ PendingBytes(string) int64 })
+
+	return ok && sized.PendingBytes(consumerID) >= m.maxBytes[i]
 }
 
 // flush flushes the consumer, now or (async) in the background goroutine of the consumer.
@@ -404,7 +457,7 @@ func (m *managerImpl[T]) flush(i int, async, checkProgress bool) {
 			for m.flushAgain[i].Swap(false) {
 				// a flush requested while the previous one was running was requested before that
 				// one failed: it must not bypass the backoff that failure has just set.
-				if checkProgress && time.Now().UnixNano() < m.nextFlushAfter[i].Load() {
+				if checkProgress && m.paused(i) {
 					continue
 				}
 
@@ -438,13 +491,55 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	err := flusher.flushQueue()
 	if err != nil {
 		if checkProgress {
-			m.nextFlushAfter[i].Store(time.Now().Add(flushRetryBackoff).UnixNano())
+			m.nextFlushAfter[i].Store(m.pauseUntil(i))
 		}
 
 		return
 	}
 
 	m.nextFlushAfter[i].Store(0)
+	m.flushFailures[i].Store(0)
+}
+
+// paused says whether the pause after a failed flush of the consumer is still running.
+func (m *managerImpl[T]) paused(i int) bool {
+	until := m.nextFlushAfter[i].Load()
+
+	return until != 0 && m.clocks[i]().UnixNano() < until
+}
+
+// pauseUntil is the time (unix nano) the event-count trigger stays paused until after a failed flush: it saturates
+// instead of overflowing with a huge pause.
+func (m *managerImpl[T]) pauseUntil(i int) int64 {
+	pause := m.flushPause(i)
+	nowNano := m.clocks[i]().UnixNano()
+
+	if int64(pause) > math.MaxInt64-nowNano {
+		return math.MaxInt64
+	}
+
+	return nowNano + int64(pause)
+}
+
+// flushPause is the pause after a failed flush of the consumer: one second, doubled with each failed flush in a row
+// up to the MaxFlushBackoff of the consumer.
+func (m *managerImpl[T]) flushPause(i int) time.Duration {
+	failures := m.flushFailures[i].Add(1)
+	limit := m.maxFlushBackoff[i]
+
+	pause := flushRetryBackoff
+	for ; failures > 1 && pause < limit; failures-- {
+		// capped before the multiplication, so a huge limit cannot overflow
+		if pause >= limit/flushBackoffFactor {
+			pause = limit
+
+			break
+		}
+
+		pause *= flushBackoffFactor
+	}
+
+	return pause
 }
 
 func (m *managerImpl[T]) Start() {

@@ -62,6 +62,7 @@ it. It works with zero flag sets.
 | `semaphore_flags_rejected` | `reason` (`kept`, `dropped`) | rejected flags present in the running generation (a gauge: it falls when the rejection is fixed; alert on it for "still rejected") |
 | `semaphore_object_status` | `state` (`ok`, `stale`, `missing`, `pending`, `invalid`) | source objects by state, always exported |
 | `semaphore_object_oldest_unapplied_age_seconds` | | seconds since the oldest object that is not `ok` left that state, 0 when all are `ok` |
+| `semaphore_config_summaries_total` | | status summaries built: one per swapped runtime, by the first probe or scrape that reads it (readers that meet it together share one build) |
 
 The generation of the manifest the reader fetched (`semaphore_manifest_generation`: the engine may have rejected it; the generation served is `semaphore_config_generation{layer="applied"}`), the S3 requests and the exporters have their own metrics
 (`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).
@@ -78,7 +79,8 @@ The age starts when this process first saw the object not `ok`, and a restart fr
 The age is the only value computed per scrape: each scrape subtracts the recorded start time from the current time. The
 other values are computed when a generation is built, not per scrape, and nothing was added to the request path.
 
-Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per
+Cardinality: no label carries a flag or a key. The counts per state are computed once per swapped runtime, by the first read
+(`semaphore_config_summaries_total` counts them; probes and scrapes that meet it together wait for the one build), not per
 scrape, and a scrape evaluates no flag: its cost does not grow with the number of flags per flag set.
 Per-flag-set series exist only for flag sets that are not ready.
 

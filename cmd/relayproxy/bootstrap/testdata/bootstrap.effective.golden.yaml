@@ -134,7 +134,16 @@ exporters:
   evals-archive:
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
     format: parquet
+    overflowPolicy: dropNewest
     parquetCompressionCodec: SNAPPY
     path: evaluations/
     connection: flags-eu
@@ -142,23 +151,59 @@ exporters:
   evals-kafka:
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
     kafka:
       topic: flag-evaluations
       addresses:
         - kafka-1:9092
+    overflowPolicy: dropNewest
     kind: kafka
   evals-kinesis:
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
+    overflowPolicy: dropNewest
     connection: events-kinesis
     kind: kinesis
   evals-log:
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
+    overflowPolicy: dropNewest
     kind: log
   evals-warehouse:
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
+    overflowPolicy: dropNewest
     connection: warehouse
     tableName: flag_evaluations
     database: analytics
@@ -170,6 +215,15 @@ exporters:
         fromEnv: EVALS_WEBHOOK_TOKEN
     flushInterval: 60s
     maxEventInMemory: 100000
+    retry:
+      maxAttempts: 5
+      initialBackoff: 200ms
+      maxBackoff: 5s
+      maxElapsed: 30s
+      onExhausted: keep
+    blockTimeout: 50ms
+    drainTimeout: 10s
+    overflowPolicy: dropNewest
     kind: webhook
     endpointUrl:
       fromEnv: EVALS_WEBHOOK_URL

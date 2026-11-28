@@ -18,6 +18,11 @@ type RuntimeConfig struct {
 	Broadcast func(flagruntime.Change)
 	// NewManager builds the manager of one exporter, see [DispatcherConfig.NewManager].
 	NewManager NewManagerFunc
+	// After and Rand are the timer and the source of jitter of the block deadline and of the retries, see
+	// [DispatcherConfig.After].
+	After func(time.Duration) <-chan time.Time
+	Now   func() time.Time
+	Rand  func() float64
 	// Builder builds the exporters and notifiers.
 	Builder Builder
 	// QueueSize, Workers and BatchSize size the event channel, the worker pool and its batches.
@@ -26,7 +31,7 @@ type RuntimeConfig struct {
 	BatchSize int
 	// NotifierQueueSize is the queue of changes of each notifier.
 	NotifierQueueSize int
-	// DrainTimeout is the deadline of the drain of what a reload replaces or removes.
+	// DrainTimeout is the deadline of the drain of what a reload replaces or removes, for an exporter that sets none.
 	DrainTimeout time.Duration
 }
 
@@ -45,7 +50,8 @@ func NewRuntime(cfg *RuntimeConfig) *Runtime {
 		builder: cfg.Builder,
 		Dispatcher: NewDispatcher(&DispatcherConfig{
 			Logger: cfg.Logger, NewManager: cfg.NewManager, Builder: cfg.Builder, QueueSize: cfg.QueueSize,
-			Workers: cfg.Workers, BatchSize: cfg.BatchSize, DrainTimeout: cfg.DrainTimeout,
+			Workers: cfg.Workers, BatchSize: cfg.BatchSize, DrainTimeout: cfg.DrainTimeout, After: cfg.After,
+			Now: cfg.Now, Rand: cfg.Rand,
 		}),
 		Notifications: NewNotifications(&NotificationsConfig{
 			Logger: cfg.Logger, Broadcast: cfg.Broadcast, Builder: cfg.Builder, QueueSize: cfg.NotifierQueueSize,
@@ -163,7 +169,7 @@ func (r *Runtime) apply(ctx context.Context, expDefs []ExporterDef, notDefs []No
 
 	// both drain waits start now, each with its deadline measured from the swap, and run at the same time: neither
 	// side's wait delays the other's cut
-	expCtx, cancelExp := r.Dispatcher.newDrainContext(ctx)
+	expCtx, cancelExp := r.Dispatcher.newDrainContext(ctx, r.Dispatcher.longestDrainOf(set.leavingExporters))
 	defer cancelExp()
 
 	notCtx, cancelNot := r.Notifications.newDrainContext(ctx)

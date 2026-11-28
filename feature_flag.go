@@ -161,6 +161,9 @@ func initializeDataExporters(config *Config, logger *slog.Logger) (
 				FlushInterval:    exp.FlushInterval,
 				MaxEventInMemory: exp.MaxEventInMemory,
 				MaxQueuedEvents:  exp.MaxQueuedEvents,
+				MaxBytes:         0, // the root client has no byte limit
+				MaxFlushBackoff:  0, // the fixed pause of one second
+				Now:              nil,
 			}
 			if exp.ExporterEventType == TrackingEventExporter {
 				trackingEventExporterConfigs = append(trackingEventExporterConfigs, expCfg)

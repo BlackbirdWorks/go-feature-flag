@@ -103,9 +103,13 @@ func deriveRouting(admin map[string]struct{}, held heldRouting) (heldRouting, ma
 	return heldRouting{byKey: byKey, sets: sets}, enabled, names
 }
 
-// logCollisions writes one warning for the flag sets whose collision is new (not in the previous generation). It
-// names the flag sets, never a key.
-func (e *Engine) logCollisions(ctx context.Context, generation uint64, names []string, disabled int) {
+// logCollisions writes one error when a collision is new: a flag set that was not in the previous generation, or more
+// disabled admin keys than before (a second key of a flag set that already collided, which the flag set names alone
+// cannot show). A distinct error says when every admin key is disabled, once until a key works again. It names the
+// flag sets and counts, never a key. prior is what the generation that ran before disabled.
+func (e *Engine) logCollisions(
+	ctx context.Context, generation uint64, names []string, disabled int, prior disabledKeys,
+) {
 	var fresh []string
 
 	for _, name := range names {
@@ -119,19 +123,47 @@ func (e *Engine) logCollisions(ctx context.Context, generation uint64, names []s
 		e.collided[name] = struct{}{}
 	}
 
-	if len(fresh) == 0 {
-		return
+	if len(fresh) > 0 || disabled > prior.count {
+		e.logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"an admin key is disabled because a flag set publishes the same key; the key is not routed to the flag set either",
+			slog.String("code", string(CodeAdminKeyCollision)),
+			slog.Uint64("generation", generation),
+			slog.String("flagsets", strings.Join(names, ",")),
+			slog.Int("disabledAdminKeys", disabled),
+		)
 	}
 
-	e.logger.LogAttrs(
-		ctx,
-		slog.LevelError,
-		"an admin key is disabled because a flag set publishes the same key; the key is not routed to the flag set either",
-		slog.String("code", string(CodeAdminKeyCollision)),
-		slog.Uint64("generation", generation),
-		slog.String("flagsets", strings.Join(fresh, ",")),
-		slog.Int("disabledAdminKeys", disabled),
-	)
+	if disabled > 0 && disabled >= len(e.rawAdmin()) && !prior.all {
+		e.logger.LogAttrs(
+			ctx,
+			slog.LevelError,
+			"every admin key is disabled because flag sets publish the same keys; "+
+				"the admin API is unreachable until a key is rotated",
+			slog.String("code", string(CodeAdminKeyCollision)),
+			slog.Uint64("generation", generation),
+			slog.Int("disabledAdminKeys", disabled),
+		)
+	}
+}
+
+// disabledKeys is what a generation had disabled among the admin keys.
+type disabledKeys struct {
+	// count is the number of disabled admin keys, and all says that none was left.
+	count int
+	all   bool
+}
+
+// disabledAdminKeys reads what the running generation disabled. Call it before the swap of the next one.
+func (e *Engine) disabledAdminKeys() disabledKeys {
+	if e.cur == nil {
+		return disabledKeys{}
+	}
+
+	count := e.cur.Status.DisabledAdminKeys
+
+	return disabledKeys{count: count, all: count > 0 && count >= len(e.rawAdmin())}
 }
 
 // rawAdmin returns the admin keys of the bootstrap file that runs, before the keys that a flag set also publishes
