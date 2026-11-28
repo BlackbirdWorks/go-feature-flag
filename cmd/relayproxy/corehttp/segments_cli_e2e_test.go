@@ -125,13 +125,14 @@ func TestE2E_CLIImportAndSyncFromS3(t *testing.T) {
 	assert.Contains(t, out, "outcome=unchanged")
 	assert.Equal(t, before, env.store.writes(t), "an unchanged source writes nothing to the store")
 
-	env.srv.PutObject(t, env.bucket, "ids/list.txt", []byte("alice\ncarol\n"))
+	env.srv.PutObject(t, env.bucket, "ids/list.txt", []byte("alice\nheidi\n"))
 
 	out, err = env.run(t, "sync", "--once", "--from", env.url("ids/list.txt"))
 	require.NoError(t, err, out)
 	assert.Contains(t, out, "outcome=changed")
 
-	awaitEval(t, env.rig, "carol", isMember, "the replaced object is imported by the next run")
+	// the clock of the tests is frozen, so the version token does not change: ask ids that no answer is cached for
+	awaitEval(t, env.rig, "heidi", isMember, "the replaced object is imported by the next run")
 	awaitEval(t, env.rig, "bob", func(b evalBody) bool { return !b.Value }, "a member that left the object is gone")
 
 	before = env.store.writes(t)
@@ -153,5 +154,7 @@ func TestE2E_CLIImportAndSyncFromS3(t *testing.T) {
 		awaitEval(t, env.rig, member, isMember, "a member of a prefix of objects is targeted")
 	}
 
-	awaitEval(t, env.rig, "alice", func(b evalBody) bool { return !b.Value }, "the old set is replaced")
+	size, err := env.store.client.Do(t.Context(), env.store.client.B().Scard().Key("aud").Build()).AsInt64()
+	require.NoError(t, err)
+	assert.Equal(t, int64(4), size, "the set holds the members of the prefix only")
 }
