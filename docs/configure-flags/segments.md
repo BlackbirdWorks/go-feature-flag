@@ -30,7 +30,7 @@ beta-feature:
 ```
 
 > [!NOTE]
-> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. The relay proxy settings that define segments, and looking members up in a store from the relay proxy, are not available yet: the relay wiring is tracked in issue 16. Go applications can use the dynamic providers today (see [Segments - dynamic](segments-dynamic.md)) and the static ones (see [Use segments in the Go module](#use-segments-in-the-go-module)).
+> This page describes what the engine does today: the segment definition model, the `segment()` syntax, its validation and the evaluation rules. On the relay proxy, the static segments of a published `Segments` document are evaluated (see [Segments - static](segments-static.md#in-the-relay-proxy)); looking members up in a store from the relay proxy is not available yet: the relay wiring is tracked in issue 16. Go applications can use the dynamic providers today (see [Segments - dynamic](segments-dynamic.md)) and the static ones (see [Use segments in the Go module](#use-segments-in-the-go-module)).
 
 ## Syntax
 
@@ -174,7 +174,7 @@ The membership is two-valued, so the evaluation reports beside the result how th
 | `NOT_CONFIGURED` | a rule uses a segment and no provider is configured | |
 | `STORE_ERROR` | a lookup was not answered (store error, timeout, ended request, provider that panicked or left a lookup untouched) | worst |
 
-An evaluation that looked no segment up has no status. The relay proxy returns it as the `semaphore_segmentStatus` metadata key of the evaluation responses (OFREP single and bulk, `/v1/feature/{flagKey}/eval` and `/v1/allflags`) when the evaluation used a segment and the status is not `HEALTHY`; a healthy evaluation and a flag without a segment have no such key, so their responses are unchanged. OFREP does not send it when the Semaphore metadata is disabled. A provider that can serve older data reports it by implementing `segment.StaleReporter` (`Stale() bool`); nothing in the engine produces `STALE` by itself.
+An evaluation that looked no segment up has no status. The relay proxy returns it as the `semaphore_segmentStatus` metadata key of the evaluation responses of the four endpoints (OFREP single, OFREP bulk, `/v1/feature/{flagKey}/eval` and `/v1/allflags`) when the evaluation used a segment and the status is not `HEALTHY`; a healthy evaluation and a flag without a segment have no such key, so their responses are unchanged. OFREP does not send it when the Semaphore metadata is disabled. A provider that can serve older data reports it by implementing `segment.StaleReporter` (`Stale() bool`); nothing in the engine produces `STALE` by itself.
 
 ## Use segments in the Go module
 
@@ -208,5 +208,5 @@ client, err := ffclient.New(&ffclient.Config{
 ## What is not available yet
 
 - Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments - dynamic](segments-dynamic.md)).
-- The `segments` setting of the relay proxy, the segment lookups on the relay proxy evaluation endpoints, the `semaphore_segmentStatus` metadata, the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
+- The segment lookups in a store on the relay proxy evaluation endpoints (a dynamic segment of a published document is defined, has no provider yet, answers "not a member" and the evaluation reports `NOT_CONFIGURED`), the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
 - Tools to import and swap members.

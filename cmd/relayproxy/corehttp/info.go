@@ -161,6 +161,10 @@ func flagSetInfo(set *flagruntime.FlagSetStatus) model.FlagSetInfo {
 		Flags: set.Flags, APIKeys: set.APIKeys, Rejected: set.Rejected,
 	}
 
+	if set.Segments != nil {
+		out.Segments = &model.SegmentCountsInfo{Static: set.Segments.Static, Dynamic: set.Segments.Dynamic}
+	}
+
 	for _, p := range set.Problems {
 		out.Problems = append(out.Problems, model.ProblemInfo{Code: string(p.Code), Subject: p.Subject})
 	}

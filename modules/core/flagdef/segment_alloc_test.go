@@ -133,7 +133,7 @@ func TestEvaluationAllocations(t *testing.T) {
 		},
 		{
 			name: "alloc: nikunjy not member", query: nikunjyInclude, plainQuery: queryEqAlice,
-			key: "zed", wantVariant: variantOff, wantExtra: 1,
+			key: keyZed, wantVariant: variantOff, wantExtra: 1,
 		},
 		{
 			name:        "nikunjy include and exclude: two terms, one vector",

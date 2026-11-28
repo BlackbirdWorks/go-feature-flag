@@ -31,6 +31,11 @@ type Context struct {
 	// The provider is called from the evaluating goroutine.
 	Segments segment.Provider `json:"-"`
 
+	// SegmentCatalog (optional) is the catalog of the segments of this evaluation, in place of the one of the
+	// Service: the relay proxy has one for each flag set. Its static segments are answered from memory, with no call
+	// to Segments and no allocation. Nil means the catalog of the Service.
+	SegmentCatalog *segment.Catalog `json:"-"`
+
 	// RequestContext is the context of the request that is evaluated: the membership lookups honour its
 	// cancellation and deadline. Nil means context.Background().
 	//

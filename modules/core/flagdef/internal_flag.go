@@ -450,7 +450,10 @@ func (f *InternalFlag) selectVariation(
 	svc *Service, flagName, key string, ctx ffcontext.Context, flagCtx *Context) (variationSelection, error) {
 	hasRule := len(f.GetRules()) != 0
 	// Shared by all the rules below: the context is converted to a map at most once.
-	queryCtx := &queryContext{svc: svc, ctx: ctx, segments: flagCtx.Segments, requestContext: flagCtx.RequestContext}
+	queryCtx := &queryContext{
+		svc: svc, ctx: ctx, segments: flagCtx.Segments, requestContext: flagCtx.RequestContext,
+		catalog: catalogOf(svc, flagCtx),
+	}
 	defer queryCtx.release()
 	// Check all targeting in order, the first to match will be the one used.
 	if hasRule {

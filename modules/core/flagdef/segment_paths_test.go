@@ -51,7 +51,7 @@ func TestSegmentTermsOfALongQuery(t *testing.T) {
 		key         string
 		wantVariant string
 	}{
-		{name: "member", key: keyAlice, wantVariant: variantOn},
+		{name: nameMember, key: keyAlice, wantVariant: variantOn},
 		{name: "not member", key: keyBob, wantVariant: variantOff},
 	}
 

@@ -27,6 +27,23 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 		}
 	}
 
+	// a segments object that changed (same names, other members): the flag sets that list it as a source
+	// (a set whose entry is invalid, frozen or placeholder, stays as it is: it is built only when every one of its
+	// sources resolves, and what resolves is decided by the documents, which an incremental pass does not change)
+	for setName, held := range st.prev.sets {
+		if held.frozen || held.placeholder {
+			continue
+		}
+
+		for _, source := range held.spec.segSources {
+			if slices.Contains(st.chSegs, source) {
+				affected[setName] = struct{}{}
+
+				break
+			}
+		}
+	}
+
 	if len(affected) == 0 {
 		return &next, nil
 	}
@@ -105,12 +122,14 @@ func (st *stage) summarize(spec *setSpec, notes []Problem) (*inputSummary, []*ob
 // mergeFlags builds the flag table of a flag set and its content hash. A flag set with one source shares the
 // map of the source. The hash combines the effective flags (key and content of each), so it does not depend on
 // the order of the sources, on checksums, on formats or on history.
-func mergeFlags(sum *inputSummary, inputs []*objState) (map[string]*flagdef.InternalFlag, uint64) {
+func mergeFlags(
+	sum *inputSummary, inputs []*objState,
+) (map[string]*flagdef.InternalFlag, map[string][]string, uint64) {
 	switch sum.loaded {
 	case 0:
-		return nil, 0
+		return nil, nil, 0
 	case 1:
-		return sum.last.flags, sum.last.content
+		return sum.last.flags, sum.last.refs, sum.last.content
 	}
 
 	total := 0
@@ -123,21 +142,31 @@ func mergeFlags(sum *inputSummary, inputs []*objState) (map[string]*flagdef.Inte
 
 	flags := make(map[string]*flagdef.InternalFlag, total)
 	hashes := make(map[string]uint64, total)
+	refs := map[string][]string{}
 
 	for _, held := range inputs {
 		if held != nil {
 			maps.Copy(flags, held.flags) // a later source wins on a duplicate flag key
 			maps.Copy(hashes, held.hashes)
+
+			for key := range held.flags {
+				delete(refs, key) // the winning flag is the one whose segments count
+			}
+
+			maps.Copy(refs, held.refs)
 		}
 	}
 
-	return flags, tableHash(hashes)
+	return flags, refs, tableHash(hashes)
 }
 
 // buildSet builds a flag set from its definition and the objects of the stage.
 func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 	sum, inputs := st.summarize(spec, notes)
-	flags, hash := mergeFlags(sum, inputs)
+	flags, refs, hash := mergeFlags(sum, inputs)
+	segInputs, segments, segProblems := st.setSegments(spec)
+	sigs := flagSignatures(refs, segments)
+	hash += sigsHash(sigs)
 
 	phase := StateServing
 
@@ -148,16 +177,21 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 		phase = StateDegraded
 	}
 
+	if len(segProblems) > 0 {
+		sum.problems = append(sum.problems, segProblems...)
+		phase = StateDegraded
+	}
+
 	fset := &FlagSet{
 		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
-		ModifiedAt: st.now,
+		ModifiedAt: st.now, Segments: segments, flagSigs: sigs,
 	}
 
 	return &setState{
-		spec: spec, fs: fset, inputs: inputs, notes: notes,
+		spec: spec, fs: fset, inputs: inputs, segInputs: segInputs, notes: notes,
 		status: &FlagSetStatus{
 			Name: spec.name, State: phase, Sources: spec.sources, Problems: sum.problems, Flags: len(flags),
-			APIKeys: len(spec.keys), Rejected: sum.rejected,
+			APIKeys: len(spec.keys), Rejected: sum.rejected, Segments: segments.counts(),
 		},
 	}
 }
@@ -167,8 +201,15 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *setState {
 	// the fields are copied one by one: a FlagSet holds a memo that must not be copied
 	fset := &FlagSet{
-		Flags: old.fs.Flags, Name: old.fs.Name, State: old.fs.State, Hash: old.fs.Hash, APIKeys: len(spec.keys),
-		Rejected: old.fs.Rejected, ModifiedAt: now,
+		Flags:      old.fs.Flags,
+		Segments:   old.fs.Segments,
+		flagSigs:   old.fs.flagSigs,
+		Name:       old.fs.Name,
+		State:      old.fs.State,
+		Hash:       old.fs.Hash,
+		APIKeys:    len(spec.keys),
+		Rejected:   old.fs.Rejected,
+		ModifiedAt: now,
 	}
 
 	if fset.State == StateServing {
@@ -178,7 +219,15 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *se
 	status := *old.status
 	status.State, status.APIKeys, status.Problems = fset.State, len(spec.keys), slices.Clone(notes)
 
-	return &setState{spec: spec, fs: fset, status: &status, inputs: old.inputs, notes: notes, frozen: true}
+	return &setState{
+		spec:      spec,
+		fs:        fset,
+		status:    &status,
+		inputs:    old.inputs,
+		segInputs: old.segInputs,
+		notes:     notes,
+		frozen:    true,
+	}
 }
 
 // placeholderSet routes the keys of an invalid entry that never had a valid definition to a flag set that is

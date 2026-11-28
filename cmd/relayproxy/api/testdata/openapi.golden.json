@@ -391,6 +391,9 @@
             "format": "int64",
             "type": "integer"
           },
+          "segments": {
+            "$ref": "#/components/schemas/SegmentCountsInfo"
+          },
           "state": {
             "type": "string"
           }
@@ -924,6 +927,24 @@
         },
         "required": [
           "refreshed"
+        ],
+        "type": "object"
+      },
+      "SegmentCountsInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "dynamic": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "static": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "static",
+          "dynamic"
         ],
         "type": "object"
       },

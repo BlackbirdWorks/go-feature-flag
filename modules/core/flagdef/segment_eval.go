@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"math"
 	"math/big"
-	"math/bits"
 	"strconv"
 	"strings"
 
@@ -131,7 +130,7 @@ func (q *queryContext) resolveSegments(
 		states[i] = parser.SegmentUnknown
 
 		id, ok := q.attributeID(terms[i].Path)
-		if !ok || !q.svc.definesSegment(terms[i].Name) {
+		if !ok || !q.defines(terms[i].Name) {
 			states[i] = parser.SegmentNotMember
 
 			continue
@@ -195,12 +194,15 @@ func (q *queryContext) lookup(
 	ids *[parser.MaxSegmentTerms]string,
 	pending uint32,
 ) {
-	var status segment.Status
+	// the static segments are answered from memory: no call, no allocation
+	status, asked, pending := q.answerStatic(terms, states, ids, pending)
 
-	if q.segments == nil {
-		status = segment.StatusNotConfigured
-	} else {
-		lookups := make([]segment.Lookup, 0, bits.OnesCount32(pending))
+	switch {
+	case asked == 0:
+	case q.segments == nil:
+		status = status.Worse(segment.StatusNotConfigured)
+	default:
+		lookups := make([]segment.Lookup, 0, asked)
 
 		for i := range terms {
 			if pending&(1<<i) != 0 {
@@ -208,7 +210,7 @@ func (q *queryContext) lookup(
 			}
 		}
 
-		status = q.lookupSegments(lookups)
+		status = status.Worse(q.lookupSegments(lookups))
 
 		next := 0
 
@@ -222,21 +224,63 @@ func (q *queryContext) lookup(
 
 	for i := range terms {
 		if pending&(1<<i) != 0 && states[i] == parser.SegmentUnknown {
-			states[i] = q.svc.failurePolicy(terms[i].Name, states[i])
+			states[i] = q.failure(terms[i].Name, states[i])
 		}
 	}
 
 	q.segmentStatus = q.segmentStatus.Worse(status)
 }
 
-// definesSegment reports whether the Service defines the segment. A Service without definitions defines every
-// segment: the provider decides.
-func (s *Service) definesSegment(name string) bool {
-	if s.segments == nil {
+// answerStatic answers from the catalog the terms of pending that are static segments. It returns the health of
+// those answers, the number of terms that are left for the provider and the bits of those terms.
+func (q *queryContext) answerStatic(
+	terms []parser.SegmentTerm,
+	states []parser.SegmentState,
+	ids *[parser.MaxSegmentTerms]string,
+	pending uint32,
+) (segment.Status, int, uint32) {
+	var (
+		status segment.Status
+		asked  int
+	)
+
+	for i := range terms {
+		if pending&(1<<i) == 0 {
+			continue
+		}
+
+		state, ok := q.catalog.Member(terms[i].Name, ids[i])
+		if !ok {
+			asked++
+
+			continue
+		}
+
+		states[i] = parser.SegmentState(state)
+		status = status.Worse(segment.StatusHealthy)
+		pending &^= 1 << i
+	}
+
+	return status, asked, pending
+}
+
+// catalogOf is the catalog of an evaluation: the one of the Context, else the one of the Service.
+func catalogOf(svc *Service, flagCtx *Context) *segment.Catalog {
+	if flagCtx.SegmentCatalog != nil {
+		return flagCtx.SegmentCatalog
+	}
+
+	return svc.segments
+}
+
+// defines reports whether the catalog defines the segment. Without definitions every segment is defined: the
+// provider decides.
+func (q *queryContext) defines(name string) bool {
+	if q.catalog == nil {
 		return true
 	}
 
-	return s.segments.Has(name)
+	return q.catalog.Has(name)
 }
 
 // lookupSegments sends the lookups to the provider and returns the health of the call: StatusHealthy when every
@@ -333,9 +377,9 @@ func (q *queryContext) callProvider(ctx context.Context, lookups []segment.Looku
 	return stale, err
 }
 
-// failurePolicy applies the failure policy of the segment name to an unanswered lookup.
-func (s *Service) failurePolicy(name string, state parser.SegmentState) parser.SegmentState {
-	return parser.SegmentState(s.segments.ResolveFor(name, segment.State(state)))
+// failure applies the failure policy of the segment name to an unanswered lookup.
+func (q *queryContext) failure(name string, state parser.SegmentState) parser.SegmentState {
+	return parser.SegmentState(q.catalog.ResolveFor(name, segment.State(state)))
 }
 
 // attributeID returns the value of the attribute at path as the identifier to look up. Strings are used as they
