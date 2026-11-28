@@ -1017,6 +1017,12 @@ func (r *Reader) publish(ctx context.Context) {
 		objects[name] = state.objectState()
 	}
 
+	// the status of the manifest is visible before the snapshot is: the round of the engine that gets the snapshot reads
+	// it, and the status of the round itself is stored when the round ends
+	held := *r.status.Load()
+	held.Manifest = r.manifest
+	r.status.Store(&held)
+
 	r.revision++
 
 	snap := &Snapshot{
