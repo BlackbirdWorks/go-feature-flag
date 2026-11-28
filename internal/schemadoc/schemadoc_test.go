@@ -17,6 +17,7 @@ import (
 const (
 	perKind        = "\x00perKind"
 	typeInteger    = "integer"
+	keyVersion     = "version"
 	repoRoot       = "../.."
 	bootstrapPath  = repoRoot + "/.schema/bootstrap-schema.json"
 	referencePath  = repoRoot + "/docs/reference/schema.md"
@@ -400,7 +401,7 @@ func TestBootstrapReloadCell(t *testing.T) {
 		want string
 	}{
 		{path: "auth.adminKeys", want: "live"},
-		{path: "version", want: "restart"},
+		{path: keyVersion, want: "restart"},
 		{path: "server", want: "per key"},
 		{path: "nosuchkey", want: "unknown"},
 	}
