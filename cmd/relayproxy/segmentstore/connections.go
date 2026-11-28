@@ -276,15 +276,15 @@ func (c *Connections) connect(ctx context.Context) {
 		}
 
 		res := dialUntil(ctx, conn.dial)
-		err := res.err
-		if err != nil {
+
+		if res.err != nil {
 			if ctx.Err() != nil {
 				return // the relay is stopping: it is not a store that is down
 			}
 
 			if conn.failed.CompareAndSwap(false, true) {
 				c.log.LogAttrs(ctx, slog.LevelWarn, "a segment store is not reachable: its segments answer STORE_ERROR",
-					slog.String("connection", name), slog.String("kind", conn.kind), slog.Any("error", err))
+					slog.String("connection", name), slog.String("kind", conn.kind), slog.Any("error", res.err))
 			}
 
 			continue
