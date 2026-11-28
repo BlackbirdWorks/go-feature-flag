@@ -14,9 +14,10 @@ const defaultSSEHeartbeatInterval = 30 * time.Second
 const defaultWriteTimeout = 10 * time.Second
 
 type options struct {
-	includeFlagDetails   bool
+	now                  func() time.Time
 	sseHeartbeatInterval time.Duration
 	writeTimeout         time.Duration
+	includeFlagDetails   bool
 }
 
 // Option configures flag change streams.
@@ -37,6 +38,16 @@ func WithSSEHeartbeatInterval(interval time.Duration) Option {
 	}
 }
 
+// WithClock sets the clock that the write deadlines of an SSE stream are computed from. The default is the real
+// time: a network deadline is enforced by the runtime, so a stream that runs against the network keeps the default.
+func WithClock(now func() time.Time) Option {
+	return func(o *options) {
+		if now != nil {
+			o.now = now
+		}
+	}
+}
+
 // WithWriteTimeout sets the time a websocket client has to take a message before it is closed and removed, and the
 // write deadline of every write of an SSE stream. A value <= 0 keeps the default.
 func WithWriteTimeout(timeout time.Duration) Option {
@@ -49,7 +60,10 @@ func WithWriteTimeout(timeout time.Duration) Option {
 
 func newOptions(opts ...Option) options {
 	cfg := options{
-		includeFlagDetails: true, sseHeartbeatInterval: defaultSSEHeartbeatInterval, writeTimeout: defaultWriteTimeout,
+		includeFlagDetails:   true,
+		sseHeartbeatInterval: defaultSSEHeartbeatInterval,
+		writeTimeout:         defaultWriteTimeout,
+		now:                  time.Now,
 	}
 	for _, opt := range opts {
 		opt(&cfg)

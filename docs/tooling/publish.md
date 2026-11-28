@@ -146,7 +146,7 @@ one public namespace and rejects a generation in which two of them define the sa
 
 - `publish` and `publish verify` check this before any upload: every flag key that two or more keyless flag sets define is
   an error that names the flag key, the flag sets and the flag objects whose definition each serves (a later source of a
-  flag set wins on a duplicate key, as in the relay). Nothing is uploaded, exit code 2.
+  flag set wins on a duplicate key, as in the relay). `publish` uploads nothing and exits with 2; `publish verify` reports one problem for each flag key (`invalid-content`, object `objects`) and exits with 5.
 - A flag key shared between a keyless flag set and a flag set with keys is fine.
 - Fix it by giving the flags different keys, or by giving one of the flag sets an API key.
 

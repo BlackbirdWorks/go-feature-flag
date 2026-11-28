@@ -467,21 +467,32 @@ func TestSSEBlockedWriteEndsAtRevocation(t *testing.T) {
 	}
 }
 
-// deadlineResponse records the write deadlines set on a response, in order.
+// deadlineResponse records the write deadlines set on a response, in order. A muted response drops them: the
+// revocation that reached the response of a handler that had already returned.
 type deadlineResponse struct {
 	*httptest.ResponseRecorder
 
 	deadlines []time.Time
 	mu        sync.Mutex
+	muted     bool
 }
 
 func (d *deadlineResponse) SetWriteDeadline(deadline time.Time) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.deadlines = append(d.deadlines, deadline)
+	if !d.muted {
+		d.deadlines = append(d.deadlines, deadline)
+	}
 
 	return nil
+}
+
+func (d *deadlineResponse) mute(muted bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.muted = muted
 }
 
 func (d *deadlineResponse) last() time.Time {
@@ -495,30 +506,43 @@ func (d *deadlineResponse) last() time.Time {
 	return d.deadlines[len(d.deadlines)-1]
 }
 
-// The teardown of a stream (public flags withdrawn, key revoked) keeps a write deadline: the server writes the last
-// chunk after the handler returns, and a client that does not read must not hold the connection with it.
+// The teardown of a stream (public flags withdrawn, key revoked, client left) always sets a write deadline: the server
+// writes the last chunk after the handler returns, and a client that does not read must not hold the connection with
+// it. A revoked stream gets the deadline of the revocation, any other the normal one.
 func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 	t.Parallel()
 
+	const timeout = 7 * time.Second
+
+	now := time.Date(2030, time.January, 2, 3, 4, 5, 0, time.UTC)
+	revoked := time.Unix(1, 0)
+
 	tests := []struct {
+		wantDeadline time.Time
 		teardown     func(*stream.SSEServiceImpl)
 		name         string
 		streamID     string
 		keyed        bool
-		wantDeadline bool
+		revokeFirst  bool
 	}{
 		{
 			name: "public flags withdrawn", streamID: stream.AnonymousStreamPrefix + setOne,
-			teardown: func(svc *stream.SSEServiceImpl) { svc.DisconnectAnonymous("") }, wantDeadline: true,
+			teardown: func(svc *stream.SSEServiceImpl) { svc.DisconnectAnonymous("") }, wantDeadline: now.Add(timeout),
 		},
 		{
 			name: "key revoked", streamID: setOne, keyed: true,
 			teardown:     func(svc *stream.SSEServiceImpl) { svc.DisconnectRevoked(routesOf(nil)) },
-			wantDeadline: true,
+			wantDeadline: revoked,
 		},
 		{
-			name: "client left", streamID: setOne, wantDeadline: true,
+			name: "client left", streamID: setOne, keyed: true, wantDeadline: now.Add(timeout),
 			teardown: func(*stream.SSEServiceImpl) {},
+		},
+		{
+			// the revocation is stored, and the handler returns before it reaches the response: the teardown is the
+			// only one that can set the deadline
+			name: "revoked, handler returned first", streamID: setOne, keyed: true, revokeFirst: true,
+			wantDeadline: revoked,
 		},
 	}
 
@@ -526,7 +550,10 @@ func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			svc := stream.NewSSEService(stream.WithSSEHeartbeatInterval(0))
+			svc := stream.NewSSEService(
+				stream.WithSSEHeartbeatInterval(0), stream.WithWriteTimeout(timeout),
+				stream.WithClock(func() time.Time { return now }),
+			)
 			t.Cleanup(svc.Close)
 
 			subscribed := make(chan string, 1)
@@ -543,22 +570,33 @@ func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 			go func() {
 				defer close(served)
 
-				if tt.keyed {
-					svc.ServeKeyed(response, req, keyOne, func() bool { return true })
+				if !tt.keyed {
+					svc.ServeHTTP(response, req)
 
 					return
 				}
 
-				svc.ServeHTTP(response, req)
+				svc.ServeKeyed(response, req, keyOne, func() bool {
+					if tt.revokeFirst {
+						response.mute(true)
+						svc.DisconnectRevoked(routesOf(nil))
+						response.mute(false)
+					}
+
+					return true
+				})
 			}()
 
-			select {
-			case <-subscribed:
-			case <-time.After(anonBound):
-				require.FailNow(t, "the client did not subscribe")
+			if !tt.revokeFirst {
+				select {
+				case <-subscribed:
+				case <-time.After(anonBound):
+					require.FailNow(t, "the client did not subscribe")
+				}
+
+				tt.teardown(svc)
 			}
 
-			tt.teardown(svc)
 			cancel()
 
 			select {
@@ -567,7 +605,7 @@ func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 				require.FailNow(t, "the stream did not end")
 			}
 
-			assert.Equal(t, tt.wantDeadline, !response.last().IsZero(), "the last write of the stream has a deadline")
+			assert.Equal(t, tt.wantDeadline, response.last(), "the last write of the stream has this deadline")
 		})
 	}
 }

@@ -368,7 +368,7 @@ func seedEngineBadFlags(t *testing.T, rig *harness, format string) {
 	require.NoError(t, err)
 
 	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
-		Channel: "stable", Generation: 1,
+		Channel: chanStable, Generation: 1,
 		Objects: []controlplane.ManifestObject{{
 			Name: "engine", Kind: controlplane.KindFlags, Connection: "control", Key: key, Format: format,
 			Checksum: sum, Size: int64(len(body)),
@@ -405,7 +405,7 @@ func TestVerifyNamesWhatItDidNotCheck(t *testing.T) {
 	rig := newHarness(t, sourceTree())
 
 	manifest, err := controlplane.MarshalManifest(&controlplane.Manifest{
-		Channel: "stable", Generation: 1,
+		Channel: chanStable, Generation: 1,
 		Objects: []controlplane.ManifestObject{{
 			Name: "elsewhere", Kind: controlplane.KindFlags, Connection: "other", Key: "k", Format: "yaml",
 			Checksum: controlplane.ChecksumOf([]byte("x")), Size: 1,

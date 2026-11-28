@@ -292,6 +292,14 @@ func errorDetails(err error) []string {
 		details = append(details, rerr.Error())
 	}
 
+	for _, leaf := range leaves(err) {
+		if perr, ok := errors.AsType[*flagcheck.PublicError](leaf); ok {
+			for i := range perr.Problems {
+				details = append(details, perr.Problems[i].Message())
+			}
+		}
+	}
+
 	if ferr, ok := errors.AsType[*flagcheck.Error](err); ok {
 		for i := range ferr.Problems {
 			details = append(details, ferr.Problems[i].Message())
@@ -299,6 +307,26 @@ func errorDetails(err error) []string {
 	}
 
 	return details
+}
+
+// leaves lists the errors of a joined error (errors.Join, or an error with an Unwrap() []error), in order, looking
+// through the wrappers that hold one error; any other error is its own leaf.
+func leaves(err error) []error {
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		out := make([]error, 0, len(multi.Unwrap()))
+
+		for _, each := range multi.Unwrap() {
+			out = append(out, leaves(each)...)
+		}
+
+		return out
+	}
+
+	if single, ok := err.(interface{ Unwrap() error }); ok && single.Unwrap() != nil {
+		return leaves(single.Unwrap())
+	}
+
+	return []error{err}
 }
 
 func newPublisher(ctx context.Context, tgt *target, deps *Deps) (*s3publish.Publisher, error) {

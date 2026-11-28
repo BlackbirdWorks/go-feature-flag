@@ -58,9 +58,12 @@ func checkReferences(objects []s3publish.Object) error {
 	}
 
 	// the flag sets without keys are public, and the relay rejects a generation in which two of them define a flag key
-	err := flagcheck.CheckPublicDuplicates(keyless)
-	if err != nil {
-		problems = append(problems, fmt.Errorf("engine check: %w", err))
+	// one error for each flag key, so that a verify report lists every one of them
+	if public, ok := errors.AsType[*flagcheck.PublicError](flagcheck.CheckPublicDuplicates(keyless)); ok {
+		for i := range public.Problems {
+			one := &flagcheck.PublicError{Problems: public.Problems[i : i+1]}
+			problems = append(problems, fmt.Errorf("engine check: %w", one))
+		}
 	}
 
 	return errors.Join(problems...)

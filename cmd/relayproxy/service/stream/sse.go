@@ -57,14 +57,14 @@ const AnonymousStreamPrefix = "anonymous:"
 
 // SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
 type SSEServiceImpl struct {
-	server        *sse.Server
-	activeStreams map[string]int
-	anonymous     map[*anonymousClient]struct{}
-	keyed         map[*keyedClient]struct{}
-	done          chan struct{}
-	heartbeats    sync.WaitGroup
-	hasher        keyHasher
-	// writeTimeout is the write deadline of every write of a stream.
+	server          *sse.Server
+	activeStreams   map[string]int
+	anonymous       map[*anonymousClient]struct{}
+	keyed           map[*keyedClient]struct{}
+	done            chan struct{}
+	now             func() time.Time
+	heartbeats      sync.WaitGroup
+	hasher          keyHasher
 	writeTimeout    time.Duration
 	closeOnce       sync.Once
 	muActiveStreams sync.Mutex
@@ -83,6 +83,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 		keyed:         map[*keyedClient]struct{}{},
 		hasher:        newKeyHasher(),
 		writeTimeout:  newOptions(opts...).writeTimeout,
+		now:           newOptions(opts...).now,
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
@@ -179,6 +180,7 @@ type streamWriter struct {
 
 	rc      *http.ResponseController
 	revoked *atomic.Bool
+	now     func() time.Time
 	timeout time.Duration
 }
 
@@ -215,7 +217,7 @@ func (w *streamWriter) arm() bool {
 
 	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. A writer that does
 	// not support deadlines (a test recorder) is written to as before.
-	_ = w.rc.SetWriteDeadline(time.Now().Add(w.timeout))
+	_ = w.rc.SetWriteDeadline(w.now().Add(w.timeout))
 
 	if w.revoked != nil && w.revoked.Load() {
 		// revoked while the deadline was set: the deadline of the revocation must be the last one
@@ -225,6 +227,20 @@ func (w *streamWriter) arm() bool {
 	}
 
 	return true
+}
+
+// teardown sets the deadline of the write that the server makes when the handler returns (the last chunk): always a
+// deadline, the one of the revocation when the stream was revoked, so that a client that does not read never holds the
+// connection.
+func (w *streamWriter) teardown() {
+	if w.revoked == nil || !w.revoked.Load() {
+		_ = w.rc.SetWriteDeadline(w.now().Add(w.timeout))
+	}
+
+	// checked after the set: a revocation that comes in between must have the last word
+	if w.revoked != nil && w.revoked.Load() {
+		_ = w.rc.SetWriteDeadline(revokedDeadline())
+	}
 }
 
 // disarm clears the deadline after a write, unless the stream was revoked meanwhile.
@@ -364,13 +380,14 @@ func (s *SSEServiceImpl) serve(w http.ResponseWriter, r *http.Request, revoked *
 		rc:             http.NewResponseController(w),
 		revoked:        revoked,
 		timeout:        s.writeTimeout,
+		now:            s.now,
 	}
 	w = writer
 
 	// the server writes the last chunk of the response when the handler returns, after the last write cleared its
 	// deadline: a client that stopped reading would hold the connection. The teardown keeps a deadline (the one of the
 	// revocation when there is one).
-	defer writer.arm()
+	defer writer.teardown()
 
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}

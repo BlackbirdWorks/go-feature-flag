@@ -43,19 +43,22 @@ type PublicError struct {
 	Problems []PublicProblem
 }
 
-// Error implements error: one entry per flag key, naming the flag sets (and their flag objects).
+// Message is the text for one flag key: "flag <key>: defined in the keyless flag sets <set> (flag object <object>)
+// and <set> (flag object <object>)". The sets are in name order.
+func (p PublicProblem) Message() string {
+	owners := make([]string, 0, len(p.Owners))
+	for _, owner := range p.Owners {
+		owners = append(owners, fmt.Sprintf("%s (flag object %s)", owner.FlagSet, owner.Object))
+	}
+
+	return fmt.Sprintf("flag %s: defined in the keyless flag sets %s", safeKey(p.Flag), strings.Join(owners, " and "))
+}
+
+// Error implements error: one entry per flag key (see PublicProblem.Message), separated by "; ".
 func (e *PublicError) Error() string {
 	parts := make([]string, 0, len(e.Problems))
-
 	for i := range e.Problems {
-		owners := make([]string, 0, len(e.Problems[i].Owners))
-		for _, owner := range e.Problems[i].Owners {
-			owners = append(owners, fmt.Sprintf("%s (flag object %s)", owner.FlagSet, owner.Object))
-		}
-
-		parts = append(parts, fmt.Sprintf("flag %s: defined in the keyless flag sets %s; they form one public "+
-			"namespace, so a flag key can be defined in only one of them",
-			safeKey(e.Problems[i].Flag), strings.Join(owners, " and ")))
+		parts = append(parts, e.Problems[i].Message())
 	}
 
 	return strings.Join(parts, "; ")

@@ -346,6 +346,7 @@ func (e *PublicError) Error() string
 func (e *ReferenceError) Error() string
 func (e *ReferenceError) Unwrap() []error
 func (p FlagProblem) Message() string
+func (p PublicProblem) Message() string
 func Check(body []byte, format string) error
 func CheckPublicDuplicates(sets []KeylessSet) error
 func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentFile) error
