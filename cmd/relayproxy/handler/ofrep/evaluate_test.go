@@ -582,6 +582,126 @@ func Test_Evaluate_CacheableMetadata(t *testing.T) {
 	}
 }
 
+func Test_Evaluate_DisabledFlagOmitsValue(t *testing.T) {
+	t.Parallel()
+
+	const disableFlagKey = "disable-flag"
+
+	t.Run("single flag disabled omits value while falsy active flag keeps value", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			wantValue  any
+			name       string
+			flagKey    string
+			wantReason string
+			wantHasVal bool
+		}{
+			{
+				name:       "disabled flag omits value",
+				flagKey:    disableFlagKey,
+				wantReason: "DISABLED",
+				wantHasVal: false,
+			},
+			{
+				name:       "falsy non-disabled flag preserves value",
+				flagKey:    targetingKeyRule,
+				wantReason: "DEFAULT",
+				wantHasVal: true,
+				wantValue:  false,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := mock.FileConfig(configFlagsLocation)
+				flagsetManager := mock.NewDefault(t, &cfg)
+
+				defer flagsetManager.Close()
+
+				ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
+				mux := http.NewServeMux()
+				mux.Handle(postOfrepVOneEvaluate, helper.Handle(ctrl.Evaluate, false))
+
+				body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
+				require.NoError(t, err)
+
+				req := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					ofrepEvaluatePrefix+tt.flagKey,
+					strings.NewReader(string(body)),
+				)
+				req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
+
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, req)
+
+				require.Equal(t, http.StatusOK, rec.Code)
+
+				var parsed map[string]any
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &parsed))
+				assert.Equal(t, tt.flagKey, parsed["key"])
+				assert.Equal(t, tt.wantReason, parsed["reason"])
+
+				val, hasValue := parsed["value"]
+				assert.Equal(t, tt.wantHasVal, hasValue, "body: %s", rec.Body.String())
+
+				if tt.wantHasVal {
+					assert.Equal(t, tt.wantValue, val)
+				}
+			})
+		}
+	})
+
+	t.Run("bulk evaluation omits value for disabled flag", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := mock.FileConfig(configFlagsLocation)
+		flagsetManager := mock.NewDefault(t, &cfg)
+
+		defer flagsetManager.Close()
+
+		ctrl := ofrep.NewOFREPEvaluate(flagsetManager, &metric.Metrics{}, ofrep.EventStream{})
+
+		body, err := os.ReadFile(testdataDir + ofrepValidRequestJSON)
+		require.NoError(t, err)
+
+		req := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPost,
+			fixtures.OFREPEvaluateFlagsPath,
+			strings.NewReader(string(body)),
+		)
+		req.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
+
+		rec := httptest.NewRecorder()
+		require.NoError(t, ctrl.BulkEvaluate(rec, req))
+		require.Equal(t, http.StatusOK, rec.Code)
+
+		var payload struct {
+			Flags []map[string]any `json:"flags"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+
+		var disabledEntry map[string]any
+
+		for _, entry := range payload.Flags {
+			if entry["key"] == disableFlagKey {
+				disabledEntry = entry
+
+				break
+			}
+		}
+
+		require.NotNil(t, disabledEntry)
+		assert.Equal(t, "DISABLED", disabledEntry["reason"])
+		assert.NotContains(t, disabledEntry, "value")
+	})
+}
+
 func mustEventStream(t *testing.T, baseURL string, delay int) ofrep.EventStream {
 	t.Helper()
 

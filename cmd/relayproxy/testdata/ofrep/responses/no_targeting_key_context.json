@@ -2,7 +2,6 @@
   "flags": [
     {
       "key": "array-flag",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -10,7 +9,6 @@
     },
     {
       "key": "disable-flag",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -18,7 +16,6 @@
     },
     {
       "key": "flag-only-for-admin",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -26,7 +23,6 @@
     },
     {
       "key": "new-admin-access",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -34,7 +30,6 @@
     },
     {
       "key": "number-flag",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -48,7 +43,6 @@
     },
     {
       "key": "test-flag-rule-apply",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -56,7 +50,6 @@
     },
     {
       "key": "test-flag-rule-apply-false",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
@@ -64,7 +57,6 @@
     },
     {
       "key": "test-flag-rule-not-apply",
-      "value": null,
       "reason": "ERROR",
       "variant": "",
       "errorCode": "TARGETING_KEY_MISSING",
