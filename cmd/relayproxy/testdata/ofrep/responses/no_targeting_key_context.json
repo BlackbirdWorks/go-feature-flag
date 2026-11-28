@@ -38,7 +38,7 @@
     {
       "key": "targeting-key-rule",
       "value": false,
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "false_var"
     },
     {

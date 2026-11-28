@@ -2,12 +2,15 @@ package ofrepconformance_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -46,6 +49,71 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 	require.NotNil(t, conn.File)
 	conn.File.Path = filepath.Join("..", "store")
 
+	return startRelayFromConfig(t, cfg, load)
+}
+
+// startRelayWithFlags starts an in-process relay proxy serving the provided flags YAML document.
+func startRelayWithFlags(t *testing.T, flagsYAML string) string {
+	t.Helper()
+
+	storeDir := writeTempFlagStore(t, flagsYAML)
+	cfgPath := filepath.Join("..", "bootstrap.yaml")
+	load := bootstrap.LoadOptions{ReadFile: os.ReadFile, LookupEnv: noEnv}
+
+	cfg, err := bootstrap.Load(&bootstrap.Overrides{Config: cfgPath}, load)
+	require.NoError(t, err)
+
+	conn := cfg.Connections["control"]
+	require.NotNil(t, conn.File)
+	conn.File.Path = storeDir
+
+	return startRelayFromConfig(t, cfg, load)
+}
+
+func writeTempFlagStore(t *testing.T, flagsYAML string) string {
+	t.Helper()
+
+	const (
+		dirMode  = 0o750
+		fileMode = 0o600
+	)
+
+	storeDir := t.TempDir()
+	flagSetsYAML := "apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n" +
+		"  - name: integration\n    sources:\n      - integration-flags\n    apiKeys:\n      - authorized_token\n"
+
+	writeObj := func(content string) (string, string, int) {
+		sum := sha256.Sum256([]byte(content))
+		hexSum := hex.EncodeToString(sum[:])
+		rel := filepath.Join("objects", "sha256", hexSum[:2], hexSum+".yaml")
+		full := filepath.Join(storeDir, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), dirMode))
+		require.NoError(t, os.WriteFile(full, []byte(content), fileMode))
+
+		return filepath.ToSlash(rel), hexSum, len(content)
+	}
+
+	fsKey, fsSum, fsSize := writeObj(flagSetsYAML)
+	flKey, flSum, flSize := writeObj(flagsYAML)
+
+	manifest := "apiVersion: semaphore/v1\nkind: Manifest\nchannel: stable\ngeneration: 1\nobjects:\n" +
+		"  - name: flagsets\n    kind: flagSets\n    connection: control\n" +
+		"    key: " + fsKey + "\n    format: yaml\n    checksum:\n      algorithm: sha256\n" +
+		"      value: " + strconv.Quote(fsSum) + "\n    size: " + strconv.Itoa(fsSize) + "\n" +
+		"  - name: integration-flags\n    kind: flags\n    connection: control\n" +
+		"    key: " + flKey + "\n    format: yaml\n    checksum:\n      algorithm: sha256\n" +
+		"      value: " + strconv.Quote(flSum) + "\n    size: " + strconv.Itoa(flSize) + "\n"
+
+	manifestPath := filepath.Join(storeDir, "manifests", "stable.yaml")
+	require.NoError(t, os.MkdirAll(filepath.Dir(manifestPath), dirMode))
+	require.NoError(t, os.WriteFile(manifestPath, []byte(manifest), fileMode))
+
+	return storeDir
+}
+
+func startRelayFromConfig(t *testing.T, cfg *bootstrap.Config, load bootstrap.LoadOptions) string {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var (
@@ -78,6 +146,8 @@ func startRelay(t *testing.T, bootstrapFile string) string {
 		cancel()
 		loops.Wait()
 	})
+
+	var err error
 
 	listener, err = (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)

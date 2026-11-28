@@ -156,7 +156,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	return writeJSON(w, http.StatusOK, model.OFREPEvaluateSuccessResponse{
 		Key:      flagKey,
 		Value:    ofrepValue(flagValue.Reason, flagValue.Value),
-		Reason:   flagValue.Reason,
+		Reason:   ofrepReason(flagValue.Reason),
 		Variant:  flagValue.VariationType,
 		Metadata: metadata,
 	})
@@ -211,7 +211,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
 			Key:          key,
 			Value:        ofrepValue(val.Reason, val.Value),
-			Reason:       val.Reason,
+			Reason:       ofrepBulkReason(val.Reason),
 			Variant:      val.VariationType,
 			Metadata:     h.bulkMetadata(&val),
 			ErrorCode:    val.ErrorCode,

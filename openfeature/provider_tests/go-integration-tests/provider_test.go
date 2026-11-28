@@ -923,7 +923,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 			},
 		},
 		{
-			name: "should resolve flag with DEFAULT reason for invalid semver match",
+			name: "should resolve flag with STATIC reason for invalid semver match",
 			args: args{
 				flag: flagBooleanSemverTargetingMatch,
 				evalCtx: withOverrides(defaultEvaluationCtx(), map[string]any{
@@ -937,7 +937,7 @@ func TestProvider_rules_semverEvaluation(t *testing.T) {
 					FlagType: of.Boolean,
 					ResolutionDetail: of.ResolutionDetail{
 						Variant:      "False",
-						Reason:       of.DefaultReason,
+						Reason:       of.StaticReason,
 						ErrorCode:    "",
 						ErrorMessage: "",
 						FlagMetadata: map[string]any{

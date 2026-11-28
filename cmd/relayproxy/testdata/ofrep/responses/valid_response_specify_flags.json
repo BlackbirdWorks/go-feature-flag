@@ -7,13 +7,13 @@
         "supermanDefault",
         "superherosDefault"
       ],
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     },
     {
       "key": "flag-only-for-admin",
       "value": false,
-      "reason": "DEFAULT",
+      "reason": "STATIC",
       "variant": "Default"
     }
   ]

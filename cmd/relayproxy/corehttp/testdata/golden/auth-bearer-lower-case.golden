@@ -2,4 +2,4 @@ status: 200
 Content-Type: application/json
 Vary: Origin
 
-{"key":"bool-flag","value":false,"reason":"DEFAULT","variant":"disabled","metadata":{"defaultValue":false,"description":"a boolean","gofeatureflag_cacheable":true,"semaphore_cacheable":true,"team":"core"}}
+{"key":"bool-flag","value":false,"reason":"STATIC","variant":"disabled","metadata":{"defaultValue":false,"description":"a boolean","gofeatureflag_cacheable":true,"semaphore_cacheable":true,"team":"core"}}
