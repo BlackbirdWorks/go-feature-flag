@@ -90,6 +90,10 @@ type SegmentVersion struct {
 	Key string `json:"key,omitempty" yaml:"key,omitempty"`
 	// Interval is the poll period of Key, a duration such as "5s" (needs Key).
 	Interval string `json:"interval,omitempty" yaml:"interval,omitempty"`
+	// Debounce is how long, at most, a refresh of a snapshot segment waits for a set that changes while it is pulled,
+	// a duration such as "5s" (needs Key; snapshot mode only). Empty or "0s" is off, the default: the first pull is
+	// installed.
+	Debounce string `json:"debounce,omitempty" yaml:"debounce,omitempty"`
 }
 
 // SegmentCache sizes the cache of a lookup segment.
@@ -322,11 +326,11 @@ func validateDynamic(probs *problems, owner entry, path string, seg *SegmentDefi
 		probs.addf(owner, CodeInvalidValue, path+".key", "is longer than %d bytes", MaxSegmentKeyLen)
 	}
 
-	validateVersion(probs, owner, path+".version", seg.Version)
+	validateVersion(probs, owner, path+".version", seg.Version, mode)
 	validateCache(probs, owner, path+".cache", seg.Cache, mode)
 }
 
-func validateVersion(probs *problems, owner entry, path string, version *SegmentVersion) {
+func validateVersion(probs *problems, owner entry, path string, version *SegmentVersion, mode string) {
 	if version == nil {
 		return
 	}
@@ -338,6 +342,8 @@ func validateVersion(probs *problems, owner entry, path string, version *Segment
 	if len(version.Value) > MaxSegmentKeyLen || len(version.Key) > MaxSegmentKeyLen {
 		probs.addf(owner, CodeInvalidValue, path, "value or key is longer than %d bytes", MaxSegmentKeyLen)
 	}
+
+	validateDebounce(probs, owner, path+".debounce", version, mode)
 
 	if version.Interval == "" {
 		return
@@ -363,6 +369,27 @@ func validateVersion(probs *problems, owner entry, path string, version *Segment
 			MinVersionInterval,
 			MaxSegmentDuration,
 		)
+	}
+}
+
+func validateDebounce(probs *problems, owner entry, path string, version *SegmentVersion, mode string) {
+	if version.Debounce == "" {
+		return
+	}
+
+	debounce, err := time.ParseDuration(version.Debounce)
+
+	switch {
+	case err != nil:
+		probs.addf(owner, CodeInvalidValue, path, "is not a duration such as 5s")
+	case debounce < 0 || debounce > MaxSegmentDuration:
+		probs.addf(owner, CodeInvalidValue, path, "must be between 0 and %s", MaxSegmentDuration)
+	case debounce == 0:
+		// off, the default: valid for any mode
+	case mode != SegmentModeSnapshot:
+		probs.addf(owner, CodeInvalidValue, path, "is for the snapshot mode only")
+	case version.Key == "":
+		probs.addf(owner, CodeInvalidValue, path, "needs a key")
 	}
 }
 

@@ -20,6 +20,8 @@ type fixedStatus struct{ status *relaycore.Status }
 
 func (f fixedStatus) Status() relaycore.Status { return *f.status }
 
+const connAudiencesName = "audiences"
+
 var segmentFamily = regexp.MustCompile("`(semaphore_segment_[a-z_]+)`")
 
 // Every segment series of the code is in the table of the probes page with its labels, and the page lists none that the
@@ -101,4 +103,34 @@ func TestSegmentCollector_BreakerState(t *testing.T) {
 	assert.Equal(t, map[string]float64{
 		"audiences/open": 2, "audiences/half_open": 1, "staff/open": 0, "staff/half_open": 0,
 	}, got)
+}
+
+// The count of sets installed without a stable version is exported for each connection, and /info says the same.
+func TestSegmentCollectorExportsTheUnsettledInstalls(t *testing.T) {
+	t.Parallel()
+
+	status := &relaycore.Status{}
+	status.Segments.Bindings.Connections = []flagruntime.ConnectionSnapshots{
+		{Connection: connAudiencesName, Unsettled: 3}, {Connection: connOther, Unsettled: 1},
+	}
+
+	reg := prom.NewPedanticRegistry()
+	require.NoError(t, reg.Register(corehttp.NewSegmentCollector(fixedStatus{status: status})))
+
+	families, err := reg.Gather()
+	require.NoError(t, err)
+
+	got := map[string]float64{}
+
+	for _, family := range families {
+		if family.GetName() != "semaphore_segment_snapshot_unsettled_total" {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			got[metric.GetLabel()[0].GetValue()] = metric.GetCounter().GetValue()
+		}
+	}
+
+	assert.Equal(t, map[string]float64{connAudiencesName: 3, connOther: 1}, got)
 }

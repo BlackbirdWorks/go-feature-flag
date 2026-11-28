@@ -317,6 +317,7 @@ Document of kind `Segments`. File: `.schema/segments-schema.json`.
 | `segments[].name` | string | yes |  |  | Name is the name that rules use: segment("name"). |
 | `segments[].onError` | string |  |  |  | OnError is what a lookup that could not be answered becomes: "notMember" (default), "unknown" or "member". |
 | `segments[].version` | object |  |  |  | Version says how the version of the segment is learned (dynamic only). |
+| `segments[].version.debounce` | string |  |  |  | Debounce is how long, at most, a refresh of a snapshot segment waits for a set that changes while it is pulled, a duration such as "5s" (needs Key; snapshot mode only). Empty or "0s" is off, the default: the first pull is installed. |
 | `segments[].version.interval` | string |  |  |  | Interval is the poll period of Key, a duration such as "5s" (needs Key). |
 | `segments[].version.key` | string |  |  |  | Key is the version key in the store. |
 | `segments[].version.value` | string |  |  |  | Value is a version that the document carries. |

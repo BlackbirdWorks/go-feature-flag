@@ -23,9 +23,9 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 | Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is not a member, or unknown with the `onError: unknown` opt-in |
 | Segment missing in the store (the store answered) | the old set is dropped and nobody is in the segment (not a member); it is served again when the segment comes back. With `missingKey: unknown` the lookups are unknown instead | not a member, or unknown with `missingKey: unknown` |
 
-- Snapshot refresh: a loop owned by the run context reads the version of each held set (every `version.interval`, 5s when it is not written; one read per segment) and pulls the members only when it changed, then swaps the new set in at once. The version is read again after each pull: a set that is replaced while it is pulled is never served, neither mixed nor under the old version. The pull is dropped, the held set keeps answering, and the members are pulled again (up to three pulls in one refresh, all inside the refresh deadline). A set that keeps changing through all three pulls is a refresh failure of that set (the same class as a broken set, see below), so each pull that works costs one more version read. The first load happens off the request path too: until it succeeds the segment answers not a member with `STORE_ERROR` (the relay is ready), and the loop retries every second. A set that is held and cannot be refreshed keeps answering with `STALE`.
+- Snapshot refresh: a loop owned by the run context reads the version of each held set (every `version.interval`, 5s when it is not written; one read per segment) and pulls the members only when it changed, then swaps the new set in at once. With `version.debounce` set, the version is read again after each pull and a set that was replaced while it was pulled is not served as it was pulled: see [Debounce](#debounce). The first load happens off the request path too: until it succeeds the segment answers not a member with `STORE_ERROR` (the relay is ready), and the loop retries every second. A set that is held and cannot be refreshed keeps answering with `STALE`.
 - Snapshot staleness: a held set that was not refreshed successfully for three poll intervals answers `STALE`, whatever keeps it from being refreshed (a store that fails, a pass that hangs, a set that is never reached). A set that is held under `missingKey: unknown` as missing and then fails to refresh answers `STORE_ERROR`; one held as missing (empty) under `notMember` answers `STALE` in that case. A `WRONGTYPE` reply to the scan of a set is the answer of the store about that set (see the single broken set below), for `redis` and `valkey`. A set whose binding no flag set used for a while is `STALE` until its first refresh when it is used again.
-- One broken set is not a store that fails. When the store answers with an error about one set (a key of the wrong type, a reply that is not the one of the command), a set is over the limit, or a set changes during every pull of a refresh, the relay logs one `a segment could not be refreshed` line for that set and class (the segment name and the class, never a member), counts it in `/info` and in the metrics as not loaded (or stale if it was loaded), and the connection stays up. A connection is down, with one `a segment store fails` line, only when its lookups fail (the breaker is open), or every set that was tried fails because the store does (not connected, timeout, version unreadable), or its pass is hung.
+- One broken set is not a store that fails. When the store answers with an error about one set (a key of the wrong type, a reply that is not the one of the command) or a set is over the limit, the relay logs one `a segment could not be refreshed` line for that set and class (the segment name and the class, never a member), counts it in `/info` and in the metrics as not loaded (or stale if it was loaded), and the connection stays up. A connection is down, with one `a segment store fails` line, only when its lookups fail (the breaker is open), or every set that was tried fails because the store does (not connected, timeout, version unreadable), or its pass is hung.
 - A pass that runs for more than twice the pull deadline (a store call that ignores its context) is hung: one `a segment pass is hung` line, the connection counts as down, its sets go stale. At shutdown the relay waits at most five seconds for such a pass, logs one line and stops.
 - Snapshot deadlines: each set has a refresh deadline of its own, one minute (the version read and the pull of the members), much longer than the poll interval: a big set may take longer than the interval to pull, and a slow set never takes the time of another. A refresh that still runs is not started twice, and a connection whose pass still runs is skipped by the loop, so a store that hangs delays no other connection.
 - A new snapshot definition, or one that changed, starts empty: it answers not a member with `STORE_ERROR` until its first load succeeds (off the request path, the relay stays ready). A definition that did not change keeps its held set across a new generation of its segments object (a change of another definition, or of a static segment of the object): it answers from memory with its status in the very first evaluation after the swap. The same holds for the cache of the `lookup` definitions of a connection, as long as none of them changed.
@@ -41,7 +41,7 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 - A version key is read as `v:<value>`, and a version key that does not exist is `absent`, so a stored value can never be taken for a missing key.
 - ACL: the snapshot mode needs `SSCAN` for the set, and `GET` for a version key, on top of the lookup commands. Set `Snapshot: true` on the segment and `Init` probes both at the start, so a missing permission is an `Init` error that names the command.
 - A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay runs it when it builds a generation.
-- A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h).
+- A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h; `debounce` needs a `key`, snapshot mode only, 0 to 24h).
 - A store that can push changes also implements `ChangeNotifier`; polling the version stays the baseline.
 - Nothing in the library starts a goroutine or a timer for this: the relay calls `Holder.Refresh` (snapshot) and `Resolver.RefreshVersions` (lookup) on its own schedule.
 
@@ -64,6 +64,7 @@ segments:
     version:
       key: semaphore:segment:churned:version
       interval: 5s
+      debounce: 5s
 ```
 
 A `lookup` segment with a cache and the `keys` layout (the `keys` layout is lookup only):
@@ -88,11 +89,31 @@ segments:
 `mode` is not written when it is `snapshot`, `missingKey` is `notMember` unless you set `unknown`, and a definition
 with the `keys` layout and the `snapshot` mode is rejected when the document is validated.
 
+## Debounce
+
+A set that is replaced while a relay pulls it (a writer that swaps or imports a whole set) can be read half old and half new. `version.debounce` makes the relay check for that. It is optional and off by default.
+
+```yaml
+version:
+  key: semaphore:segment:churned:version
+  interval: 5s
+  debounce: 5s
+```
+
+- Off (unset or `0s`, the default): the first pull is installed, and the version is read once for each refresh. A set that was replaced during that pull can be served as a mix of old and new members until the next poll reads the new version and pulls again.
+- On (a duration above zero, up to 24h; snapshot mode only, needs `version.key`): the relay reads the version again after the pull. If it did not change, the set is installed as before. If it changed, the pulled set is dropped (the held set keeps answering) and the relay reads only the version, one read each `min(1s, debounce / 10)` (at least 1ms), until two reads in a row are equal. Then it pulls once more and installs that set if the version stayed. A single swap costs two pulls and is served as soon as the version is quiet for one step.
+- Under steady edits the relay does not pull for each edit. Once `debounce` has passed since the refresh started, the latest pull is installed under the version that was read before it, so the next poll sees a different version and pulls again. That is a success, not a failure: no `STALE`, no error class. It is counted in `semaphore_segment_snapshot_unsettled_total` and in `unsettled` of `/info`. A refresh costs at most two full pulls under steady edits, and the relay is at most `version.interval` + `debounce` + one pull behind the store.
+- A set is never served as a mix unless the edits continue for longer than `debounce`.
+- The refresh deadline (one minute) still bounds the whole refresh, waits included: when it ends first, the held set stays and the refresh fails like any failed pull. A segment that is missing when the version is read again is handled as missing at once.
+- Start with a value near the poll interval. Turn it on when a set is replaced by a swap or an import while relays poll; a writer that adds members one at a time does not need it.
+- Writer contract: the version value must never return to an earlier value (a counter or a timestamp, not a content hash), and a replace (swap) must bump the version. A version that returns to an earlier value can look quiet while the set changed.
+- `debounce` is not part of the identity of a definition: changing it keeps the held set.
+
 ## Checks when a generation is built
 
 The relay checks a segments document when it reads it. The connections are settings of the process (the bootstrap file), the definitions are published content that several relays share: a relay that lacks a connection must not stop serving its flag sets. So there are two levels.
 
-The document is checked as a whole. It is valid: names, the exclusive fields, the `keys` layout with the `snapshot` mode (invalid: the `keys` layout is lookup-only), `missingKey`, the `version` block (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h) and the `cache` block. A document that is not valid is rejected whole and follows the last-known-good rules of the other objects: the flag sets keep serving the content they had, the object is `invalid` in `/info` and in the `objects` metric, and a document that was never good is an invalid entry (the flag sets that list it keep the flags they had, or serve none).
+The document is checked as a whole. It is valid: names, the exclusive fields, the `keys` layout with the `snapshot` mode (invalid: the `keys` layout is lookup-only), `missingKey`, the `version` block (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h; `debounce` needs a `key`, is for the `snapshot` mode and must not be negative) and the `cache` block. A document that is not valid is rejected whole and follows the last-known-good rules of the other objects: the flag sets keep serving the content they had, the object is `invalid` in `/info` and in the `objects` metric, and a document that was never good is an invalid entry (the flag sets that list it keep the flags they had, or serve none).
 
 Each dynamic definition is then checked against the connections of the bootstrap file, one by one. In this order, and each failure names the field in the document (`segments[2].connection`):
 
@@ -165,7 +186,7 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 | Store is back | the members of the store, after the breaker cooldown | none | ready |
 | Definition rejected (unknown connection, a kind that cannot serve the mode) | not a member | `NOT_CONFIGURED` | ready |
 
-`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`; a snapshot that is stale or never loaded counts as `storeError`), and `segmentBindings`: the number of live shared bindings (`live`) and, for each connection with snapshot segments, the held sets by state (`loaded`, `stale`, `missing`, `neverLoaded`) and `members`, all sets together. The metrics are in [probes](../relay-proxy/probes.md).
+`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`; a snapshot that is stale or never loaded counts as `storeError`), and `segmentBindings`: the number of live shared bindings (`live`) and, for each connection with snapshot segments, the held sets by state (`loaded`, `stale`, `missing`, `neverLoaded`) and `members`, all sets together, and `unsettled`, the sets installed without a stable version (see `version.debounce`). The metrics are in [probes](../relay-proxy/probes.md).
 
 <!-- full-example -->
 ```yaml

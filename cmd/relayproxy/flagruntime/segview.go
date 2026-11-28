@@ -234,6 +234,17 @@ func pollInterval(def *controlplane.SegmentDefinition) time.Duration {
 	return DefaultVersionInterval
 }
 
+// debounceOf is how long a refresh of a snapshot definition waits for a set that changes while it is pulled: the
+// definition's own value, zero (off) when it gives none or one that does not parse (the document was validated).
+func debounceOf(def *controlplane.SegmentDefinition) time.Duration {
+	parsed, err := time.ParseDuration(versionOf(def).Debounce)
+	if err != nil || parsed < 0 {
+		return 0
+	}
+
+	return parsed
+}
+
 func versionOf(def *controlplane.SegmentDefinition) *controlplane.SegmentVersion {
 	if def.Version == nil {
 		return &controlplane.SegmentVersion{}

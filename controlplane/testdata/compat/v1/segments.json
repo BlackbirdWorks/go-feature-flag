@@ -20,7 +20,8 @@
       "key": "semaphore:segment:{churned}",
       "version": {
         "key": "semaphore:segment:churned:version",
-        "interval": "5s"
+        "interval": "5s",
+        "debounce": "5s"
       }
     },
     {

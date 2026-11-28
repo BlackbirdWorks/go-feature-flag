@@ -14,6 +14,7 @@ const (
 	metricSegmentDynamic  = "semaphore_segment_dynamic"
 	metricSegmentSets     = "semaphore_segment_snapshot_sets"
 	metricSegmentMembers  = "semaphore_segment_snapshot_members"
+	metricSegmentUnsettle = "semaphore_segment_snapshot_unsettled_total"
 	metricSegmentBinding  = "semaphore_segment_bindings"
 	metricSegmentBrkState = "semaphore_segment_breaker_state"
 	statusHealthy         = "healthy"
@@ -33,7 +34,7 @@ const (
 func SegmentMetricNames() []string {
 	return []string{
 		metricSegmentCalls, metricSegmentFailed, metricSegmentBreaker, metricSegmentStore, metricSegmentDynamic,
-		metricSegmentSets, metricSegmentMembers, metricSegmentBinding, metricSegmentBrkState,
+		metricSegmentSets, metricSegmentMembers, metricSegmentUnsettle, metricSegmentBinding, metricSegmentBrkState,
 	}
 }
 
@@ -42,7 +43,7 @@ func SegmentMetricNames() []string {
 type SegmentCollector struct {
 	src StatusSource
 
-	calls, failed, breaker, stores, dynamic, sets, members, bindings, breakerState *prom.Desc
+	calls, failed, breaker, stores, dynamic, sets, members, unsettled, bindings, breakerState *prom.Desc
 }
 
 var _ prom.Collector = (*SegmentCollector)(nil)
@@ -69,6 +70,12 @@ func NewSegmentCollector(src StatusSource) *SegmentCollector {
 			metricSegmentMembers,
 			"Members held by the sets of the snapshot mode, all connections together.",
 		),
+		unsettled: desc(
+			metricSegmentUnsettle,
+			"Snapshot sets installed without a stable version (the version kept moving until the debounce passed), "+
+				"by connection.",
+			"connection",
+		),
 		breakerState: desc(
 			metricSegmentBrkState,
 			"Segments whose circuit breaker is in the state (open, half_open) now, by connection; closed is the rest.",
@@ -89,6 +96,7 @@ func (c *SegmentCollector) Describe(out chan<- *prom.Desc) {
 		c.dynamic,
 		c.sets,
 		c.members,
+		c.unsettled,
 		c.bindings,
 		c.breakerState,
 	}
@@ -149,6 +157,8 @@ func (c *SegmentCollector) Collect(out chan<- prom.Metric) {
 
 	for _, conn := range status.Bindings.Connections {
 		members += conn.Members
+
+		counter(c.unsettled, conn.Unsettled, conn.Connection)
 
 		for state, n := range map[string]int{
 			"loaded": conn.Loaded, "stale": conn.Stale, "missing": conn.Missing, "never_loaded": conn.NeverLoaded,

@@ -119,7 +119,7 @@ func TestE2E_SnapshotSegmentsAreObservable(t *testing.T) {
 	bindings := infoOf(t, rig).SegmentBindings
 	require.NotNil(t, bindings)
 	assert.Equal(t, 1, bindings.Live)
-	assert.Equal(t, []model.SegmentSnapshotInfo{{Connection: "audiences", NeverLoaded: 1}}, bindings.Snapshots)
+	assert.Equal(t, []model.SegmentSnapshotInfo{{Connection: connAudiencesName, NeverLoaded: 1}}, bindings.Snapshots)
 
 	for _, want := range []struct {
 		family, label, value string
@@ -128,6 +128,7 @@ func TestE2E_SnapshotSegmentsAreObservable(t *testing.T) {
 		{"semaphore_segment_snapshot_sets", "state", "never_loaded", 1},
 		{"semaphore_segment_snapshot_sets", "state", "loaded", 0},
 		{"semaphore_segment_snapshot_members", "", "", 0},
+		{"semaphore_segment_snapshot_unsettled_total", "connection", connAudiencesName, 0},
 		{"semaphore_segment_bindings", "", "", 1},
 	} {
 		got, found := series(t, rig, want.family, want.label, want.value)

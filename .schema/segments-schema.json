@@ -88,6 +88,10 @@
                 "interval": {
                     "type": "string",
                     "description": "Interval is the poll period of Key, a duration such as \"5s\" (needs Key)."
+                },
+                "debounce": {
+                    "type": "string",
+                    "description": "Debounce is how long, at most, a refresh of a snapshot segment waits for a set that changes while it is pulled,\na duration such as \"5s\" (needs Key; snapshot mode only). Empty or \"0s\" is off, the default: the first pull is\ninstalled."
                 }
             },
             "additionalProperties": false,

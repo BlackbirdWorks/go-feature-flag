@@ -258,8 +258,14 @@ func wantSegmentsV1() *controlplane.SegmentsDocument {
 			{Name: "beta-testers", Members: []string{"alice", "bob"}},
 			{Name: "nobody-yet", Members: []string{}, OnError: "notMember"},
 			{
-				Name: "churned", Connection: segConnection, Key: "semaphore:segment:{churned}",
-				Version: &controlplane.SegmentVersion{Key: "semaphore:segment:churned:version", Interval: "5s"},
+				Name:       "churned",
+				Connection: segConnection,
+				Key:        "semaphore:segment:{churned}",
+				Version: &controlplane.SegmentVersion{
+					Key:      "semaphore:segment:churned:version",
+					Interval: "5s",
+					Debounce: "5s",
+				},
 			},
 			{
 				Name:       "staff",

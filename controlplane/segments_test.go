@@ -11,15 +11,17 @@ import (
 )
 
 const (
-	segLookup      = "lookup"
-	segmentsHead   = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n"
-	segConnection  = "audiences"
-	segKeys        = "keys"
-	segObjectA     = "segs-a"
-	segBig         = "big"
-	pathInterval   = "segments[0].version.interval"
-	pathMaxEntries = "segments[0].cache.maxEntries"
-	pathMembers    = "segments[0].members"
+	segLookup       = "lookup"
+	segmentsHead    = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n"
+	segConnection   = "audiences"
+	segKeys         = "keys"
+	segObjectA      = "segs-a"
+	segBig          = "big"
+	pathInterval    = "segments[0].version.interval"
+	pathDebounce    = "segments[0].version.debounce"
+	pathMaxEntries  = "segments[0].cache.maxEntries"
+	pathMembers     = "segments[0].members"
+	textNotDuration = "is not a duration"
 )
 
 func dynamic(mutate func(*controlplane.SegmentDefinition)) controlplane.SegmentDefinition {
@@ -154,7 +156,7 @@ func TestValidateSegments(t *testing.T) {
 				s.Version = &controlplane.SegmentVersion{Key: "k", Interval: "soon"}
 			})},
 			wantPath: pathInterval,
-			wantText: "is not a duration",
+			wantText: textNotDuration,
 		},
 		{
 			name: "an interval that is too short",
@@ -194,7 +196,7 @@ func TestValidateSegments(t *testing.T) {
 				s.Mode, s.Cache = segLookup, &controlplane.SegmentCache{TTL: "long"}
 			})},
 			wantPath: "segments[0].cache.ttl",
-			wantText: "is not a duration",
+			wantText: textNotDuration,
 		},
 		{
 			name: "a ttl above the bound",
@@ -268,6 +270,91 @@ func TestValidateSegments(t *testing.T) {
 
 			assert.Contains(t, strings.Join(got, "\n"), tt.wantPath+": ")
 			assert.Contains(t, strings.Join(got, "\n"), tt.wantText)
+		})
+	}
+}
+
+// The debounce is a duration from zero (off) to a day, for a snapshot segment with a version key.
+func TestValidateSegmentsDebounce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		wantPath string
+		wantText string
+		segments []controlplane.SegmentDefinition
+	}{
+		{
+			name: "a negative debounce",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Version = &controlplane.SegmentVersion{Key: "k", Debounce: "-1s"}
+			})},
+			wantPath: pathDebounce,
+			wantText: "must be between 0",
+		},
+		{
+			name: "a debounce that is not a duration",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Version = &controlplane.SegmentVersion{Key: "k", Debounce: "soon"}
+			})},
+			wantPath: pathDebounce,
+			wantText: textNotDuration,
+		},
+		{
+			name: "a debounce above the bound",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Version = &controlplane.SegmentVersion{Key: "k", Debounce: "25h"}
+			})},
+			wantPath: pathDebounce,
+			wantText: "must be between 0",
+		},
+		{
+			name: "a debounce without a key",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Version = &controlplane.SegmentVersion{Value: "v1", Debounce: "5s"}
+			})},
+			wantPath: pathDebounce,
+			wantText: "needs a key",
+		},
+		{
+			name: "a debounce on a lookup segment",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Mode, s.Version = segLookup, &controlplane.SegmentVersion{Key: "k", Debounce: "5s"}
+			})},
+			wantPath: pathDebounce,
+			wantText: "is for the snapshot mode only",
+		},
+		{
+			name: "a debounce off on a lookup segment is not a problem",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Mode, s.Version = segLookup, &controlplane.SegmentVersion{Key: "k", Debounce: "0s"}
+			})},
+		},
+		{
+			name: "a debounce on a snapshot segment with a key",
+			segments: []controlplane.SegmentDefinition{dynamic(func(s *controlplane.SegmentDefinition) {
+				s.Version = &controlplane.SegmentVersion{Key: "k", Debounce: "5s"}
+			})},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := controlplane.ValidateSegments(&controlplane.SegmentsDocument{Segments: tt.segments})
+			if tt.wantPath == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			var verr *controlplane.ValidationError
+
+			require.ErrorAs(t, err, &verr)
+			require.Len(t, verr.Problems, 1)
+			assert.Equal(t, tt.wantPath, verr.Problems[0].Path)
+			assert.Contains(t, verr.Problems[0].Reason, tt.wantText)
 		})
 	}
 }

@@ -119,6 +119,7 @@ segments:
     version:
       key: semaphore:segment:churned:version
       interval: "5s"
+      debounce: "5s"
   - name: staff
     connection: audiences
     mode: lookup
@@ -138,7 +139,8 @@ segments:
 - Dynamic segment: `mode` is `snapshot` (default, not written) or `lookup`; `key` and `layout` (`set`, default, or
   `keys`) say where the members are; the `keys` layout is lookup only, so `layout: keys` with `snapshot` is rejected.
   `missingKey` is `notMember` (default) or `unknown`. `version` is `value` or `key` (not both) with an optional
-  `interval` (`100ms` to `24h`, needs `key`). `cache` (`maxEntries`, `ttl`) is for the `lookup` mode only.
+  `interval` (`100ms` to `24h`, needs `key`) and `debounce` (`0` to `24h`, needs `key`, snapshot mode only, off by default).
+  `cache` (`maxEntries`, `ttl`) is for the `lookup` mode only.
 - `onError`: `unknown` (default), `notMember` or `member`.
 - The relay tracks segments objects: it decodes and validates each one, keeps its last good content when a later
   version is invalid, shows it in `/info`, and resolves the `segmentSources` of the flag sets that list it. A segment

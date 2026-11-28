@@ -76,6 +76,9 @@ var (
 	errInvalidMode        = errors.New("invalid mode: want snapshot or lookup")
 	errVersionBoth        = errors.New("invalid version: value and key are mutually exclusive")
 	errVersionIntervalKey = errors.New("invalid version: interval needs a key")
+	errVersionDebounceKey = errors.New("invalid version: debounce needs a key")
+	errVersionDebounce    = errors.New("invalid version: debounce must be between 0 and 24h")
+	errDebounceLookup     = errors.New("invalid version: debounce is for the snapshot mode only")
 	errVersionTooLong     = errors.New("invalid version: value or key is longer than 512 bytes")
 	errVersionInterval    = errors.New("invalid version: interval must be between 100ms and 24h")
 )
@@ -107,6 +110,8 @@ type VersionSpec struct {
 	Key string
 	// Interval is the poll period of Key.
 	Interval time.Duration
+	// Debounce is how long a refresh of a snapshot waits for a set that changes while it is pulled; zero is off.
+	Debounce time.Duration
 }
 
 // Validate returns an error when the spec is not valid. A nil or zero spec is valid.
@@ -124,6 +129,18 @@ func (v *VersionSpec) Validate() error {
 		return errVersionTooLong
 	case v.Interval != 0 && (v.Interval < MinVersionInterval || v.Interval > MaxVersionInterval):
 		return errVersionInterval
+	}
+
+	return v.validateDebounce()
+}
+
+// validateDebounce checks the debounce: zero (off) or up to a day, and a key to read the version from.
+func (v *VersionSpec) validateDebounce() error {
+	switch {
+	case v.Debounce != 0 && v.Key == "":
+		return errVersionDebounceKey
+	case v.Debounce < 0 || v.Debounce > MaxVersionInterval:
+		return errVersionDebounce
 	}
 
 	return nil
@@ -147,6 +164,10 @@ func (d *Definition) validateModeVersion() error {
 		}
 	default:
 		return fmt.Errorf("%w: %q: %w, got %q", ErrInvalidDefinition, d.Name, errInvalidLayout, d.Layout)
+	}
+
+	if d.Version != nil && d.Version.Debounce != 0 && d.Mode.Effective() == ModeLookup {
+		return fmt.Errorf("%w: %q: %w", ErrInvalidDefinition, d.Name, errDebounceLookup)
 	}
 
 	err := d.Version.Validate()

@@ -53,6 +53,15 @@ func Definition(seg *controlplane.SegmentDefinition) (segment.Definition, bool) 
 		spec.Interval = interval
 	}
 
+	if seg.Version.Debounce != "" {
+		debounce, err := time.ParseDuration(seg.Version.Debounce)
+		if err != nil {
+			return def, false
+		}
+
+		spec.Debounce = debounce
+	}
+
 	def.Version = spec
 
 	return def, true

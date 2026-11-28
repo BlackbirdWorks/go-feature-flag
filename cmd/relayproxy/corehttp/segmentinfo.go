@@ -19,7 +19,7 @@ func addSegmentInfo(info *model.ConfigInfo, segments *relaycore.SegmentsStatus) 
 		for _, conn := range segments.Bindings.Connections {
 			bindings.Snapshots = append(bindings.Snapshots, model.SegmentSnapshotInfo{
 				Connection: conn.Connection, Loaded: conn.Loaded, Stale: conn.Stale, Missing: conn.Missing,
-				NeverLoaded: conn.NeverLoaded, Members: conn.Members,
+				NeverLoaded: conn.NeverLoaded, Members: conn.Members, Unsettled: conn.Unsettled,
 			})
 		}
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,19 +54,20 @@ type SnapshotFactory func() (SnapshotFixture, error)
 
 // The names of the cases of [RunSnapshotSource].
 const (
-	CaseSnapEmptyVsMissing  = "empty-is-a-set-and-missing-is-unknown"
-	CaseSnapStreamsMembers  = "members-are-streamed-exactly"
-	CaseSnapVersionMoves    = "version-is-stable-and-moves-with-a-write"
-	CaseSnapCtxEnded        = "an-ended-context-fails-both-calls"
-	CaseSnapNoRepull        = "an-unchanged-version-is-not-pulled-again"
-	CaseSnapLastKnownGood   = "a-failed-pull-keeps-the-last-known-good"
-	CaseSnapVersionFails    = "a-failed-version-keeps-the-last-known-good"
-	CaseSnapCancelMidStream = "a-cancel-during-the-stream-keeps-the-last-known-good"
-	CaseSnapMemoryGuard     = "the-memory-guard-refuses-and-keeps-the-last-known-good"
-	CaseSnapGone            = "a-segment-gone-from-the-store-is-unknown-not-last-known-good"
-	CaseSnapNeverLoaded     = "a-holder-that-never-loaded-answers-unknown"
-	CaseSnapLargeStreamed   = "a-large-set-is-built-without-a-second-copy"
-	CaseSnapChangedInPull   = "a-set-replaced-during-its-pull-is-never-installed"
+	CaseSnapEmptyVsMissing    = "empty-is-a-set-and-missing-is-unknown"
+	CaseSnapStreamsMembers    = "members-are-streamed-exactly"
+	CaseSnapVersionMoves      = "version-is-stable-and-moves-with-a-write"
+	CaseSnapCtxEnded          = "an-ended-context-fails-both-calls"
+	CaseSnapNoRepull          = "an-unchanged-version-is-not-pulled-again"
+	CaseSnapLastKnownGood     = "a-failed-pull-keeps-the-last-known-good"
+	CaseSnapVersionFails      = "a-failed-version-keeps-the-last-known-good"
+	CaseSnapCancelMidStream   = "a-cancel-during-the-stream-keeps-the-last-known-good"
+	CaseSnapMemoryGuard       = "the-memory-guard-refuses-and-keeps-the-last-known-good"
+	CaseSnapGone              = "a-segment-gone-from-the-store-is-unknown-not-last-known-good"
+	CaseSnapNeverLoaded       = "a-holder-that-never-loaded-answers-unknown"
+	CaseSnapLargeStreamed     = "a-large-set-is-built-without-a-second-copy"
+	CaseSnapChangedInPull     = "a-set-replaced-during-its-pull-is-installed-once-quiet"
+	CaseSnapChangedNoDebounce = "a-set-replaced-during-its-pull-is-installed-without-a-debounce"
 )
 
 var (
@@ -74,17 +76,18 @@ var (
 )
 
 const (
-	snapLarge      = 200_000
-	snapMid        = 5_000
-	snapAllocSlack = 1 << 20
-	snapSmall      = 10
-	snapStream     = 300
-	snapMedium     = 50
-	snapOver       = snapSmall + 1
-	snapByteLimit  = 20
-	snapPulls      = 3
-	snapTwoPulls   = 2
-	snapListed     = 20
+	snapLarge        = 200_000
+	snapMid          = 5_000
+	snapAllocSlack   = 1 << 20
+	snapSmall        = 10
+	snapStream       = 300
+	snapMedium       = 50
+	snapOver         = snapSmall + 1
+	snapByteLimit    = 20
+	snapPulls        = 3
+	snapTwoPulls     = 2
+	snapListed       = 20
+	snapChangedReads = 4
 )
 
 // probe wraps a source: it counts the calls, can fail the stream after n members and calls a hook inside it.
@@ -247,6 +250,7 @@ func snapshotCases() []snapshotCase {
 		{snapNeverLoaded, CaseSnapNeverLoaded},
 		{snapLargeStreamed, CaseSnapLargeStreamed},
 		{snapChangedInPull, CaseSnapChangedInPull},
+		{snapChangedNoDebounce, CaseSnapChangedNoDebounce},
 	}
 }
 
@@ -372,7 +376,7 @@ func snapNoRepull(t caseT, fix SnapshotFixture) {
 	}
 
 	versions, pulls := prb.counts()
-	assert.Equal(t, snapPulls+1, versions, "the version is read on every refresh, and again after the one pull")
+	assert.Equal(t, snapPulls, versions, "the version is read on every refresh")
 	assert.Equal(t, 1, pulls, "the members are pulled once while the version stays")
 	assert.Equal(t, uint64(1), holder.Status().Pulls)
 
@@ -381,7 +385,7 @@ func snapNoRepull(t caseT, fix SnapshotFixture) {
 	require.NoError(t, holder.Refresh(ctx))
 
 	versions, pulls = prb.counts()
-	assert.Equal(t, snapPulls+snapTwoPulls+1, versions, "one read, and one more after the pull")
+	assert.Equal(t, snapPulls+1, versions)
 	assert.Equal(t, snapTwoPulls, pulls, "a new version is pulled once")
 	assert.Equal(t, segment.Member, holder.Lookup("c"))
 	assert.Equal(t, len(grown), holder.Status().Members)
@@ -620,14 +624,23 @@ func snapGone(t caseT, fix SnapshotFixture) {
 	assert.Equal(t, snapshot.ClassNone, holder.Status().LastError)
 }
 
-// snapChangedInPull replaces the set while the holder pulls it: the holder must end on exactly the new set, under the
-// version that the source reports now, after pulling again.
-func snapChangedInPull(t caseT, fix SnapshotFixture) {
+// snapDebounce is the debounce of the cases that replace a set during its pull: long enough for the version to be quiet
+// after one step, short enough that the case ends in a fraction of a second.
+const snapDebounce = 2 * time.Second
+
+// replaced is what a refresh did while the set was replaced during its pull: the version reads and pulls it made, the
+// version of the mid set that it started under and the version that was held before.
+type replaced struct {
+	midVersion, oldVersion string
+	reads, pulls           int
+}
+
+// replaceDuringPull seeds the old set, loads it, moves the version to a mid set, then replaces the set with the new one
+// while the next refresh pulls the mid set.
+func replaceDuringPull(t caseT, fix SnapshotFixture, holder *snapshot.Holder, prb *probe) replaced {
 	t.Helper()
 
 	ctx := context.Background()
-	prb := &probe{inner: fix.Source}
-	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
 
 	require.NoError(t, fix.Seed("alpha", idsOf("old", snapMedium)))
 	require.NoError(t, holder.Refresh(ctx))
@@ -636,6 +649,9 @@ func snapChangedInPull(t caseT, fix SnapshotFixture) {
 
 	// the version moves: the next refresh pulls
 	require.NoError(t, fix.Seed("alpha", idsOf("mid", snapMedium)))
+
+	midVersion, err := fix.Source.Version(ctx, "alpha")
+	require.NoError(t, err)
 
 	versions, pulls := prb.counts()
 
@@ -655,14 +671,51 @@ func snapChangedInPull(t caseT, fix SnapshotFixture) {
 	require.NoError(t, holder.Refresh(ctx))
 	require.NoError(t, seedErr)
 
+	newVersions, newPulls := prb.counts()
+
+	return replaced{
+		reads:      newVersions - versions,
+		pulls:      newPulls - pulls,
+		midVersion: midVersion,
+		oldVersion: oldVersion,
+	}
+}
+
+// snapChangedInPull replaces the set while the holder pulls it, with a debounce: the pulled set is dropped, the version
+// is read until it is quiet, and the set is pulled once more and installed under the version of the new set.
+func snapChangedInPull(t caseT, fix SnapshotFixture) {
+	t.Helper()
+
+	prb := &probe{inner: fix.Source}
+	holder := newHolder(t, prb, fix.options(snapshot.Options{Debounce: snapDebounce}))
+
+	got := replaceDuringPull(t, fix, holder, prb)
+
 	status := holder.Status()
-	assert.NotEqual(t, oldVersion, status.Version, "the set is installed under the version of the new set")
+	assert.NotEqual(t, got.oldVersion, status.Version)
+	assert.NotEqual(t, got.midVersion, status.Version, "the set is installed under the version of the new set")
 	assert.Equal(t, snapMedium, status.Members)
 	assert.Equal(t, segment.Member, holder.Lookup("new7"))
 	assert.Equal(t, segment.NotMember, holder.Lookup("old7"))
 	assert.Equal(t, segment.NotMember, holder.Lookup("mid7"), "nothing of the pull that was overtaken is installed")
+	assert.Equal(t, uint64(0), status.Unsettled)
+	assert.Equal(t, snapTwoPulls, got.pulls, "the pull that was overtaken is repeated once")
+	assert.Equal(t, snapChangedReads, got.reads, "one read before, one after each pull, one while waiting")
+}
 
-	newVersions, newPulls := prb.counts()
-	assert.Equal(t, snapTwoPulls, newPulls-pulls, "the pull that was overtaken is repeated")
-	assert.Equal(t, snapPulls, newVersions-versions, "one read before, one after each pull")
+// snapChangedNoDebounce is the same replacement with no debounce (the default): the first pull is installed under the
+// version read before it, and the version is read once.
+func snapChangedNoDebounce(t caseT, fix SnapshotFixture) {
+	t.Helper()
+
+	prb := &probe{inner: fix.Source}
+	holder := newHolder(t, prb, fix.options(snapshot.Options{}))
+
+	got := replaceDuringPull(t, fix, holder, prb)
+
+	status := holder.Status()
+	assert.Equal(t, got.midVersion, status.Version, "installed under the version read before the pull")
+	assert.Equal(t, 1, got.pulls, "one pull")
+	assert.Equal(t, 1, got.reads, "one version read")
+	assert.Equal(t, snapshot.ClassNone, status.LastError)
 }

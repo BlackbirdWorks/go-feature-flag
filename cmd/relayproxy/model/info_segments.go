@@ -56,4 +56,6 @@ type SegmentSnapshotInfo struct {
 	Missing     int    `json:"missing"`
 	NeverLoaded int    `json:"neverLoaded"`
 	Members     int    `json:"members"`
+	// Unsettled counts the sets installed without a stable version (the version kept moving until the debounce passed).
+	Unsettled uint64 `json:"unsettled"`
 }

@@ -100,7 +100,7 @@ type carriedLookup struct {
 
 // defIdentity is what a binding needs to serve a definition the same way: everything of the definition except its name
 // and its failure policy (the catalog applies that one). For a snapshot definition the cache block and the interval of
-// the version do not count: a snapshot has no cache, and the interval is the one of the binding.
+// the version and its debounce do not count: a snapshot has no cache, and the interval is the one of the binding.
 func defIdentity(def *controlplane.SegmentDefinition) string {
 	same := *def
 	same.Name, same.OnError = "", ""
@@ -266,6 +266,7 @@ func (e *SegmentEnv) bindObject(
 	}
 	values := map[string]string{}
 	reuse := map[string]*snapshot.Holder{}
+	debounces := map[string]time.Duration{}
 	lookupIDs := make([]string, 0, len(defs))
 
 	for _, def := range defs {
@@ -284,6 +285,7 @@ func (e *SegmentEnv) bindObject(
 		if isSnapshot(def) {
 			out.snapshots = append(out.snapshots, def.Name)
 			out.snapInterval = minInterval(out.snapInterval, interval)
+			debounces[def.Name] = debounceOf(def)
 
 			if old, ok := carried.holders[def.Name]; ok && old.id == id {
 				reuse[def.Name] = old.holder
@@ -320,7 +322,14 @@ func (e *SegmentEnv) bindObject(
 	slices.Sort(out.lookups)
 	slices.Sort(out.snapshots)
 
-	out.build(e, binding, key, segs, values, &buildCarry{holders: reuse, lookup: carried.lookups[key]})
+	out.build(
+		e,
+		binding,
+		key,
+		segs,
+		values,
+		&buildCarry{holders: reuse, lookup: carried.lookups[key], debounces: debounces},
+	)
 
 	return out, nil
 }
@@ -328,7 +337,9 @@ func (e *SegmentEnv) bindObject(
 // buildCarry is what a binding takes over from the previous generation of its object.
 type buildCarry struct {
 	holders map[string]*snapshot.Holder
-	lookup  carriedLookup
+	// debounces is the debounce of each snapshot definition of the binding.
+	debounces map[string]time.Duration
+	lookup    carriedLookup
 }
 
 func (b *segBinding) build(
@@ -364,6 +375,7 @@ func (b *segBinding) build(
 
 	for _, name := range b.snapshots {
 		if held, ok := take.holders[name]; ok {
+			held.SetDebounce(take.debounces[name])
 			b.holders[name] = held
 			b.lastClass[name] = held.Status().LastError
 			served = append(served, name)
@@ -371,7 +383,11 @@ func (b *segBinding) build(
 			continue
 		}
 
-		holder, err := snapshot.New(name, binding.Source, snapshot.Options{Missing: key.missing})
+		holder, err := snapshot.New(
+			name,
+			binding.Source,
+			snapshot.Options{Missing: key.missing, Debounce: take.debounces[name]},
+		)
 		if err != nil {
 			// a store that cannot list members refuses its snapshot definitions alone: its lookups keep working
 			b.refused[name] = fmt.Errorf(

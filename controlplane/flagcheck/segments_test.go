@@ -16,6 +16,7 @@ const (
 	flagKey         = "checkout"
 	reasonUndefined = "is not defined in the segment sources of the flag set"
 	connAudiences   = "audiences"
+	segModeLookup   = "lookup"
 	segBeta         = "beta"
 	segStaff        = "staff"
 )
@@ -42,7 +43,7 @@ func TestSegmentValidationParity(t *testing.T) {
 			seg: controlplane.SegmentDefinition{
 				Name:       segBeta,
 				Connection: connAudiences,
-				Mode:       "lookup",
+				Mode:       segModeLookup,
 				Layout:     layoutKeys,
 			},
 			want: true,
@@ -141,6 +142,50 @@ func TestSegmentValidationParity(t *testing.T) {
 				Name:       segBeta,
 				Connection: connAudiences,
 				Version:    &controlplane.SegmentVersion{Key: "k", Interval: "48h"},
+			},
+		},
+		{
+			name: "debounce on a snapshot",
+			seg: controlplane.SegmentDefinition{
+				Name:       segBeta,
+				Connection: connAudiences,
+				Version:    &controlplane.SegmentVersion{Key: "k", Debounce: "5s"},
+			},
+			want: true,
+		},
+		{
+			name: "debounce off",
+			seg: controlplane.SegmentDefinition{
+				Name:       segBeta,
+				Connection: connAudiences,
+				Mode:       segModeLookup,
+				Version:    &controlplane.SegmentVersion{Key: "k", Debounce: "0s"},
+			},
+			want: true,
+		},
+		{
+			name: "debounce on a lookup",
+			seg: controlplane.SegmentDefinition{
+				Name:       segBeta,
+				Connection: connAudiences,
+				Mode:       segModeLookup,
+				Version:    &controlplane.SegmentVersion{Key: "k", Debounce: "5s"},
+			},
+		},
+		{
+			name: "debounce without key",
+			seg: controlplane.SegmentDefinition{
+				Name:       segBeta,
+				Connection: connAudiences,
+				Version:    &controlplane.SegmentVersion{Value: "v", Debounce: "5s"},
+			},
+		},
+		{
+			name: "negative debounce",
+			seg: controlplane.SegmentDefinition{
+				Name:       segBeta,
+				Connection: connAudiences,
+				Version:    &controlplane.SegmentVersion{Key: "k", Debounce: "-1s"},
 			},
 		},
 		{

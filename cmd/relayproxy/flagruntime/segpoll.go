@@ -375,6 +375,9 @@ type ConnectionSnapshots struct {
 	NeverLoaded int `json:"neverLoaded"`
 	// Members is the number of members held, all the sets of the connection together.
 	Members int `json:"members"`
+	// Unsettled counts the sets of the connection installed without a stable version: the version kept moving until
+	// the debounce passed. It only grows while the holders live.
+	Unsettled uint64 `json:"unsettled"`
 }
 
 // ConnectionBreakers counts the segments of a connection by the state of their breaker.
@@ -447,6 +450,7 @@ func (r *Runtime) SegmentBindings() SegmentBindingsStatus {
 		for _, held := range b.holders {
 			status := held.Status()
 			conn.Members += status.Members
+			conn.Unsettled += status.Unsettled
 
 			switch {
 			case status.LastError == snapshot.ClassMissing:

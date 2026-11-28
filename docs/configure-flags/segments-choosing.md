@@ -31,7 +31,8 @@ Rules of thumb:
 | `lookup`, no version key | an id that is cached keeps its answer until it expires; an id that is not cached is read at once | `ttl` (30s) for a member, `negativeTtl` (5s) for a non-member |
 
 - A writer that changes a set without bumping the version key is seen only after the cache expires (`lookup`), or never (`snapshot` with a version key). Always bump the key last, after the members.
-- Replace a set atomically (build it under another key and `RENAME` it over the old one). A deleted set means nobody is in the segment.
+- Replace a set atomically (build it under another key and `RENAME` it over the old one), and bump the version after it; the version must never return to an earlier value (a counter or a timestamp, not a content hash). A deleted set means nobody is in the segment.
+- A `snapshot` set that is replaced while a relay pulls it can be served as a mix of old and new members until the next poll, unless `version.debounce` is set. It is off by default; turn it on for sets that are replaced by a swap or an import while relays poll, with a value near the poll interval. Under steady edits the relay is at most `version.interval` + `debounce` + one pull behind the store. See [Debounce](segments-dynamic.md#debounce).
 - Two relays read the store separately, so they can differ by up to one interval for a moment.
 
 ## Sizing

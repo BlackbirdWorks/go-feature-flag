@@ -296,6 +296,8 @@ type SegmentVersion struct {
 	Key	string	`json:"key,omitempty" yaml:"key,omitempty"`
 
 	Interval	string	`json:"interval,omitempty" yaml:"interval,omitempty"`
+
+	Debounce	string	`json:"debounce,omitempty" yaml:"debounce,omitempty"`
 }
 type SegmentsDocument struct {
 	APIVersion	string	`json:"apiVersion" yaml:"apiVersion"`

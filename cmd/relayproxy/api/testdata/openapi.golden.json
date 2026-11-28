@@ -1056,6 +1056,11 @@
           "stale": {
             "format": "int64",
             "type": "integer"
+          },
+          "unsettled": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
           }
         },
         "required": [
@@ -1064,7 +1069,8 @@
           "stale",
           "missing",
           "neverLoaded",
-          "members"
+          "members",
+          "unsettled"
         ],
         "type": "object"
       },
