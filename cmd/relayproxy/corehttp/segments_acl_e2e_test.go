@@ -78,7 +78,8 @@ func aclCases() []aclCase {
 			kind: kindValkey,
 			line: []string{"+hello", cmdSmismember, "+exists", cmdSscan, cmdGet, "+multi", "+exec"},
 			needed: map[string][]string{
-				"+hello":      {flagSet, flagKeys, flagUnknown, flagSnap},
+				// not needed: without HELLO the client opens the connection with AUTH (RESP2) and every feature works
+				"+hello":      {},
 				cmdSmismember: {flagSet, flagUnknown},
 				cmdExists:     {flagKeys, flagUnknown},
 				cmdSscan:      {flagSnap},
@@ -140,8 +141,15 @@ func aclRig(t *testing.T, store *valkeyStore, kind, user, password string) *v2 {
 func awaitFlag(t *testing.T, rig *v2, flag string, wantMember bool, msg string) {
 	t.Helper()
 
+	// A member is certain whatever the existence check says (a SMISMEMBER hit is a member), so a store that refuses
+	// EXISTS still answers for alice: the denied case asks about a value that is in no set, which needs every command.
+	who := "alice"
+	if !wantMember {
+		who = "mallory"
+	}
+
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		got, err := tryEval(rig, flag, "alice")
+		got, err := tryEval(rig, flag, who)
 		if !assert.NoError(collect, err, msg) {
 			return
 		}
@@ -270,6 +278,12 @@ func TestE2E_ReadOnlyACLIsSufficientAndMinimal(t *testing.T) {
 
 					for _, flag := range acl.needed[removed] {
 						awaitFlag(t, rig, flag, false, flag+" needs "+removed)
+					}
+
+					if len(acl.needed[removed]) == 0 {
+						for _, flag := range allFlags {
+							awaitFlag(t, rig, flag, true, flag+" works without "+removed)
+						}
 					}
 
 					rig.wantProbe(t, "/readyz", http.StatusOK, bodyServing)

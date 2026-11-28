@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -49,6 +50,8 @@ const (
 	setName     = "loadtest"
 	storeDir    = "store"
 	sinkEnv     = "LOADTEST_SINK_URL"
+
+	segmentsObject = "segments"
 )
 
 var (
@@ -76,6 +79,19 @@ type Options struct {
 	Listen bool
 }
 
+// StoreOptions adds a segment store to a relay (see StartWithStore): the load and chaos tests of the dynamic segments.
+type StoreOptions struct {
+	// Logger receives the logs of the relay; nil discards them.
+	Logger *slog.Logger
+	// Connections is more entries of the connections section of the bootstrap file, written as YAML flow lines
+	// indented by two spaces.
+	Connections string
+	// Sections is more top-level sections of the bootstrap file (for example the segments resolver).
+	Sections string
+	// SegmentsDoc is a Segments document that the flag set lists in its segmentSources. Empty: none.
+	SegmentsDoc string
+}
+
 // Relay is a running relay proxy: a version 2 core on a file store, and its HTTP server when it listens.
 type Relay struct {
 	sink    *httptest.Server
@@ -89,6 +105,7 @@ type Relay struct {
 	Metrics *metric.Metrics
 	// BaseURL is the loopback URL of the HTTP server (only if Options.Listen).
 	BaseURL string
+	store   *StoreOptions
 	dir     string
 	loops   sync.WaitGroup
 	// generation is the manifest generation last published.
@@ -100,13 +117,16 @@ type Relay struct {
 }
 
 // Start starts a relay proxy.
-func Start(opts Options) (_ *Relay, err error) {
+func Start(opts Options) (*Relay, error) { return StartWithStore(&opts, nil) }
+
+// StartWithStore starts a relay proxy with the segment store that store describes (nil: none, as Start).
+func StartWithStore(opts *Options, store *StoreOptions) (_ *Relay, err error) {
 	dir, err := os.MkdirTemp(opts.TempDir, "ffrelay")
 	if err != nil {
 		return nil, fmt.Errorf("create relay temp dir: %w", err)
 	}
 
-	r := &Relay{dir: dir}
+	r := &Relay{dir: dir, store: store}
 
 	defer func() {
 		if err != nil {
@@ -137,6 +157,7 @@ func Start(opts Options) (_ *Relay, err error) {
 	rounds := make(chan flagruntime.RoundResult, roundsBuffer)
 
 	core, err := relaycore.New(ctx, cfg, &relaycore.Deps{
+		Logger:     r.logger(),
 		Registerer: r.Metrics.Registry,
 		Broadcast:  r.streams.Broadcast,
 		Secrets:    r.secrets(),
@@ -172,7 +193,7 @@ func Start(opts Options) (_ *Relay, err error) {
 	ready := corehttp.NewReadiness(core)
 
 	if opts.Listen {
-		err = r.listen(ready, opts)
+		err = r.listen(ready, *opts)
 		if err != nil {
 			return nil, err
 		}
@@ -316,11 +337,9 @@ func (r *Relay) publish(flagsYAML string) error {
 		return nil
 	}
 
-	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{{
-		Name: setName, Sources: []string{flagsObject}, APIKeys: []string{APIKey},
-	}}})
+	objects, err := r.objects(flagsYAML)
 	if err != nil {
-		return fmt.Errorf("encode the flag sets: %w", err)
+		return err
 	}
 
 	manifest := &controlplane.Manifest{
@@ -328,13 +347,7 @@ func (r *Relay) publish(flagsYAML string) error {
 		Generation: r.generation.Add(1),
 	}
 
-	for _, object := range []struct {
-		name, kind string
-		data       []byte
-	}{
-		{setsObject, controlplane.KindFlagSets, doc},
-		{flagsObject, controlplane.KindFlags, []byte(flagsYAML)},
-	} {
+	for _, object := range objects {
 		sum := controlplane.ChecksumOf(object.data)
 
 		key, keyErr := controlplane.ObjectKey(sum, controlplane.FormatYAML)
@@ -361,14 +374,55 @@ func (r *Relay) publish(flagsYAML string) error {
 	return put(manifestKey, data)
 }
 
+type storedObject struct {
+	name, kind string
+	data       []byte
+}
+
+// objects are the documents of the flag set: the flag set itself, its flags and, with a store, its segments.
+func (r *Relay) objects(flagsYAML string) ([]storedObject, error) {
+	flagSet := controlplane.FlagSet{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{APIKey}}
+	if r.store != nil && r.store.SegmentsDoc != "" {
+		flagSet.SegmentSources = []string{segmentsObject}
+	}
+
+	doc, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{flagSet}})
+	if err != nil {
+		return nil, fmt.Errorf("encode the flag sets: %w", err)
+	}
+
+	objects := []storedObject{
+		{setsObject, controlplane.KindFlagSets, doc},
+		{flagsObject, controlplane.KindFlags, []byte(flagsYAML)},
+	}
+	if r.store != nil && r.store.SegmentsDoc != "" {
+		objects = append(objects, storedObject{segmentsObject, controlplane.KindSegments, []byte(r.store.SegmentsDoc)})
+	}
+
+	return objects, nil
+}
+
+// logger is the logger of the relay (nil discards).
+func (r *Relay) logger() *slog.Logger {
+	if r.store == nil {
+		return nil
+	}
+
+	return r.store.Logger
+}
+
 // bootstrapConfig is the version 2 file of the relay: the file store, and the webhook exporter when the options ask
 // for one.
-func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
+func (r *Relay) bootstrapConfig(opts *Options) (*bootstrap.Config, error) {
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + strconv.Quote(
 		filepath.Join(r.dir, storeDir),
-	) + "}\n" +
+	) + "}\n" + r.storeConnections() +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n"
+
+	if r.store != nil {
+		doc += r.store.Sections
+	}
 
 	if opts.ExporterMode != "" {
 		r.sink = httptest.NewServer(r.sinkHandler(opts.ExporterMode))
@@ -397,6 +451,14 @@ func (r *Relay) bootstrapConfig(opts Options) (*bootstrap.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (r *Relay) storeConnections() string {
+	if r.store == nil {
+		return ""
+	}
+
+	return r.store.Connections
 }
 
 // checkServed evaluates a flag of the flag set: a corrupted object degrades its flag set only (the generation is

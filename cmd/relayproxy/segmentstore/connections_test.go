@@ -10,6 +10,8 @@ import (
 	"encoding/pem"
 	"errors"
 	"math/big"
+	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -258,9 +260,52 @@ func TestConnectionsRun(t *testing.T) {
 	assert.Equal(t, "closed", stateOf(conns, connFast))
 }
 
-// The real dialers of the kinds: go-redis connects on the first command, so a redis connection is up at once and its
-// lookups fail until the store is there; valkey-go connects when the client is created, so an unreachable valkey is
-// an error state, retried; a CA bundle that cannot be read is an error state too.
+// A connection that becomes needed after the loop started is dialled at once, not at the next tick: a retry interval
+// of an hour never delays the first dial (the first requests of a healthy store would answer STORE_ERROR).
+func TestConnectionsRunDialsAtOnceWhenBound(t *testing.T) {
+	t.Parallel()
+
+	handle := &fakeHandle{source: segment.NewMemorySource(map[string][]string{segAudience: {memberAlice}})}
+	conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{
+		RetryInterval: time.Hour,
+		Dialers: map[string]segmentstore.Dialer{
+			connCache: func(context.Context) (segmentstore.Handle, error) { return handle, nil },
+			connFast:  func(context.Context) (segmentstore.Handle, error) { return nil, errDial },
+		},
+	})
+
+	// a connection that fails shows that the first pass of the loop ran
+	_, err := conns.Bind(connFast, segment.MissingNotMember, []flagruntime.BoundDefinition{{Name: segAudience}})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		conns.Run(ctx)
+	}()
+
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	require.Eventually(t, func() bool { return stateOf(conns, connFast) == stateError }, waitFor, tick,
+		"the first pass ran, and the other connection was idle")
+	require.Equal(t, "idle", stateOf(conns, connCache))
+
+	_, err = conns.Bind(connCache, segment.MissingNotMember, []flagruntime.BoundDefinition{{Name: segAudience}})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool { return stateOf(conns, connCache) == stateConnected }, waitFor, tick,
+		"the bound connection is dialled without waiting for the retry interval")
+}
+
+// The real dialers of the kinds: a redis dial probes the store once (go-redis connects on the first command), and
+// valkey-go connects when the client is created, so an unreachable store of either kind is an error state, retried; a
+// CA bundle that cannot be read is an error state too.
 func TestConnectionsDialKinds(t *testing.T) {
 	t.Parallel()
 
@@ -269,10 +314,10 @@ func TestConnectionsDialKinds(t *testing.T) {
 		conn      string
 		wantState string
 	}{
-		{name: kindRedis, conn: connCache, wantState: stateConnected},
+		{name: "redis unreachable", conn: connCache, wantState: stateError},
 		{name: "valkey unreachable", conn: connFast, wantState: stateError},
 		{name: "unreadable CA bundle", conn: "badca", wantState: stateError},
-		{name: "redis with settings", conn: "tuned", wantState: stateConnected},
+		{name: "redis with settings, unreachable", conn: "tuned", wantState: stateError},
 		{name: "unset password", conn: "nopass", wantState: stateError},
 		{name: "CA bundle that is not PEM", conn: "notpem", wantState: stateError},
 		{name: "valkey with a CA bundle", conn: "goodca", wantState: stateError},
@@ -305,18 +350,7 @@ func TestConnectionsDialKinds(t *testing.T) {
 
 			require.Eventually(t, func() bool { return stateOf(conns, tt.conn) == tt.wantState }, waitFor, tick)
 
-			if tt.wantState == stateConnected {
-				lookups := []segment.Lookup{{Segment: segAudience, ID: memberAlice}}
-				require.Error(t, binding.Provider.Contains(t.Context(), lookups), "nothing listens on the port")
-				assert.Equal(t, segment.Unknown, lookups[0].State)
-
-				_, err = binding.Versioner.Version(t.Context(), segAudience)
-				require.Error(t, err, "no version key is configured, and nothing listens")
-
-				reporter, ok := binding.Provider.(segment.HealthReporter)
-				require.True(t, ok)
-				assert.NotEmpty(t, reporter.Health().Failure, "the failed call is the health of the provider")
-			}
+			assert.NotNil(t, binding.Provider)
 
 			cancel()
 			<-done
@@ -622,4 +656,111 @@ func TestConnectionsMembersBeforeTheConnectionIsUp(t *testing.T) {
 
 	require.Len(t, errs, 1)
 	require.ErrorIs(t, errs[0], segmentstore.ErrNotConnected)
+}
+
+// respStub is a store that answers every command with reply, or closes every connection while reply is empty.
+type respStub struct {
+	reply   atomic.Pointer[string]
+	address string
+}
+
+func startRespStub(t *testing.T) *respStub {
+	t.Helper()
+
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	stub := &respStub{address: listener.Addr().String()}
+
+	t.Cleanup(func() { _ = listener.Close() })
+
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+
+			go stub.serve(conn)
+		}
+	}()
+
+	return stub
+}
+
+func (r *respStub) serve(conn net.Conn) {
+	defer conn.Close()
+
+	buf := make([]byte, 4096)
+
+	for {
+		read, err := conn.Read(buf)
+		if err != nil {
+			return
+		}
+
+		reply := r.reply.Load()
+		if reply == nil {
+			return
+		}
+
+		// one reply for each command of the chunk: a command is an array, which starts a line with "*"
+		for line := range strings.SplitSeq(string(buf[:read]), "\r\n") {
+			if strings.HasPrefix(line, "*") {
+				_, _ = conn.Write([]byte(*reply))
+			}
+		}
+	}
+}
+
+// A redis store is connected when it answers the probe, with any reply (the documented read-only ACL has no PING), and
+// an error, retried, while it cannot be reached; it connects without a restart when the store appears.
+func TestConnectionsRedisProbe(t *testing.T) {
+	t.Parallel()
+
+	const noPerm = "-NOPERM this user has no permissions to run the 'ping' command\r\n"
+
+	stub := startRespStub(t)
+
+	doc := "version: 2\nconnections:\n  control: {type: file, path: /tmp/control}\n  probe: {type: redis, addresses: [\"" +
+		stub.address + "\"], timeouts: {connect: 200ms, read: 200ms, write: 200ms}}\n"
+
+	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
+	require.NoError(t, err)
+
+	conns := segmentstore.NewConnections(cfg, segmentstore.Options{RetryInterval: tick})
+
+	binding, err := conns.Bind("probe", segment.MissingNotMember, []flagruntime.BoundDefinition{{Name: segAudience}})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		conns.Run(ctx)
+	}()
+
+	require.Eventually(t, func() bool { return stateOf(conns, "probe") == stateError }, waitFor, tick,
+		"a store that closes the connection is an error, retried")
+
+	reply := noPerm
+	stub.reply.Store(&reply)
+
+	require.Eventually(t, func() bool { return stateOf(conns, "probe") == stateConnected }, waitFor, tick,
+		"a permission error is a reply of the store: it is reachable")
+
+	// the lookups reach the store, which refuses them: not answered, and the provider says why
+	lookups := []segment.Lookup{{Segment: segAudience, ID: memberAlice}}
+	require.Error(t, binding.Provider.Contains(t.Context(), lookups))
+	assert.Equal(t, segment.Unknown, lookups[0].State)
+
+	reporter, ok := binding.Provider.(segment.HealthReporter)
+	require.True(t, ok)
+	assert.NotEmpty(t, reporter.Health().Failure)
+
+	cancel()
+	<-done
+	require.NoError(t, conns.Shutdown(t.Context()))
 }

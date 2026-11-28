@@ -28,6 +28,15 @@ const (
 	transitionClosed      = "closed"
 )
 
+// SegmentMetricNames lists the series of the dynamic segments that the relay exports besides the lookup series of
+// segmentobs (the docs test checks that the pages only quote names that exist).
+func SegmentMetricNames() []string {
+	return []string{
+		metricSegmentCalls, metricSegmentFailed, metricSegmentBreaker, metricSegmentStore, metricSegmentDynamic,
+		metricSegmentSets, metricSegmentMembers, metricSegmentBinding, metricSegmentBrkState,
+	}
+}
+
 // SegmentCollector exposes the dynamic segments: what the resolvers did, the state of each store and the served
 // segments by health. A scrape reads the status; it calls no store and evaluates no flag.
 type SegmentCollector struct {

@@ -131,3 +131,16 @@ Do not lower `generation` by hand: the relay ignores the manifest (`lower-genera
 The relay keeps serving. Fix the disk or the permissions of the directory ([security](security.md#state-directory)).
 At the start, `"state directory: manifest copy is corrupt, starting empty"` says the saved copy was not used and the
 relay read the store.
+
+## Segment store outages
+
+A dynamic segment reads a Valkey or Redis store. The relay stays ready while the store fails, and the evaluations answer by the [table of the outage policy](../configure-flags/segments-dynamic.md#what-happens-when-the-store-is-down). The chaos tests (`internal/loadtest/segments`) run each case below against a real store and a real relay in the pull request checks, and one test fails when a row of that table is added, removed or renamed without them.
+
+| Symptom | Test | Where to look |
+|---|---|---|
+| Lookups answer `STORE_ERROR`, a loaded snapshot answers `STALE` | `TestChaos_KillStore` (the container stops, then starts again) | Metric: `semaphore_segment_dynamic{status="store_error"}` and `semaphore_segment_store_state`. `/info`: `config.segmentStores[].state` and `config.flagSets[].segments.dynamicStates.storeError`. Log: `"a segment store fails"` once, `"a segment store works again"` once. |
+| Lookups are short-circuited without a call to the store | `TestChaos_KillStore` | Metric: `semaphore_segment_breaker_state{state="open"}` is above 0 and `semaphore_segment_lookups_total{result="short_circuited"}` grows. The breaker closes by itself after its cooldown when the store is back. |
+| The store accepts connections and never answers (a hung node, a firewall that drops) | `TestChaos_PauseStore` (`docker pause`) | Every evaluation still ends at its lookup timeout plus a small margin. Metric: `semaphore_segment_unknown_total{reason="store"}` grows, `semaphore_segment_lookup_duration_seconds` sits at the timeout. Snapshots turn `STALE` after three poll intervals. Log: `"a segment store fails"`. |
+| A slow store | `TestChaos_AddedLatencyAndCut` | Below the timeout the answers are right and `semaphore_segment_lookup_duration_seconds` shifts; above it the lookups are `STORE_ERROR` and `semaphore_segment_unknown_total{reason="store"}` grows. Raise `lookupTimeout` only if the store is slow by design. |
+| The first requests after a start answer `STORE_ERROR` | `TestChaos_StoreDownAtStart`, `TestColdStart_FirstRequestsOnAHealthyStore` | `config.segmentStores[].state` is `connecting` or `error`: the store cannot be reached from this relay. A healthy store is dialled when the first generation binds the segments. |
+| One snapshot is `STALE` or empty, the others are fine | `TestChaos_SnapshotSetDeletedOrBroken` | Metric: `semaphore_segment_snapshot_sets{state="stale"}` or `{state="missing"}`. A set that was deleted is "nobody"; a key of the wrong type keeps the last good set (`STALE`). |

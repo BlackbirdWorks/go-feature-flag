@@ -1,6 +1,6 @@
 # Segments - dynamic
 
-A dynamic segment is a segment of type `redis` or `valkey`: the members stay in the store and are looked up while a flag is evaluated. See [Segments](segments.md) for what a segment is, the rule syntax and the two answers (member, not a member) and the opt-in for unknown. For small lists that change rarely use a [static segment](segments-static.md).
+A dynamic segment is a segment of type `redis` or `valkey`: the members stay in the store and are looked up while a flag is evaluated. See [Segments](segments.md) for what a segment is, the rule syntax and the two answers (member, not a member) and the opt-in for unknown. For small lists that change rarely use a [static segment](segments-static.md); [Inline lists or dynamic segments](segments-choosing.md) helps you choose.
 
 - The relay fetches every membership that an evaluation needs in one batch before the rules run: one flag, or all the flags of a bulk request, give one call to the store for each connection (and each `missingKey` policy) the request reaches. One round trip to a single node, one batch for each node on a cluster. A membership that the batch could not read (an attribute inside a typed object) is asked when the rule reaches it.
 - The providers work alone, but then every lookup goes to the store. When the resolver is used, it adds a bounded cache with a short negative TTL, coalescing of identical lookups and a circuit breaker for each segment. Errors are never cached.
@@ -140,7 +140,7 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 
 ## Lifecycle
 
-- The relay opens no store at the start. A connection is opened when a valid dynamic definition first uses it, by a loop that the run context of the relay owns (it dials again every second while the store is not reachable). One client serves every generation: a reload binds the definitions of the new generation to it, and never closes it.
+- The relay opens no store at the start. A connection is opened when a valid dynamic definition first uses it, by a loop that the run context of the relay owns (it probes the store when it opens the connection, and dials again every second while the store is not reachable; any reply of the store, a permission error included, proves it reachable). One client serves every generation: a reload binds the definitions of the new generation to it, and never closes it.
 - One binding serves each segments object on each connection (with one reading of a missing key): one resolver (cache, coalescing, circuit breaker), one holder for each snapshot segment and one poll of the version keys, shared by every flag set and every generation that uses the object, however many there are. It is built when a flag set first uses it and kept while the checksum of the object does not change, so a reload that changes only flags keeps the caches warm; a changed object gets a new binding and the old one is dropped when no generation uses it. The view of a flag set only routes its segments to bindings. A request keeps the view it loaded, so an evaluation is never cut by a swap.
 - The first poll of a binding is spread by a random delay of up to a second, and the passes of the connections are independent and bounded by the interval, so a store that hangs delays no other connection.
 - The relay logs when a store starts failing and when it works again, once for each change and connection, never for each evaluation.
@@ -189,6 +189,23 @@ segments:
     default: {ttl: 30s, negativeTtl: 5s, breakerFailures: 5}
 ```
 
+## Measured
+
+`task test-segment-load` runs a real relay against a real Valkey: 8 sets of 1,000,000 members, flags that name 1, 3 and 8 of them, 300 requests per second at a constant rate (open loop; every request is counted from the instant it was due). A commodity 8-thread Linux machine, store and relay on loopback, so the numbers show the cost of the relay and not of a network. The test asserts no failed request and the commands below; the latencies, the memory and the load times are recorded, never asserted.
+
+| Mode | Cache | Segments in the flag | Commands to the store for each evaluation | p50 | p99 |
+|---|---|---|---|---|---|
+| `snapshot` | not used | 1, 3, 8 | 0 | about 0.6 ms | about 1.4 ms |
+| `lookup` | warm (every lookup a hit) | 1, 3, 8 | 0 | about 0.5 ms | about 1.4 ms |
+| `lookup` | cold (no id repeats) | 1 | 1 `SMISMEMBER` in 1 call | about 0.85 ms | about 1.4 ms |
+| `lookup` | cold | 3 | 3 `SMISMEMBER` in 1 call | about 0.9 ms | about 1.4 ms |
+| `lookup` | cold | 8 | 8 `SMISMEMBER` in 1 call | about 0.9 ms | about 1.4 ms |
+
+- Latencies are of the whole HTTP request, in-process client included. The cache hit ratio of the warm phase was 1.0 and of the cold phase 0.
+- `snapshot` memory: about 72 to 75 bytes of relay heap for each member after a garbage collection (about 75 MB for one set of 1,000,000 members, about 570 MB for eight). The first load of one set of 1,000,000 members took about 2 seconds, of eight about 6 seconds. The store held a member in about 43 bytes.
+- The load does not run in the pull request checks (it seeds 8,000,000 members); the chaos tests do (see the [runbook](../relay-proxy/runbook.md#segment-store-outages)).
+- Cold start: a connection is dialled when the first generation binds the segments, so the first requests after the start of a relay answer from a healthy store. Before that dial, and while a store cannot be reached, they answer `STORE_ERROR` (the first row of the table above).
+
 ## Pages
 
 - [Segments - dynamic: Redis](segments-redis.md): the data model, loading members, the resolver, metrics and sizing (shared by both types).
@@ -196,7 +213,7 @@ segments:
 
 ## Security
 
-- **Read-only ACL.** The relay only reads. The lines below are tested against a real store (`TestE2E_ReadOnlyACLIsSufficientAndMinimal`): with the line the relay serves the set and the `keys` layout, both modes and the existence check; without any one command the feature that needs it answers `STORE_ERROR` and the relay stays ready. The user cannot write.
+- **Read-only ACL.** The relay only reads. The lines below are tested against a real store (`TestE2E_ReadOnlyACLIsSufficientAndMinimal`): with the line the relay serves the set and the `keys` layout, both modes and the existence check; without any one command (`hello` excepted, see below) the feature that needs it answers `STORE_ERROR` for a value that is in no set and the relay stays ready: a value that is in the set is a member whatever the existence check says (`SMISMEMBER` answered). The user cannot write.
 
   `valkey` (replace `<password>`; the relay reads it from a `fromEnv` or `fromFile` reference):
 
@@ -212,7 +229,7 @@ segments:
 
   | Command | Needed for |
   |---|---|
-  | `hello` | `valkey` only: the client opens its connection with it |
+  | `hello` | `valkey` only: the client opens its connection with it. Without it the client falls back to an `AUTH` handshake and everything works (tested), so it is optional, and it is in the line for the normal path |
   | `smismember` | the `set` layout (every lookup of a set) |
   | `exists` | the `keys` layout, and `missingKey: unknown` |
   | `sscan`, `get` | the `snapshot` mode: the members, and the version key |
