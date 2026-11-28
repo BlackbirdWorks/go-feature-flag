@@ -2,6 +2,7 @@ package exporter
 
 import (
 	"log/slog"
+	"math"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -490,7 +491,7 @@ func (m *managerImpl[T]) flushNow(i int, checkProgress bool) {
 	err := flusher.flushQueue()
 	if err != nil {
 		if checkProgress {
-			m.nextFlushAfter[i].Store(m.clocks[i]().Add(m.flushPause(i)).UnixNano())
+			m.nextFlushAfter[i].Store(m.pauseUntil(i))
 		}
 
 		return
@@ -507,6 +508,19 @@ func (m *managerImpl[T]) paused(i int) bool {
 	return until != 0 && m.clocks[i]().UnixNano() < until
 }
 
+// pauseUntil is the time (unix nano) the event-count trigger stays paused until after a failed flush: it saturates
+// instead of overflowing with a huge pause.
+func (m *managerImpl[T]) pauseUntil(i int) int64 {
+	pause := m.flushPause(i)
+	nowNano := m.clocks[i]().UnixNano()
+
+	if int64(pause) > math.MaxInt64-nowNano {
+		return math.MaxInt64
+	}
+
+	return nowNano + int64(pause)
+}
+
 // flushPause is the pause after a failed flush of the consumer: one second, doubled with each failed flush in a row
 // up to the MaxFlushBackoff of the consumer.
 func (m *managerImpl[T]) flushPause(i int) time.Duration {
@@ -515,7 +529,14 @@ func (m *managerImpl[T]) flushPause(i int) time.Duration {
 
 	pause := flushRetryBackoff
 	for ; failures > 1 && pause < limit; failures-- {
-		pause = min(pause*flushBackoffFactor, limit)
+		// capped before the multiplication, so a huge limit cannot overflow
+		if pause >= limit/flushBackoffFactor {
+			pause = limit
+
+			break
+		}
+
+		pause *= flushBackoffFactor
 	}
 
 	return pause

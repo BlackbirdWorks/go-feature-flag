@@ -140,7 +140,8 @@ type EventStoreItem[T ExportableEvent] struct {
 type consumer struct {
 	Offset int64
 	// limit is the maximum number of pending events of the consumer, 0 means no limit of its own
-	// (see SetConsumerLimit).
+	// (see SetConsumerLimit). The events of the batch being exported are not given up, so while a batch is in
+	// flight the consumer can hold its limit plus that batch.
 	limit int64
 	// inFlight is the offset of the last event of the batch being exported (minOffset when none): those events are
 	// delivered, so the limit does not count them as given up.
@@ -470,7 +471,8 @@ func (e *eventStoreImpl[T]) AddWhileRoom(data []T) int {
 // offset, the ones that are the furthest behind skip the oldest event of the store (it is not
 // delivered to them), which lets the store release it and admit a new event for the consumers that
 // keep up. It returns the number of (consumer, event) deliveries given up, 0 when all the consumers
-// are at the same offset: then nobody is "healthier" than the others and the new event is dropped.
+// are at the same offset, or when the oldest event is in a batch being exported: then the new event is dropped.
+// A store can therefore hold more than its limit while a batch is in flight (by that batch, at most maxBytes).
 // WARNING: please call this function only in a function that has locked the mutex first.
 func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
 	if len(e.events) == 0 || len(e.consumers) < 2 {
@@ -492,7 +494,8 @@ func (e *eventStoreImpl[T]) evictLaggardsLocked() int64 {
 	var evicted int64
 
 	for _, c := range e.consumers {
-		if c.Offset == lowest && c.Offset < oldest {
+		// the oldest event of a batch that is being exported is not given up: it stays until the batch ends
+		if c.Offset == lowest && c.Offset < oldest && oldest > c.inFlight {
 			c.Offset = oldest
 			evicted++
 		}

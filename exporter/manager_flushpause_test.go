@@ -3,6 +3,7 @@ package exporter_test
 import (
 	"context"
 	"log/slog"
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -64,6 +65,9 @@ func TestManager_FlushPauseGrowsWhileFailing(t *testing.T) {
 		wantAfterRecovery int64
 	}{
 		{name: "default: fixed pause of one second", maxBackoff: 0, wantAttempts: 60, wantAfterRecovery: 61},
+		{
+			name: "a huge cap does not overflow", maxBackoff: math.MaxInt64, wantAttempts: 6, wantAfterRecovery: 7,
+		},
 		{name: "growing up to 30 seconds", maxBackoff: 30 * time.Second, wantAttempts: 6, wantAfterRecovery: 7},
 	}
 

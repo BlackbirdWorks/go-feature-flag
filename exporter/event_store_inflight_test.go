@@ -111,3 +111,105 @@ func TestEventStore_ProcessPendingBatchesLimitDuringExport(t *testing.T) {
 		})
 	}
 }
+
+// TestEventStore_LaggardEvictionSparesTheBatchInFlight: a full store does not make the consumer that is furthest behind
+// give up an event of the batch it is exporting. The new event is dropped (counted once) instead, and when the batch
+// fails its events are still in the store and go out on the next flush.
+func TestEventStore_LaggardEvictionSparesTheBatchInFlight(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		wantFirst       []string
+		wantRetry       []string
+		wantLater       []string
+		failFirst       bool
+		wantFirstFailed bool
+		wantDropped     int64
+	}{
+		{
+			name: "the batch succeeds", wantFirst: []string{"a1", "a2", "a3", "a4"}, wantLater: []string{"a6"},
+			wantDropped: 1,
+		},
+		{
+			name: "the batch fails", failFirst: true, wantFirstFailed: true,
+			wantFirst: []string{"a1", "a2", "a3", "a4"},
+			wantRetry: []string{"a1", "a2", "a3", "a4"}, wantLater: []string{"a6"}, wantDropped: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := exporter.NewEventStoreWithLimit[*exporter.FeatureEvent](time.Hour, 4, nil)
+			t.Cleanup(store.Stop)
+
+			batches, ok := store.(interface {
+				ProcessPendingBatches(
+					consumerID string, maxBytes int64, process func(context.Context, []*exporter.FeatureEvent) error,
+				) error
+			})
+			require.True(t, ok)
+
+			store.AddConsumer("lagging")
+			store.AddConsumer("healthy")
+
+			for i := 1; i <= 4; i++ {
+				store.Add(bytesEvent(fmt.Sprintf("a%d", i)))
+			}
+
+			consumeAll := func(context.Context, []*exporter.FeatureEvent) error { return nil }
+
+			// the healthy consumer is up to date, the lagging one exports its batch while a new event arrives
+			require.NoError(t, store.ProcessPendingEvents("healthy", consumeAll))
+
+			run := func(fail bool, during *exporter.FeatureEvent) ([]string, error) {
+				var got []string
+
+				err := batches.ProcessPendingBatches(
+					"lagging", 1<<20, func(_ context.Context, batch []*exporter.FeatureEvent) error {
+						for _, event := range batch {
+							got = append(got, event.Key)
+						}
+
+						if during != nil {
+							store.Add(during)
+						}
+
+						if fail {
+							return assert.AnError
+						}
+
+						return nil
+					},
+				)
+
+				return got, err
+			}
+
+			first, err := run(tt.failFirst, bytesEvent("a5"))
+			assert.Equal(t, tt.wantFirstFailed, err != nil)
+			assert.Equal(t, tt.wantFirst, first)
+
+			if tt.failFirst {
+				retry, retryErr := run(false, nil)
+				require.NoError(t, retryErr)
+				assert.Equal(t, tt.wantRetry, retry, "the events of the failed batch were not given up")
+			}
+
+			require.NoError(t, store.ProcessPendingEvents("healthy", consumeAll))
+
+			// the store is not full for ever: the next event is admitted
+			store.Add(bytesEvent("a6"))
+
+			later, laterErr := run(false, nil)
+			require.NoError(t, laterErr)
+			assert.Equal(t, tt.wantLater, later)
+
+			counter, isCounter := store.(droppedCounter)
+			require.True(t, isCounter)
+			assert.Equal(t, tt.wantDropped, counter.DroppedEvents(), "the new event was dropped once, nothing else")
+		})
+	}
+}

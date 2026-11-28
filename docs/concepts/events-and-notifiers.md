@@ -23,7 +23,7 @@ Evaluation events go to **exporters**, flag changes go to **notifiers**. Both ar
 | --- | --- | --- |
 | shared channel | 65536 events (`QueueSize`) | the new event is dropped, reason `queue_full` |
 | hand-off of an exporter | 16384 events (`HandoffSize`) | that exporter drops its event, reason `overflow`; the others are not touched |
-| event store of the engine manager | the larger of 4 x `maxEventInMemory` and 50000 events | the manager drops, reason `overflow` (the engine manager may wait up to 200 ms for room: only the goroutine of its exporter waits) |
+| event store of the engine manager | the larger of 4 x `maxEventInMemory` and 50000 events | the manager drops, reason `overflow` (the engine manager may wait up to 200 ms for room: only the goroutine of its exporter waits). While a batch is being exported its events are not given up, so the store can hold the limit plus that batch (at most `maxBytes`) |
 
 A slow exporter fills its own hand-off and store and loses its own events. It does not slow the workers, the shared channel or the other exporters (with the `block` policy, see below, only the waiting room of that exporter waits: never a worker, an evaluation request or another exporter).
 
