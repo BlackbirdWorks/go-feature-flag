@@ -38,7 +38,8 @@ func keyCases(t *testing.T, typ reflect.Type) []keyCase {
 		keyAutoMigrate: "true", endpointURLKey: envRef, tcSecret: envRef, webhookURLKey: envRef,
 		tcGooglecredentials: envRef, tcAccountkey: envRef, tcAccesskeyid: envRef,
 		tcSecretaccesskey: envRef, tcSessiontoken: envRef, tcExternalid: envRef,
-		tcTablename: "tbl",
+		tcTablename: "tbl", "maxBytes": "1MiB", "blockTimeout": "50ms", "drainTimeout": "5s",
+		"retry": "{maxAttempts: 2}", "overflowPolicy": "block",
 	}
 
 	var out []keyCase
@@ -203,7 +204,10 @@ func TestKeysOfEveryExporterKind(t *testing.T) {
 	checker, root, err := newSchemaChecker(raw)
 	require.NoError(t, err)
 
-	common := []string{tcKind, tcMeta, "flushInterval", "maxEventInMemory", "eventType"}
+	common := []string{
+		tcKind, tcMeta, "flushInterval", "maxEventInMemory", "eventType", "overflowPolicy", "blockTimeout", "maxBytes",
+		"drainTimeout", "retry",
+	}
 	formats := []string{"filename", "csvTemplate", "format", "parquetCompressionCodec"}
 
 	tests := []struct {

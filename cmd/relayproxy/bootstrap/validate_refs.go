@@ -12,7 +12,18 @@ import (
 
 // commonExporterKeys returns the keys that are valid for every exporter kind.
 func commonExporterKeys() []string {
-	return []string{keyKind, keyMeta, "flushInterval", "maxEventInMemory", "eventType"}
+	return []string{
+		keyKind,
+		keyMeta,
+		"flushInterval",
+		"maxEventInMemory",
+		"eventType",
+		"overflowPolicy",
+		"blockTimeout",
+		"maxBytes",
+		"drainTimeout",
+		"retry",
+	}
 }
 
 type exporterSpec struct {
@@ -126,6 +137,8 @@ func (v *validator) exporter(path string, exp *Exporter) {
 	if exp.MaxEventInMemory != nil && *exp.MaxEventInMemory < 1 {
 		v.failf(path+".maxEventInMemory", ErrInvalidValue, "expected an integer of 1 or more")
 	}
+
+	v.pipeline(path, exp)
 
 	if exp.Kafka != nil {
 		for i, address := range exp.Kafka.Addresses {
@@ -314,5 +327,35 @@ func (v *validator) pollingBounds(manifest Manifest) {
 	if time.Duration(*manifest.PollInterval) < manifestreader.MinPollInterval {
 		v.failf("controlPlane.manifest.pollInterval", ErrInvalidValue, "expected at least %s",
 			manifestreader.MinPollInterval)
+	}
+}
+
+// maxRetryAttempts is the largest number of attempts of the retry of an exporter.
+const maxRetryAttempts = 20
+
+// pipeline checks the settings of the event pipeline of an exporter: the overflow policy, the limits of a batch,
+// the drain and the retry.
+func (v *validator) pipeline(path string, exp *Exporter) {
+	v.oneOf(path+".overflowPolicy", exp.OverflowPolicy, OverflowDropNewest, OverflowDropOldest, OverflowBlock)
+
+	if exp.BlockTimeout != nil && time.Duration(*exp.BlockTimeout) > MaxBlockTimeout {
+		v.failf(path+".blockTimeout", ErrInvalidValue, "expected at most %s", MaxBlockTimeout)
+	}
+
+	if exp.DrainTimeout != nil && time.Duration(*exp.DrainTimeout) > MaxShutdownDuration {
+		v.failf(path+".drainTimeout", ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
+	}
+
+	retry := exp.Retry
+	if retry == nil {
+		return
+	}
+
+	if retry.MaxAttempts != nil && (*retry.MaxAttempts < 1 || *retry.MaxAttempts > maxRetryAttempts) {
+		v.failf(path+".retry.maxAttempts", ErrInvalidValue, "expected an integer from 1 to %d", maxRetryAttempts)
+	}
+
+	if retry.InitialBackoff != nil && retry.MaxBackoff != nil && *retry.InitialBackoff > *retry.MaxBackoff {
+		v.failf(path+".retry.initialBackoff", ErrInvalidValue, "expected at most maxBackoff (%s)", retry.MaxBackoff)
 	}
 }

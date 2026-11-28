@@ -125,6 +125,8 @@ func (c *Collector) collectExporter(
 	counter(c.exported, exp.Exported, exp.Name, exp.Kind)
 	counter(c.exporterDrops, exp.Dropped.Overflow, exp.Name, exp.Kind, ReasonOverflow)
 	counter(c.exporterDrops, exp.Dropped.Drain, exp.Name, exp.Kind, ReasonDrain)
+	counter(c.exporterDrops, exp.Dropped.BlockTimeout, exp.Name, exp.Kind, ReasonBlockTimeout)
+	counter(c.exporterDrops, exp.Dropped.RetryExhausted, exp.Name, exp.Kind, ReasonRetryExhausted)
 	counter(c.failures, exp.FlushFailures, exp.Name, exp.Kind)
 
 	for _, state := range []string{StateRunning, StateDraining, StateStopped, StateCut} {

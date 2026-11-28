@@ -258,6 +258,13 @@ type v2Options struct {
 func newV2With(tb testing.TB, opts v2Options) *v2 {
 	tb.Helper()
 
+	return buildV2(tb, &opts, nil)
+}
+
+// buildV2 is [newV2With] with the manager of the exporters of the core; nil gives the recorder of the rig.
+func buildV2(tb testing.TB, opts *v2Options, newManager events.NewManagerFunc) *v2 {
+	tb.Helper()
+
 	dir := opts.dir
 	if dir == "" {
 		dir = filepath.Join(tb.TempDir(), "control")
@@ -313,13 +320,15 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
 	require.NoError(tb, err)
 
+	if newManager == nil {
+		newManager = func(string, exporter.Config, *slog.Logger) events.FeatureManager { return rig.events }
+	}
+
 	deps := &relaycore.Deps{
-		Logger:    opts.logger,
-		Scheduler: rig.sched,
-		Broadcast: rig.streams.Broadcast,
-		NewManager: func(string, exporter.Config, *slog.Logger) events.FeatureManager {
-			return rig.events
-		},
+		Logger:     opts.logger,
+		Scheduler:  rig.sched,
+		Broadcast:  rig.streams.Broadcast,
+		NewManager: newManager,
 		Hooks: flagruntime.Hooks{
 			AfterRound: func(res flagruntime.RoundResult) { rig.rounds <- res },
 			BeforeSwap: opts.beforeSwap,

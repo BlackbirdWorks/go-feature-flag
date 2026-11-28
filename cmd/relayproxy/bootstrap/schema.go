@@ -35,6 +35,7 @@ func JSONSchema() ([]byte, error) {
 	restrictNamedMaps(root)
 	setDurationDefaults(root)
 	allowEmptyEnums(root)
+	describePipeline(root)
 	requireByKind(root)
 	requireNonBlank(root)
 	storeRules(root)
@@ -301,4 +302,56 @@ func withProp(name string, prop *jsonschema.Schema, required ...string) *jsonsch
 	props.Set(name, prop)
 
 	return &jsonschema.Schema{Properties: props, Required: required}
+}
+
+// describePipeline sets the enumeration, the defaults and the descriptions of the pipeline settings of an exporter
+// and of its retry. Their struct tags stay short; the schema carries the words.
+func describePipeline(root *jsonschema.Schema) {
+	describe := func(def, key, text string, enum []any, def0 any) {
+		prop, ok := root.Definitions[def].Properties.Get(key)
+		if !ok {
+			return
+		}
+
+		prop.Description = text
+		prop.Enum = enum
+
+		if def0 != nil {
+			prop.Default = def0
+		}
+	}
+
+	describe("Exporter", "overflowPolicy",
+		"What a full queue of the exporter does: dropNewest drops the new event, dropOldest drops the oldest queued "+
+			"one, block waits up to blockTimeout for room and then drops the new event. An empty value is the default.",
+		[]any{OverflowDropNewest, OverflowDropOldest, OverflowBlock, ""}, OverflowDropNewest)
+	describe(
+		"Exporter",
+		"blockTimeout",
+		"With overflowPolicy block: the longest wait for room in the queue of the exporter before the event is dropped. "+
+			"At most 10s.",
+		nil,
+		Duration(DefaultBlockTimeout).String(),
+	)
+	describe("Exporter", "drainTimeout",
+		"The longest the exporter flushes what it holds when it is removed, changed or the relay shuts down; what is "+
+			"left is dropped and counted.", nil, Duration(DefaultExporterDrainTimeout).String())
+	describe("Exporter", "maxBytes",
+		"Largest batch handed to the exporter, in bytes of its events as JSON. A batch is cut when this or "+
+			"maxEventInMemory is reached; an event larger than this goes alone. Unset or zero: no byte limit.", nil, nil)
+
+	for key, value := range map[string]any{
+		"maxAttempts":    DefaultRetryAttempts,
+		"initialBackoff": Duration(DefaultRetryInitialBackoff).String(),
+		"maxBackoff":     Duration(DefaultRetryMaxBackoff).String(),
+		"maxElapsed":     Duration(DefaultRetryMaxElapsed).String(),
+	} {
+		describe("ExporterRetry", key, "Retry of a failed export, with exponential backoff and jitter.", nil, value)
+	}
+
+	if prop, ok := root.Definitions["ExporterRetry"].Properties.Get("maxAttempts"); ok {
+		prop.Minimum = "1"
+		prop.Maximum = "20"
+		prop.Description = "Attempts of one batch, the first included: 1 means no retry."
+	}
 }

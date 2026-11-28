@@ -49,6 +49,9 @@ type Config struct {
 	// When it is reached (exporter slow or failing) new events are dropped and counted.
 	// Default: max(DefaultQueuedEventsFactor x MaxEventInMemory, DefaultMinQueuedEvents).
 	MaxQueuedEvents int64
+	// MaxBytes, when above zero, makes the manager flush as soon as the events it holds for the exporter reach
+	// that size (see EventSize), whatever their count and the flush interval. Zero: no byte limit.
+	MaxBytes int64
 }
 
 type dataExporterImpl[T ExportableEvent] struct {

@@ -22,7 +22,12 @@ const (
 	hookURL       = "https://hook.example/x"
 	kindWebhook   = "webhook"
 
+	kindFile = "file"
+	keyFlag0 = "flag-0"
+	keyFlag4 = "flag-4"
+
 	labelExporter = "exporter"
+	labelKind     = "kind"
 	labelNotifier = "notifier"
 	labelState    = "state"
 )

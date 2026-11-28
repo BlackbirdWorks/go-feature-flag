@@ -59,6 +59,9 @@ type ExporterDef struct {
 	Identity string
 	// Config is what [exporter.NewManager] takes. Its Exporter counts what is exported.
 	Config exporter.Config
+	// Pipeline is the behaviour of the queue of the exporter. The zero value keeps the behaviour of a definition
+	// that has none.
+	Pipeline Pipeline
 }
 
 // Exporters builds the exporters of the specs, sorted by name. It returns every failing entry, each as an
@@ -117,12 +120,18 @@ func (b Builder) exporter(
 		return ExporterDef{}, err
 	}
 
-	return buildDef(name, exp.Kind, id.String(), built.Exporter, exporter.Config{
+	pipe := PipelineOf(exp)
+
+	def := buildDef(name, exp.Kind, id.String(), built.Exporter, exporter.Config{
 		Exporter:         nil,
 		FlushInterval:    flushInterval(exp),
 		MaxEventInMemory: maxEventInMemory(exp),
 		MaxQueuedEvents:  0, // the default of the manager
-	}, id.secrets), nil
+		MaxBytes:         pipe.MaxBytes,
+	}, id.secrets)
+	def.Pipeline = pipe
+
+	return def, nil
 }
 
 // NewExporterDef wraps an engine exporter in a definition the dispatcher can run: the exporter of cfg is

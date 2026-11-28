@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"slices"
 	"sync"
+	"time"
 )
 
 // ReloadSet says what a reload did with the exporters (or the notifiers), by name.
@@ -74,7 +75,7 @@ func (d *Dispatcher) Apply(ctx context.Context, defs []ExporterDef) (ReloadSet, 
 		return ReloadSet{}, err
 	}
 
-	drainCtx, cancel := d.newDrainContext(ctx)
+	drainCtx, cancel := d.newDrainContext(ctx, d.longestDrainOf(leaving))
 	defer cancel()
 
 	d.finishReload(drainCtx, &set, leaving)
@@ -84,12 +85,37 @@ func (d *Dispatcher) Apply(ctx context.Context, defs []ExporterDef) (ReloadSet, 
 
 // newDrainContext returns the context that bounds a drain: the drain timeout, from now, whatever the context of
 // the reload.
-func (d *Dispatcher) newDrainContext(parent context.Context) (context.Context, context.CancelFunc) {
+func (d *Dispatcher) newDrainContext(
+	parent context.Context, timeout time.Duration,
+) (context.Context, context.CancelFunc) {
 	if d.cfg.drainContext != nil {
 		return d.cfg.drainContext(parent)
 	}
 
-	return context.WithTimeout(context.WithoutCancel(parent), d.cfg.DrainTimeout)
+	return context.WithTimeout(context.WithoutCancel(parent), timeout)
+}
+
+// longestDrainOf is the longest drain deadline of the instances: each one is also cut by its own deadline, this one
+// only bounds the wait for all of them. With none it is the drain timeout of the configuration.
+func (d *Dispatcher) longestDrainOf(list []*managed) time.Duration {
+	if len(list) == 0 {
+		return d.cfg.DrainTimeout
+	}
+
+	var longest time.Duration
+
+	for _, inst := range list {
+		longest = max(longest, inst.drain)
+	}
+
+	return longest
+}
+
+// longestDrain is the longest drain deadline of the exporters that run or are closing: the deadline of a shutdown.
+func (d *Dispatcher) longestDrain() time.Duration {
+	snap := d.state.Load()
+
+	return d.longestDrainOf(slices.Concat(snap.active, snap.retired))
 }
 
 // finishReload waits for the drains of a reload, outside every lock, and records the ones that were cut.
@@ -170,8 +196,11 @@ func (d *Dispatcher) swapSetLocked(ctx context.Context, defs []ExporterDef) (Rel
 
 	d.swap(&dispatchState{active: next, retired: slices.Concat(retired, leaving)})
 
+	// a request that is cancelled does not cut the drains
+	drain := context.WithoutCancel(ctx)
+
 	for _, inst := range leaving {
-		inst.startClose(ctx)
+		inst.startClose(drain)
 	}
 
 	return set, leaving
@@ -192,10 +221,15 @@ func (d *Dispatcher) launch(def *ExporterDef) *managed {
 
 	def.wrapper().name = &entry.stats
 
+	wrap := def.wrapper()
+	wrap.pipe, wrap.after, wrap.rnd = def.Pipeline, d.cfg.After, d.cfg.Rand
+
 	mgr := d.cfg.NewManager(def.Name, def.Config, d.cfg.Logger.With(slog.String("exporter", def.Name)))
 	mgr.Start()
 
-	inst := newManaged(def, mgr, entry, d.cfg.HandoffSize, d.cfg.BatchSize, d.cfg.Logger)
+	inst := newManagedWith(def, mgr, entry, limits{
+		after: d.cfg.After, handoff: d.cfg.HandoffSize, batch: d.cfg.BatchSize, drain: d.cfg.DrainTimeout,
+	}, d.cfg.Logger)
 	entry.latest.Store(inst)
 
 	return inst
@@ -244,15 +278,29 @@ func (d *Dispatcher) awaitInstance(ctx context.Context, inst *managed) DrainResu
 	case <-inst.finished:
 		res.Undelivered = asInt(inst.undelivered.Load())
 	case <-ctx.Done():
-		res.Cut = true
-		res.Undelivered = asInt(inst.pending())
-
-		inst.state.CompareAndSwap(stateDraining, stateCut)
-		d.cfg.Logger.LogAttrs(ctx, slog.LevelWarn, "exporter drain passed the deadline",
-			slog.String("exporter", inst.def.Name), slog.Int64("pending", res.Undelivered))
+		d.cut(ctx, inst, &res)
+	case <-inst.haltDone():
+		d.cut(ctx, inst, &res)
 	}
 
 	return res
+}
+
+// cut records that the drain of the instance passed its deadline: it keeps closing in the background.
+func (d *Dispatcher) cut(ctx context.Context, inst *managed, res *DrainResult) {
+	// the end of the drain deadline of an instance that has just finished is not a cut
+	if inst.isFinished() {
+		res.Undelivered = asInt(inst.undelivered.Load())
+
+		return
+	}
+
+	res.Cut = true
+	res.Undelivered = asInt(inst.pending())
+
+	inst.state.CompareAndSwap(stateDraining, stateCut)
+	d.cfg.Logger.LogAttrs(ctx, slog.LevelWarn, "exporter drain passed the deadline",
+		slog.String("exporter", inst.def.Name), slog.Int64("pending", res.Undelivered))
 }
 
 // asInt converts an event count: counts do not reach 2^63.

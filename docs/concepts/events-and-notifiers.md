@@ -25,18 +25,42 @@ Evaluation events go to **exporters**, flag changes go to **notifiers**. Both ar
 | hand-off of an exporter | 16384 events (`HandoffSize`) | that exporter drops its event, reason `overflow`; the others are not touched |
 | event store of the engine manager | the larger of 4 x `maxEventInMemory` and 50000 events | the manager drops, reason `overflow` (the engine manager may wait up to 200 ms for room: only the goroutine of its exporter waits) |
 
-A slow exporter fills its own hand-off and store and loses its own events. It does not slow the workers, the shared channel or the other exporters.
+A slow exporter fills its own hand-off and store and loses its own events. It does not slow the workers, the shared channel or the other exporters (with the `block` policy, see below, the workers wait for it up to its deadline).
+
+## Overflow policy
+
+`overflowPolicy` of an exporter says what its full hand-off does with the new event:
+
+| Policy | A full hand-off | Counted as |
+| --- | --- | --- |
+| `dropNewest` (default) | drops the new event | `overflow` |
+| `dropOldest` | drops the oldest queued event and queues the new one | `overflow` |
+| `block` | the worker waits for room, up to `blockTimeout` (default `50ms`, at most `10s`) for the batch; what is still without room is dropped | `block_timeout` |
+
+- An evaluation request never waits: `Collect` stays one non-blocking send. `block` holds back a worker only, so it fills the shared channel when the exporter is slow, and the channel drops with `queue_full` as before. The other exporters then see their events later, by at most `blockTimeout` per batch.
+- A worker that waits holds no lock that a reload, another worker or a status read needs. A reload that removes the exporter wakes it at once.
+
+## Batches and retry
+
+- A batch is cut when any limit is reached: `maxEventInMemory` events, `flushInterval`, or `maxBytes`. The size of an event is the length of its JSON form, line break included (`exporter.EventSize`). An event larger than `maxBytes` goes alone in its batch.
+- A failed export is retried in the pipeline with exponential backoff and jitter: the wait starts at `retry.initialBackoff`, doubles up to `retry.maxBackoff`, and is cut to between half and the whole of its value at random. The retry stops after `retry.maxAttempts` attempts or when the waits of the batch would pass `retry.maxElapsed`. While it waits the queues keep accepting events by their policy.
+- A batch that exhausts the retry is dropped and counted as `retry_exhausted`, and logged at error level (the class and the scrubbed message, never a secret). With `retry.maxAttempts: 1` a failed batch is dropped at once.
+- Every attempt counts in `flush_failures_total` and the duration of the flushes.
+
+## Drain deadline
+
+`drainTimeout` (default `10s`, at most `10m`) is the deadline of the final flush of one exporter, whether a reload removes or changes it, or the relay shuts down. The deadline starts when the exporter leaves the set; within it the hand-off is delivered, the manager is flushed and a retry in progress goes on. At the deadline the retry stops, the exporter is cut and keeps closing in the background, and the events it still holds are counted as `drain`. Each exporter has its own deadline; the shutdown waits for the longest one, inside the deadline of its own context.
 
 ## Accounting
 
 Every accepted event is exported or counted. Per exporter name, at any time:
 
 ```text
-handed = exported + overflow + drain + queued
+handed = exported + overflow + block_timeout + retry_exhausted + drain + queued
 ```
 
 - `handed`: events offered to the exporter. `queued`: handed events that are neither exported nor dropped yet.
-- `overflow`: dropped by the hand-off or by the store of the manager. `drain`: handed events that could not be delivered when the exporter closed.
+- `overflow`: dropped by the hand-off or by the store of the manager. `block_timeout`, `retry_exhausted`: see the policy and the retry above. `drain`: handed events that could not be delivered when the exporter closed.
 - For the shared channel: `accepted` = events handed to the exporters (once each) + `no_exporter` + `drain` + events still in the channel, for a set of exporters that did not change.
 
 | Drop reason | Where | Meaning |
@@ -45,7 +69,9 @@ handed = exported + overflow + drain + queued
 | `shutdown` | channel | the dispatcher was shut down (or never started) |
 | `no_exporter` | channel | a worker took the event while the set was empty (a reload to no exporter) |
 | `drain` | channel | the shutdown deadline had passed, the worker dropped the event |
-| `overflow` | exporter | the hand-off or the store of the exporter was full |
+| `overflow` | exporter | the hand-off or the store of the exporter was full (`dropNewest`, `dropOldest`) |
+| `block_timeout` | exporter | the policy is `block` and no room came before the deadline |
+| `retry_exhausted` | exporter | the export of the batch failed through every attempt |
 | `drain` | exporter | the exporter closed with the event undelivered |
 
 The counters are **cumulative per exporter name**: a reload that replaces the instance of a name does not reset them. A name that changes kind keeps its counters under the new `kind` label.
@@ -87,7 +113,7 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 | exporters | `file`, `webhook`, `log`, `s3`, `kinesis`, `sqs`, `redshift`, `googleStorage`, `kafka`, `pubsub`, `bigquery`, `azureBlobStorage`, `opentelemetry` |
 | notifiers | `slack`, `microsoftteams`, `discord`, `webhook` |
 
-- Defaults (`format`, `filename`, `csvTemplate`, `parquetCompressionCodec`, `logFormat`, `flushInterval`, `maxEventInMemory`) are those of version 1.
+- Defaults (`format`, `filename`, `csvTemplate`, `parquetCompressionCodec`, `logFormat`, `flushInterval`, `maxEventInMemory`) are those of version 1. The pipeline settings (`overflowPolicy`, `blockTimeout`, `maxBytes`, `drainTimeout`, `retry`) are listed with their defaults in the [bootstrap file](../relay-proxy/bootstrap-config.md#exporters-name).
 - `format` is accepted for `kinesis`, `kafka` and `sqs` as in version 1, but those kinds always write JSON: `csv` and `parquet` pass validation and have no effect there. `autoMigrate` is accepted for `bigquery`.
 - `kafka` takes the producer settings of version 1 as keys; see [Kafka producer settings](../relay-proxy/bootstrap-config.md#kafka-producer-settings) for the table of v1 fields and v2 keys.
 - `eventType: tracking` is not carried yet: such an exporter is rejected with a typed error.
@@ -126,20 +152,20 @@ Names and labels are closed. `exporter` and `notifier` are the names of the entr
 | `semaphore_exporter_queued_events` | gauge | `exporter`, `kind` |
 | `semaphore_exporter_enqueued_events_total` | counter | `exporter`, `kind` |
 | `semaphore_exporter_exported_events_total` | counter | `exporter`, `kind` |
-| `semaphore_exporter_dropped_events_total` | counter | `exporter`, `kind`, `reason` (`overflow`, `drain`) |
+| `semaphore_exporter_dropped_events_total` | counter | `exporter`, `kind`, `reason` (`overflow`, `drain`, `block_timeout`, `retry_exhausted`) |
 | `semaphore_exporter_flush_failures_total` | counter | `exporter`, `kind` |
 | `semaphore_exporter_flush_duration_seconds` | summary (count and sum) | `exporter`, `kind` |
 | `semaphore_exporter_state` | gauge | `exporter`, `kind`, `state` (`running`, `draining`, `stopped`, `cut`) |
 | `semaphore_notifier_queued_changes` | gauge | `notifier`, `kind` |
 | `semaphore_notifier_changes_total` | counter | `notifier`, `kind`, `result` (`delivered`, `error`, `panic`, `dropped`) |
 
-The status snapshot (`Status()`) is immutable and read without blocking on anything slower than a counter. It has one entry per exporter name, with the state of its current instance and the cumulative counters: handed, exported, queued, drops by reason, failures, flushes and the class of the last error (`none`, `timeout`, `canceled`, `panic`, `other`).
+The status snapshot (`Status()`, and `events` in `/info`) is immutable and read without blocking on anything slower than a counter. It has one entry per exporter name, with the state and the `overflowPolicy` of its current instance and the cumulative counters: handed, exported, queued, drops by reason, failures, flushes and the class of the last error (`none`, `timeout`, `canceled`, `panic`, `other`).
 
 ## Not implemented yet
 
-- Per-exporter overflow policies (`dropOldest`, `block` with a deadline): today an exporter drops its newest events.
-- Per-exporter batching by `maxBytes` and retry with backoff in the pipeline: the engine manager's own logic is reused.
-- The tracking overhead criterion (tracking on within 5 % of tracking off) and its soak test.
-- Wiring into the relay (`main.go`) and the evaluator, and the conversion of the bootstrap connections into factory specs.
 - The `flagSets` selector of an exporter.
 - Exporters for tracking events (`eventType: tracking`).
+
+## Cost of tracking
+
+Tracking an evaluation costs one event (one allocation) and one non-blocking send; the pipeline of this page adds nothing to the evaluation path. `BenchmarkEvaluationTracking` (`go test -tags=bench -run '^$' -bench EvaluationTracking ./cmd/relayproxy/corehttp`) measures a flag with tracking off and on, directly and through the HTTP server. A request with tracking on stays within 5 % of one with tracking off; the evaluation alone costs about one event more, and neither allocates more than before the pipeline had its policies.

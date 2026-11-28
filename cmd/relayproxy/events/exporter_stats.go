@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -93,12 +94,15 @@ func (l *lastError) get() ErrorClass { return classOf(l.v.Load()) }
 // nameStats are the cumulative counters of one exporter name. They live as long as the dispatcher: a reload that
 // replaces the instance of the name does not reset them.
 type nameStats struct {
-	last       lastError
-	handed     atomic.Uint64
-	exported   atomic.Uint64
-	handoff    atomic.Uint64
-	drain      atomic.Uint64
-	failures   atomic.Uint64
+	last     lastError
+	handed   atomic.Uint64
+	exported atomic.Uint64
+	handoff  atomic.Uint64
+	drain    atomic.Uint64
+	failures atomic.Uint64
+	// blocked and exhausted count the events dropped by the block deadline and by the spent retry.
+	blocked    atomic.Uint64
+	exhausted  atomic.Uint64
 	flushes    atomic.Uint64
 	flushNanos atomic.Int64
 	// mu guards the fold of the drops of a finished manager into mgrDropped, against a reader that adds the
@@ -113,6 +117,9 @@ type instanceStats struct {
 	handed   atomic.Uint64
 	exported atomic.Uint64
 	handoff  atomic.Uint64
+	// blocked and exhausted are the drops of the block deadline and of the spent retry.
+	blocked   atomic.Uint64
+	exhausted atomic.Uint64
 }
 
 // countingExporter wraps an exporter to count what it exports, to hide its secrets from its errors, and to keep a
@@ -120,10 +127,16 @@ type instanceStats struct {
 type countingExporter struct {
 	inner    exporter.Exporter
 	instance *instanceStats
-	// name is set when the instance is launched.
+	// name, pipe, after and rnd are set when the instance is launched.
 	name *nameStats
+	// after is the timer of the retry waits and rnd the source of their jitter, both injected.
+	after func(time.Duration) <-chan time.Time
+	rnd   func() float64
+	// halt ends the retries when the exporter is closing and its drain deadline passed.
+	halt atomic.Pointer[context.Context]
 	// secrets are the forms of the secret values the errors of the exporter must not show.
 	secrets     []string
+	pipe        Pipeline
 	panicLogged atomic.Bool
 }
 
@@ -139,8 +152,21 @@ func (*countingExporter) GoString() string { return bootstrap.RedactedValue }
 // Format implements [fmt.Formatter].
 func (*countingExporter) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(bootstrap.RedactedValue)) }
 
-// Export implements [exporter.Exporter].
+// Export implements [exporter.Exporter]: it cuts the events into batches of the byte limit and exports each one,
+// retrying a failure.
 func (c *countingExporter) Export(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
+	for _, chunk := range c.chunks(events) {
+		err := c.exportChunk(ctx, logger, chunk)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// attempt makes one call of the exporter and counts it.
+func (c *countingExporter) attempt(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
 	start := clock.Now()
 	err := c.call(ctx, logger, events)
 	elapsed := clock.Now().Sub(start)

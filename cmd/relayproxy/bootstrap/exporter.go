@@ -25,11 +25,16 @@ type Exporter struct {
 	Headers                 map[string]Secret `json:"headers,omitzero"                  yaml:"headers,omitempty"`
 	FlushInterval           *Duration         `json:"flushInterval,omitempty"           yaml:"flushInterval,omitempty"`
 	MaxEventInMemory        *int              `json:"maxEventInMemory,omitempty"        jsonschema:"minimum=1,default=100000"                                                                                                                                                     yaml:"maxEventInMemory,omitempty"` //nolint:lll // struct tags can not be wrapped
+	Retry                   *ExporterRetry    `json:"retry,omitempty"                   yaml:"retry,omitempty"`
+	MaxBytes                *ByteSize         `json:"maxBytes,omitempty"                yaml:"maxBytes,omitempty"`
+	BlockTimeout            *Duration         `json:"blockTimeout,omitempty"            yaml:"blockTimeout,omitempty"`
+	DrainTimeout            *Duration         `json:"drainTimeout,omitempty"            yaml:"drainTimeout,omitempty"`
 	Kafka                   *KafkaSettings    `json:"kafka,omitempty"                   yaml:"kafka,omitempty"`
 	ClusterIdentifier       string            `json:"clusterIdentifier,omitempty"       yaml:"clusterIdentifier,omitempty"`
 	StreamName              string            `json:"streamName,omitempty"              yaml:"streamName,omitempty"`
 	EventType               string            `json:"eventType,omitempty"               yaml:"eventType,omitempty"`
 	Format                  string            `json:"format,omitempty"                  jsonschema:"enum=json,enum=csv,enum=parquet"                                                                                                                                              yaml:"format,omitempty"` //nolint:lll // struct tags can not be wrapped
+	OverflowPolicy          string            `json:"overflowPolicy,omitempty"          yaml:"overflowPolicy,omitempty"`
 	Filename                string            `json:"filename,omitempty"                yaml:"filename,omitempty"`
 	CsvTemplate             string            `json:"csvTemplate,omitempty"             yaml:"csvTemplate,omitempty"`
 	ParquetCompressionCodec string            `json:"parquetCompressionCodec,omitempty" yaml:"parquetCompressionCodec,omitempty"` //nolint:lll // struct tags can not be wrapped
@@ -57,6 +62,26 @@ type Exporter struct {
 	Secret                  Secret            `json:"secret,omitzero"                   yaml:"secret,omitempty"`
 	EndpointURL             Secret            `json:"endpointUrl,omitzero"              yaml:"endpointUrl,omitempty"`
 	AutoMigrate             bool              `json:"autoMigrate,omitempty"             yaml:"autoMigrate,omitempty"`
+}
+
+// The overflow policies of an exporter.
+const (
+	OverflowDropNewest = "dropNewest"
+	OverflowDropOldest = "dropOldest"
+	OverflowBlock      = "block"
+)
+
+// ExporterRetry is the retry of a failed export inside the pipeline: exponential backoff with jitter, bounded in
+// attempts and in the time spent waiting. A batch that exhausts it is dropped and counted.
+type ExporterRetry struct {
+	// MaxAttempts counts the first attempt: 1 means no retry.
+	MaxAttempts *int `json:"maxAttempts,omitempty" yaml:"maxAttempts,omitempty"`
+	// InitialBackoff is the wait before the first retry; it doubles up to MaxBackoff.
+	InitialBackoff *Duration `json:"initialBackoff,omitempty" yaml:"initialBackoff,omitempty"`
+	// MaxBackoff caps one wait.
+	MaxBackoff *Duration `json:"maxBackoff,omitempty" yaml:"maxBackoff,omitempty"`
+	// MaxElapsed caps the sum of the waits of one batch.
+	MaxElapsed *Duration `json:"maxElapsed,omitempty" yaml:"maxElapsed,omitempty"`
 }
 
 // Notifier kinds.

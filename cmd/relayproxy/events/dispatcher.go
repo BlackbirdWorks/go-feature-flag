@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"math/rand/v2"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -43,6 +44,10 @@ type DispatcherConfig struct {
 	Logger       *slog.Logger
 	NewManager   NewManagerFunc
 	drainContext func(parent context.Context) (context.Context, context.CancelFunc)
+	// After is the timer of the block deadline and of the retry waits, Rand the source of the jitter of those
+	// waits (a value in [0, 1)). The defaults are [time.After] and [rand.Float64]; a test injects both.
+	After        func(time.Duration) <-chan time.Time
+	Rand         func() float64
 	Builder      Builder
 	QueueSize    int
 	Workers      int
@@ -58,6 +63,14 @@ func (c *DispatcherConfig) defaults() {
 		c.NewManager = func(_ string, cfg exporter.Config, logger *slog.Logger) FeatureManager {
 			return exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{cfg}, 0, logger)
 		}
+	}
+
+	if c.After == nil {
+		c.After = time.After
+	}
+
+	if c.Rand == nil {
+		c.Rand = rand.Float64
 	}
 
 	if c.QueueSize <= 0 {
@@ -215,7 +228,7 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 
 	// no goroutine waits for the end of the context: the function runs once, when it ends
 	d.unwatch = context.AfterFunc(ctx, func() {
-		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.DrainTimeout)
+		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.longestDrain())
 		defer cancel()
 
 		_, _ = d.Shutdown(drain)
@@ -282,10 +295,14 @@ func (e *nameEntry) status(running []*managed) ExporterStatus {
 	handed, exported, drain := stats.handed.Load(), stats.exported.Load(), stats.drain.Load()
 	stats.mu.Unlock()
 
+	blocked, exhausted := stats.blocked.Load(), stats.exhausted.Load()
+
 	status := ExporterStatus{
-		Name:          e.name,
-		LastError:     stats.last.get(),
-		Dropped:       Drops{Overflow: overflow, Drain: drain},
+		Name:      e.name,
+		LastError: stats.last.get(),
+		Dropped: Drops{
+			Overflow: overflow, Drain: drain, BlockTimeout: blocked, RetryExhausted: exhausted,
+		},
 		Handed:        handed,
 		Exported:      exported,
 		FlushFailures: stats.failures.Load(),
@@ -293,12 +310,13 @@ func (e *nameEntry) status(running []*managed) ExporterStatus {
 		FlushSeconds:  float64(stats.flushNanos.Load()) / 1e9, //nolint:mnd // nanoseconds per second
 	}
 
-	if gone := exported + overflow + drain; handed > gone {
+	if gone := exported + overflow + drain + blocked + exhausted; handed > gone {
 		status.Queued = int64(handed - gone) //nolint:gosec // event counts do not reach 2^63
 	}
 
 	if latest := e.latest.Load(); latest != nil {
 		status.Kind = latest.def.Kind
+		status.OverflowPolicy = latest.pipe.policy()
 		status.State = stateName(latest.state.Load())
 	}
 
@@ -343,8 +361,10 @@ func (d *Dispatcher) fill(batch []Event) []Event {
 	return batch
 }
 
-// deliver offers the batch to every exporter of the current set, without waiting for any of them. A batch taken
-// while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter.
+// deliver offers the batch to every exporter of the current set, without waiting for any of them under the lock. A
+// batch taken while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter.
+// An exporter with the block policy that has no room is waited for after the lock is released: a reload and the
+// other workers never wait behind it, and the wait is bounded by its block deadline.
 func (d *Dispatcher) deliver(batch []Event) {
 	if d.aborted.Load() {
 		d.dropDrain.Add(uint64(len(batch)))
@@ -352,17 +372,32 @@ func (d *Dispatcher) deliver(batch []Event) {
 		return
 	}
 
+	type waiting struct {
+		inst *managed
+		rest []Event
+	}
+
+	var blocked []waiting
+
 	d.mu.RLock()
-	defer d.mu.RUnlock()
 
 	active := d.state.Load().active
 	if len(active) == 0 {
+		d.mu.RUnlock()
 		d.dropNoExporter.Add(uint64(len(batch)))
 
 		return
 	}
 
 	for _, inst := range active {
-		inst.offer(batch)
+		if rest := inst.offer(batch); len(rest) > 0 {
+			blocked = append(blocked, waiting{inst: inst, rest: rest})
+		}
+	}
+
+	d.mu.RUnlock()
+
+	for _, wait := range blocked {
+		wait.inst.offerBlocking(wait.rest)
 	}
 }

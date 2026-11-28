@@ -354,8 +354,21 @@ The relay validates this section and logs that segment stores are configured but
 relay does not run these exporters from this file yet.
 
 Keys valid for every kind: `kind`, `meta` (map of string), `flushInterval` (duration, default `60s`),
-`maxEventInMemory` (integer, 1 or more, default `100000`), `eventType`. A `queueUrl` is an `http` or `https` URL
-without credentials.
+`maxEventInMemory` (integer, 1 or more, default `100000`), `eventType`, and the pipeline settings below. A `queueUrl`
+is an `http` or `https` URL without credentials.
+
+The pipeline settings of an exporter (see [Events and notifiers](../concepts/events-and-notifiers.md)):
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `overflowPolicy` | string | `dropNewest` | `dropNewest`, `dropOldest`, `block`: what a full queue of the exporter does |
+| `blockTimeout` | duration | `50ms` | at most `10s`; the longest wait of `block` for room, then the event is dropped |
+| `maxBytes` | size | none | for example `1MiB`; a batch is cut at that size, an event larger than it goes alone |
+| `drainTimeout` | duration | `10s` | at most `10m`; the flush deadline when the exporter is removed, changed or the relay shuts down |
+| `retry.maxAttempts` | integer | `5` | 1 to 20, the first attempt included; `1` means no retry |
+| `retry.initialBackoff` | duration | `200ms` | wait before the first retry; doubles up to `retry.maxBackoff`, with jitter |
+| `retry.maxBackoff` | duration | `5s` | `retry.initialBackoff` or more |
+| `retry.maxElapsed` | duration | `30s` | cap on the sum of the waits of one batch |
 
 | Kind | Connection type | Required | Other keys |
 |---|---|---|---|
