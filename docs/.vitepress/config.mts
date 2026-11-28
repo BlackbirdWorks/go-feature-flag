@@ -326,6 +326,7 @@ export default withMermaid({
           { text: 'Generate Manifest', link: '/tooling/generate' },
           { text: 'Publish', link: '/tooling/publish' },
           { text: 'Config', link: '/tooling/config' },
+          { text: 'Segment', link: '/tooling/segment' },
           { text: 'JSON Schema Autocomplete', link: '/tooling/autocomplete' },
         ],
       },

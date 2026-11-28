@@ -19,6 +19,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
 )
 
 // Client is the part of a valkey-go client that the provider uses. A [valkey.Client] (a single node, a sentinel
@@ -121,11 +122,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 		}
 
 		if cfg.key == "" {
-			if cfg.layout == LayoutSet {
-				cfg.key = prefix + "{" + name + "}" // the name is a hash tag: RENAME of a temporary key works
-			} else {
-				cfg.key = prefix + name + ":"
-			}
+			cfg.key = redissegment.DefaultKey(prefix, name, cfg.layout) // the name is a hash tag of a set key
 		}
 
 		prov.segs[name] = cfg

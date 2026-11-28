@@ -172,11 +172,6 @@ func New(client Client, opts *Options) (*Provider, error) {
 		return nil, err
 	}
 
-	prefix := opts.KeyPrefix
-	if prefix == "" {
-		prefix = DefaultKeyPrefix
-	}
-
 	prov := &Provider{
 		client:   client,
 		segs:     make(map[string]*segmentConfig, len(opts.Segments)),
@@ -208,11 +203,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 		}
 
 		if cfg.key == "" {
-			if cfg.layout == LayoutSet {
-				cfg.key = prefix + "{" + name + "}"
-			} else {
-				cfg.key = prefix + name + ":"
-			}
+			cfg.key = DefaultKey(opts.KeyPrefix, name, cfg.layout)
 		}
 
 		cfg.keyAny = cfg.key
