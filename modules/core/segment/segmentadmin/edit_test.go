@@ -14,6 +14,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmentadmin/admintest"
 )
 
+const lineBreakID = "a\nb"
+
 const memberPrefix = "semaphore:segment:flags:"
 
 func TestEdit(t *testing.T) {
@@ -21,13 +23,16 @@ func TestEdit(t *testing.T) {
 
 	tests := []struct {
 		wantErr       error
-		input         string
 		name          string
+		wantText      string
 		failOp        string
-		wantKeys      []string
+		input         string
 		wantSet       []string
+		wantKeys      []string
+		args          []string
 		preload       []string
 		wantRejected  segmentadmin.Rejections
+		failNth       int
 		batch         int
 		wantAdded     int64
 		wantRemoved   int64
@@ -74,6 +79,23 @@ func TestEdit(t *testing.T) {
 			name: "a failed bump is reported", input: "a\n", failOp: opSET, wantErr: segmentadmin.ErrSwapped,
 			wantSet: []string{"a"}, wantAdded: 1, wantRejected: segmentadmin.Rejections{},
 		},
+		{
+			name: "ids of the command line are never joined", args: []string{lineBreakID, "ok", "t\x00"},
+			wantSet: []string{"ok"}, wantAdded: 1, wantRejected: segmentadmin.Rejections{Invalid: 2},
+			wantVersioned: true,
+		},
+		{
+			name:          "a failure after a batch bumps the version and says how much was applied",
+			input:         "a\nb\nc\n",
+			batch:         1,
+			failOp:        opSADD,
+			failNth:       2,
+			wantErr:       segmentadmin.ErrPartial,
+			wantText:      "1 of 2 ids applied",
+			wantSet:       []string{"a"},
+			wantRejected:  segmentadmin.Rejections{},
+			wantVersioned: true,
+		},
 		{name: "bad batch size", input: "a\n", batch: -1, wantErr: segmentadmin.ErrBadOptions},
 	}
 	for _, tt := range tests {
@@ -100,15 +122,21 @@ func TestEdit(t *testing.T) {
 			}
 
 			if tt.failOp != "" {
-				store.Fail(tt.failOp, 1)
+				store.Fail(tt.failOp, max(tt.failNth, 1))
 			}
 
 			reader, err := segmentadmin.NewReader(strings.NewReader(tt.input), segmentadmin.ReaderOptions{})
 			require.NoError(t, err)
 
-			rep, err := segmentadmin.Edit(t.Context(), store, target, reader, tt.remove, tt.batch)
+			var source segmentadmin.Source = reader
+			if tt.args != nil {
+				source = segmentadmin.NewSliceSource(tt.args)
+			}
+
+			rep, err := segmentadmin.Edit(t.Context(), store, target, source, tt.remove, tt.batch)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantText)
 			} else {
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantAdded, rep.Added)
@@ -207,7 +235,7 @@ func TestStat_failures(t *testing.T) {
 		{name: "ttl", failOp: "PTTL"},
 		{name: "cardinality", failOp: "SCARD"},
 		{name: "scan", failOp: "SCAN", keys: true},
-		{name: "version", failOp: "GET"},
+		{name: "version", failOp: opGET},
 	}
 
 	for _, tt := range tests {

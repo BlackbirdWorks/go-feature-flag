@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,62 +22,88 @@ const (
 	opSADD     = "SADD"
 	opSET      = "SET"
 	opUnlink   = "UNLINK"
+	opGET      = "GET"
 	liveKey    = "semaphore:segment:{vip}"
 	versionKey = "semaphore:segment:vip:version"
-	tmpKey     = liveKey + ":import:new"
-	oldKey     = liveKey + ":import:old"
+	runToken   = "t1"
+	tmpKey     = liveKey + ":import:" + runToken + ":new"
+	oldKey     = liveKey + ":import:" + runToken + ":old"
+	lockKey    = liveKey + ":import:lock"
+	lastKey    = liveKey + ":import:last"
+	otherTmp   = liveKey + ":import:other:new"
+	deadTmp    = liveKey + ":import:dead:new"
+	otherToken = "other"
 )
 
 func vipTarget() *segmentadmin.Target {
 	return &segmentadmin.Target{Name: "vip", Key: liveKey, VersionKey: versionKey}
 }
 
-// cancelAfter is an input of n lines that cancels a context when its last line is read.
-type cancelAfter struct {
-	cancel context.CancelFunc
-	lines  int
-	read   int
+// genSource is an input of n ids, "id-<i>", one for each line. It calls onLine(i) when it starts line i, and
+// onLine(n+1) when the input ends.
+type genSource struct {
+	onLine func(line int)
+	rest   []byte
+	n      int
+	i      int
+	ended  bool
 }
 
-func (c *cancelAfter) Read(buf []byte) (int, error) {
-	if c.read >= c.lines {
-		return 0, io.EOF
+func (g *genSource) Read(buf []byte) (int, error) {
+	if len(g.rest) == 0 {
+		if g.i >= g.n {
+			if !g.ended && g.onLine != nil {
+				g.onLine(g.n + 1)
+			}
+
+			g.ended = true
+
+			return 0, io.EOF
+		}
+
+		g.i++
+		if g.onLine != nil {
+			g.onLine(g.i)
+		}
+
+		g.rest = []byte(fmt.Sprintf("id-%d\n", g.i))
 	}
 
-	c.read++
-	if c.read == c.lines {
-		c.cancel()
-	}
+	copied := copy(buf, g.rest)
+	g.rest = g.rest[copied:]
 
-	return copy(buf, fmt.Sprintf("id-%d\n", c.read)), nil
+	return copied, nil
 }
 
 // importCase is one row of TestImport.
 type importCase struct {
+	hook           func(store *admintest.Fake, line int)
 	name           string
 	input          string
 	normalize      resolver.Normalization
 	layout         redissegment.Layout
 	failOp         string
+	lockedBy       string
 	wantOrder      []string
-	preload        []string
 	wantKeys       []string
-	wantLive       []string
 	wantErrs       []error
-	wantRejected   segmentadmin.Rejections
+	wantLive       []string
+	preload        []string
 	opts           segmentadmin.ImportOptions
-	cancelLines    int
-	failNth        int
-	wantRead       int64
+	wantRejected   segmentadmin.Rejections
 	wantAdded      int64
+	wantRead       int64
 	wantDuplicates int64
+	generate       int
+	failNth        int
+	cancelLine     int
 	maxID          int
 	wantSADDCalls  int
-	noUnlink       bool
 	leftover       bool
+	noVersionKey   bool
+	noUnlink       bool
 	wantSwapped    bool
 	wantFellBack   bool
-	noVersionKey   bool
 }
 
 // prepare builds the store, the target and the input of a row.
@@ -92,8 +119,12 @@ func (tt *importCase) prepare(
 	}
 
 	if tt.leftover {
-		_, _ = store.SAdd(ctx, tmpKey, []string{"junk"}, 0)
-		_, _ = store.SAdd(ctx, oldKey, []string{"junk"}, 0)
+		store.Put(lastKey, deadTmp)
+		_, _ = store.SAdd(ctx, deadTmp, []string{"junk"}, 0)
+	}
+
+	if tt.lockedBy != "" {
+		store.Put(lockKey, tt.lockedBy)
 	}
 
 	if tt.noUnlink {
@@ -105,8 +136,17 @@ func (tt *importCase) prepare(
 	}
 
 	var src io.Reader = strings.NewReader(tt.input)
-	if tt.cancelLines > 0 {
-		src = &cancelAfter{cancel: cancel, lines: tt.cancelLines}
+
+	if tt.generate > 0 {
+		src = &genSource{n: tt.generate, onLine: func(line int) {
+			if line == tt.cancelLine {
+				cancel()
+			}
+
+			if tt.hook != nil {
+				tt.hook(store, line)
+			}
+		}}
 	}
 
 	reader, err := segmentadmin.NewReader(src, segmentadmin.ReaderOptions{})
@@ -122,62 +162,60 @@ func (tt *importCase) prepare(
 	return store, target, reader
 }
 
-func TestImport(t *testing.T) {
-	t.Parallel()
-
+func importCases() []importCase {
 	long := strings.Repeat("x", 9)
+	live := []string{liveKey}
 
-	tests := []importCase{
+	return []importCase{
 		{
 			name: "replaces the old set", input: "a\nb\na\n", preload: []string{"old1", "old2"},
 			wantLive: []string{"a", "b"}, wantKeys: []string{liveKey, versionKey}, wantRead: 3, wantAdded: 2,
-			wantDuplicates: 1, wantSwapped: true, wantRejected: segmentadmin.Rejections{},
+			wantDuplicates: 1, wantSwapped: true,
 			wantOrder: []string{"SWAP " + liveKey, "SET " + versionKey, "UNLINK " + oldKey},
 		},
 		{
 			name: "normalises as the relay does", input: " A \nb\n", normalize: resolver.NormalizeTrimLower,
 			wantLive: []string{"a", "b"}, wantKeys: []string{liveKey, versionKey}, wantRead: 2, wantAdded: 2,
-			wantSwapped: true, wantRejected: segmentadmin.Rejections{},
+			wantSwapped: true,
 		},
 		{
-			name: "counts what it rejects", input: "ok\n\n" + long + "\n\xff\n", normalize: resolver.NormalizeTrimLower,
-			maxID: 5, wantLive: []string{"ok"}, wantKeys: []string{liveKey, versionKey}, wantRead: 4, wantAdded: 1,
+			name:         "counts what it rejects",
+			input:        "ok\n\n" + long + "\n\xff\nct\x01l\n",
+			normalize:    resolver.NormalizeTrimLower,
+			maxID:        5,
+			wantLive:     []string{"ok"},
+			wantKeys:     []string{liveKey, versionKey},
+			wantRead:     5,
+			wantAdded:    1,
 			wantSwapped:  true,
-			wantRejected: segmentadmin.Rejections{Empty: 1, TooLong: 1, Invalid: 1},
+			wantRejected: segmentadmin.Rejections{Empty: 1, TooLong: 1, Invalid: 2},
 		},
 		{
 			name: "batches", input: "1\n2\n3\n4\n5\n", opts: segmentadmin.ImportOptions{BatchSize: 2},
 			wantLive: []string{"1", "2", "3", "4", "5"}, wantKeys: []string{liveKey, versionKey}, wantRead: 5,
-			wantAdded: 5, wantSwapped: true, wantRejected: segmentadmin.Rejections{}, wantSADDCalls: 3,
+			wantAdded: 5, wantSwapped: true, wantSADDCalls: 3,
 		},
 		{
 			name: "no version key", input: "a\n", noVersionKey: true, wantLive: []string{"a"},
-			wantKeys: []string{liveKey}, wantRead: 1, wantAdded: 1, wantSwapped: true,
-			wantRejected: segmentadmin.Rejections{},
+			wantKeys: live, wantRead: 1, wantAdded: 1, wantSwapped: true,
 		},
 		{
-			name:         "an empty input is refused",
-			input:        "\n \n",
-			preload:      []string{"x"},
-			wantErrs:     []error{segmentadmin.ErrEmptyInput},
-			wantLive:     []string{"x"},
-			wantKeys:     []string{liveKey},
-			wantRead:     2,
+			name: "an empty input is refused", input: "\n \n", preload: []string{"x"},
+			wantErrs: []error{segmentadmin.ErrEmptyInput}, wantLive: []string{"x"}, wantKeys: live, wantRead: 2,
 			wantRejected: segmentadmin.Rejections{Empty: 2},
 		},
 		{
 			name: "an empty input is allowed on request", input: "", preload: []string{"x"},
 			opts: segmentadmin.ImportOptions{AllowEmpty: true}, wantKeys: []string{versionKey}, wantSwapped: true,
-			wantRejected: segmentadmin.Rejections{},
 		},
 		{
 			name: "a dry run writes nothing", input: "a\n\nb\n", preload: []string{"x"},
-			opts: segmentadmin.ImportOptions{DryRun: true}, wantLive: []string{"x"}, wantKeys: []string{liveKey},
-			wantRead: 3, wantRejected: segmentadmin.Rejections{Empty: 1},
+			opts: segmentadmin.ImportOptions{DryRun: true}, wantLive: []string{"x"}, wantKeys: live, wantRead: 3,
+			wantRejected: segmentadmin.Rejections{Empty: 1},
 		},
 		{
 			name: "a dry run refuses an empty input", input: "", opts: segmentadmin.ImportOptions{DryRun: true},
-			wantErrs: []error{segmentadmin.ErrEmptyInput}, wantRejected: segmentadmin.Rejections{},
+			wantErrs: []error{segmentadmin.ErrEmptyInput},
 		},
 		{
 			name: "the keys layout is refused", input: "a\n", layout: redissegment.LayoutKeys,
@@ -185,59 +223,123 @@ func TestImport(t *testing.T) {
 		},
 		{
 			name: "a failed batch leaves the live set", input: "a\n", preload: []string{"x"}, failOp: opSADD,
-			failNth: 1, wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: []string{liveKey},
-			wantRead: 1, wantRejected: segmentadmin.Rejections{},
+			failNth: 1, wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live,
+			wantRead: 1,
 		},
 		{
 			name: "a failed second batch removes the temporary key", input: "a\nb\nc\nd\n", preload: []string{"x"},
 			opts: segmentadmin.ImportOptions{BatchSize: 2}, failOp: opSADD, failNth: 2,
-			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: []string{liveKey},
-			wantRead: 4, wantAdded: 2, wantRejected: segmentadmin.Rejections{},
+			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live, wantRead: 4,
+			wantAdded: 2,
 		},
 		{
 			name: "a failed swap leaves the live set", input: "a\n", preload: []string{"x"}, failOp: "SWAP", failNth: 1,
-			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: []string{liveKey},
-			wantRead: 1, wantAdded: 1, wantRejected: segmentadmin.Rejections{},
+			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live, wantRead: 1,
+			wantAdded: 1,
 		},
 		{
 			name: "a failed version bump is reported after the swap", input: "a\n", preload: []string{"x"},
-			failOp: opSET, failNth: 1, wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped},
-			wantLive: []string{"a"}, wantKeys: []string{liveKey, oldKey}, wantRead: 1, wantAdded: 1,
-			wantSwapped: true, wantRejected: segmentadmin.Rejections{},
+			failOp: opSET, failNth: 2, wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped},
+			wantLive: []string{"a"}, wantKeys: []string{liveKey, oldKey}, wantRead: 1, wantAdded: 1, wantSwapped: true,
 		},
 		{
 			name: "a failed removal of the old set is reported", input: "a\n", preload: []string{"x"},
-			failOp: opUnlink, failNth: 3, wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped},
+			failOp: opUnlink, failNth: 1, wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped},
 			wantLive: []string{"a"}, wantKeys: []string{liveKey, oldKey, versionKey}, wantRead: 1, wantAdded: 1,
-			wantSwapped: true, wantRejected: segmentadmin.Rejections{},
+			wantSwapped: true,
 		},
 		{
-			name: "a cancelled run leaves the live set", preload: []string{"x"}, cancelLines: 3,
-			wantErrs: []error{context.Canceled}, wantLive: []string{"x"}, wantKeys: []string{liveKey}, wantRead: 3,
-			opts: segmentadmin.ImportOptions{BatchSize: 1}, wantAdded: 2, wantRejected: segmentadmin.Rejections{},
+			name: "a cancelled run leaves the live set", preload: []string{"x"}, generate: 5, cancelLine: 3,
+			opts: segmentadmin.ImportOptions{BatchSize: 1}, wantErrs: []error{context.Canceled},
+			wantLive: []string{"x"}, wantKeys: live, wantRead: 3, wantAdded: 2,
 		},
 		{
-			name: "the keys of a killed run are removed", input: "a\n", leftover: true, wantLive: []string{"a"},
-			wantKeys: []string{liveKey, versionKey}, wantRead: 1, wantAdded: 1, wantSwapped: true,
-			wantRejected: segmentadmin.Rejections{},
+			name: "the temporary key of a dead run is removed by its recorded name", input: "a\n", leftover: true,
+			wantLive: []string{"a"}, wantKeys: []string{liveKey, versionKey}, wantRead: 1, wantAdded: 1,
+			wantSwapped: true,
 		},
 		{
 			name: "a server without UNLINK gets DEL", input: "a\n", noUnlink: true, wantLive: []string{"a"},
 			wantKeys: []string{liveKey, versionKey}, wantRead: 1, wantAdded: 1, wantSwapped: true, wantFellBack: true,
-			wantRejected: segmentadmin.Rejections{},
+		},
+		{
+			name: "a second import fails at once and leaves the lock of the first", input: "a\n",
+			preload: []string{"x"}, lockedBy: otherToken, wantErrs: []error{segmentadmin.ErrImportRunning},
+			wantLive: []string{"x"}, wantKeys: []string{liveKey, lockKey},
+		},
+		{
+			name:     "a temporary key that expires between batches is never swapped in",
+			generate: 4,
+			preload:  []string{"x"},
+			opts:     segmentadmin.ImportOptions{BatchSize: 1},
+			wantErrs: []error{segmentadmin.ErrIncomplete},
+			hook: func(store *admintest.Fake, line int) {
+				if line == 3 {
+					store.Delete(tmpKey)
+				}
+			},
+			wantLive:  []string{"x"},
+			wantKeys:  live,
+			wantRead:  4,
+			wantAdded: 4,
+		},
+		{
+			name:     "a temporary key deleted before the swap never moves the live set",
+			generate: 2,
+			opts: segmentadmin.ImportOptions{
+				BatchSize: 1,
+			},
+			preload:  []string{"x"},
+			wantErrs: []error{segmentadmin.ErrTempGone},
+			hook: func(store *admintest.Fake, line int) {
+				if line == 3 {
+					store.Delete(tmpKey)
+				}
+			},
+			wantLive:  []string{"x"},
+			wantKeys:  live,
+			wantRead:  2,
+			wantAdded: 2,
+		},
+		{
+			name: "a run whose lock was taken over does not swap and leaves the other run's keys", generate: 3,
+			preload: []string{"x"}, opts: segmentadmin.ImportOptions{BatchSize: 1},
+			wantErrs: []error{segmentadmin.ErrLockLost},
+			hook: func(store *admintest.Fake, line int) {
+				if line == 2 {
+					store.Put(lockKey, otherToken)
+					_, _ = store.SAdd(context.Background(), otherTmp, []string{"theirs"}, 0)
+				}
+			},
+			wantLive: []string{"x"}, wantKeys: []string{liveKey, lockKey, lastKey, otherTmp}, wantRead: 2, wantAdded: 1,
+		},
+		{
+			name: "a lock taken over just before the swap is not swapped over", generate: 2, preload: []string{"x"},
+			opts: segmentadmin.ImportOptions{BatchSize: 1}, wantErrs: []error{segmentadmin.ErrLockLost},
+			hook: func(store *admintest.Fake, line int) {
+				if line == 3 {
+					store.Put(lockKey, otherToken)
+				}
+			},
+			wantLive: []string{"x"}, wantKeys: []string{liveKey, lockKey, lastKey}, wantRead: 2, wantAdded: 2,
 		},
 	}
+}
 
-	for _, tt := range tests {
+func TestImport(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range importCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
+			tt.opts.Token = runToken
 			store, target, reader := tt.prepare(ctx, t, cancel)
-
 			calls := len(store.Calls())
+
 			rep, err := segmentadmin.Import(ctx, store, target, reader, tt.opts)
 
 			for _, want := range tt.wantErrs {
@@ -248,15 +350,6 @@ func TestImport(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if rep != nil {
-				assert.Equal(t, tt.wantRead, rep.Read)
-				assert.Equal(t, tt.wantAdded, rep.Added)
-				assert.Equal(t, tt.wantDuplicates, rep.Duplicates)
-				assert.Equal(t, tt.wantRejected, rep.Rejected)
-				assert.Equal(t, tt.wantSwapped, rep.Swapped)
-				assert.Equal(t, tt.wantFellBack, rep.FellBackToDel)
-			}
-
 			if tt.layout == redissegment.LayoutKeys {
 				assert.Nil(t, rep)
 				assert.Len(t, store.Calls(), calls, "the keys layout is refused before any command")
@@ -264,6 +357,12 @@ func TestImport(t *testing.T) {
 				return
 			}
 
+			assert.Equal(t, tt.wantRead, rep.Read)
+			assert.Equal(t, tt.wantAdded, rep.Added)
+			assert.Equal(t, tt.wantDuplicates, rep.Duplicates)
+			assert.Equal(t, tt.wantRejected, rep.Rejected)
+			assert.Equal(t, tt.wantSwapped, rep.Swapped)
+			assert.Equal(t, tt.wantFellBack, rep.FellBackToDel)
 			assert.Equal(t, nonNil(slices.Sorted(slices.Values(tt.wantKeys))), nonNil(store.Keys()))
 			assert.Equal(t, tt.wantLive, nonNil(store.Members(liveKey)))
 
@@ -290,8 +389,7 @@ func countCalls(calls []string, want string) int {
 	return len(slices.DeleteFunc(slices.Clone(calls), func(call string) bool { return call != want }))
 }
 
-// filterCalls keeps the calls named in want, in the order they were made; the first UNLINK of the old key is the
-// cleanup before the run, so only the last call of each is kept.
+// filterCalls keeps the calls named in want, in the order they were made.
 func filterCalls(calls, want []string) []string {
 	var out []string
 
@@ -299,10 +397,6 @@ func filterCalls(calls, want []string) []string {
 		if slices.Contains(want, call) {
 			out = append(out, call)
 		}
-	}
-
-	if n := len(out); n > len(want) {
-		out = out[n-len(want):]
 	}
 
 	return out
@@ -340,16 +434,11 @@ func TestImport_noSlotTag(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = segmentadmin.Import(
-		t.Context(),
-		admintest.New(),
-		&segmentadmin.Target{Key: "{}x"},
-		reader,
-		segmentadmin.ImportOptions{},
-	)
+		t.Context(), admintest.New(), &segmentadmin.Target{Key: "{}x"}, reader, segmentadmin.ImportOptions{})
 	require.ErrorIs(t, err, segmentadmin.ErrNoSlotTag)
 }
 
-func TestImport_tempKeyExpiry(t *testing.T) {
+func TestImport_oldSetExpires(t *testing.T) {
 	t.Parallel()
 
 	store := admintest.New()
@@ -359,51 +448,112 @@ func TestImport_tempKeyExpiry(t *testing.T) {
 	reader, err := segmentadmin.NewReader(strings.NewReader("a\n"), segmentadmin.ReaderOptions{})
 	require.NoError(t, err)
 
-	// a failure of the removal of the old set keeps it, with the ttl that bounds its life
-	store.Fail(opUnlink, 3)
+	store.Fail(opUnlink, 1) // the removal of the old set fails: it stays, with the ttl that bounds its life
 
-	_, err = segmentadmin.Import(
-		t.Context(),
-		store,
-		vipTarget(),
-		reader,
-		segmentadmin.ImportOptions{TempTTL: 90_000_000_000},
-	)
+	opts := segmentadmin.ImportOptions{TempTTL: 90 * time.Second, Token: runToken}
+	_, err = segmentadmin.Import(t.Context(), store, vipTarget(), reader, opts)
 	require.ErrorIs(t, err, segmentadmin.ErrSwapped)
 
-	assert.Equal(t, int64(90_000_000_000), int64(store.TTLOf(oldKey)))
-	assert.Zero(t, store.TTLOf(liveKey), "the live set must not inherit the expiry of the temporary key")
+	assert.Equal(t, 90*time.Second, store.TTLOf(oldKey))
+	assert.Zero(t, store.TTLOf(liveKey), "the live set does not inherit the expiry of the temporary key")
 }
 
-// dropTemp is an input that removes the temporary key when it ends, as an expiry would.
-type dropTemp struct {
-	store *admintest.Fake
-	done  bool
+// gate is an input that tells when it started and waits to be released.
+type gate struct {
+	started chan struct{}
+	release chan struct{}
+	done    bool
 }
 
-func (d *dropTemp) Read(buf []byte) (int, error) {
-	if d.done {
-		_, _, _ = d.store.Unlink(context.Background(), tmpKey)
-
+func (g *gate) Read(buf []byte) (int, error) {
+	if g.done {
 		return 0, io.EOF
 	}
 
-	d.done = true
+	g.done = true
+	close(g.started)
+	<-g.release
 
-	return copy(buf, "a\n"), nil
+	return copy(buf, "winner-1\nwinner-2\n"), nil
 }
 
-func TestImport_tempGone(t *testing.T) {
+func TestImport_concurrent(t *testing.T) {
 	t.Parallel()
 
 	store := admintest.New()
-	_, err := store.SAdd(t.Context(), liveKey, []string{"x"}, 0)
+	first := &gate{started: make(chan struct{}), release: make(chan struct{})}
+
+	type outcome struct {
+		err error
+	}
+
+	done := make(chan outcome, 1)
+
+	go func() {
+		reader, _ := segmentadmin.NewReader(first, segmentadmin.ReaderOptions{})
+
+		_, err := segmentadmin.Import(
+			t.Context(),
+			store,
+			vipTarget(),
+			reader,
+			segmentadmin.ImportOptions{Token: "first"},
+		)
+		done <- outcome{err: err}
+	}()
+
+	<-first.started
+
+	reader, err := segmentadmin.NewReader(strings.NewReader("loser-1\n"), segmentadmin.ReaderOptions{})
 	require.NoError(t, err)
 
-	reader, err := segmentadmin.NewReader(&dropTemp{store: store}, segmentadmin.ReaderOptions{})
+	_, err = segmentadmin.Import(t.Context(), store, vipTarget(), reader, segmentadmin.ImportOptions{Token: "second"})
+	require.ErrorIs(t, err, segmentadmin.ErrImportRunning)
+
+	close(first.release)
+
+	require.NoError(t, (<-done).err)
+	assert.Equal(t, []string{"winner-1", "winner-2"}, store.Members(liveKey))
+}
+
+func TestImport_blockedInput(t *testing.T) {
+	t.Parallel()
+
+	pipeReader, pipeWriter := io.Pipe()
+
+	t.Cleanup(func() { _ = pipeWriter.Close() })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	store := admintest.New()
+
+	reader, err := segmentadmin.NewReader(segmentadmin.WithContext(ctx, pipeReader), segmentadmin.ReaderOptions{})
 	require.NoError(t, err)
 
-	_, err = segmentadmin.Import(t.Context(), store, vipTarget(), reader, segmentadmin.ImportOptions{BatchSize: 1})
-	require.ErrorIs(t, err, segmentadmin.ErrTempGone)
-	assert.Equal(t, []string{"x"}, store.Members(liveKey), "nothing was swapped")
+	result := make(chan error, 1)
+
+	go func() {
+		_, importErr := segmentadmin.Import(
+			ctx,
+			store,
+			vipTarget(),
+			reader,
+			segmentadmin.ImportOptions{Token: runToken},
+		)
+		result <- importErr
+	}()
+
+	require.Eventually(t, func() bool { return len(store.Calls()) > 0 }, 10*time.Second, time.Millisecond,
+		"the import did not start")
+	cancel()
+
+	select {
+	case got := <-result:
+		require.ErrorIs(t, got, context.Canceled)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the import did not stop with its context")
+	}
+
+	assert.Empty(t, store.Keys(), "the lock and the temporary key are gone")
 }

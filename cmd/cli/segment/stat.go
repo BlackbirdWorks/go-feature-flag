@@ -14,14 +14,14 @@ import (
 type StatCmd struct {
 	Common `embed:""`
 
-	ScanLimit int `default:"1000000" help:"${helpSegScan}" name:"scan-limit"`
+	ScanLimit int `default:"100000" help:"${helpSegScan}" name:"scan-limit"`
 }
 
 // Run shows the segment.
 func (cmd *StatCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, deps *Deps) error {
 	sess, err := open(ctx, &cmd.Common, parent.Debug, streams, deps)
 	if err != nil {
-		return err
+		return wrapErr(err)
 	}
 	defer sess.store.Close()
 

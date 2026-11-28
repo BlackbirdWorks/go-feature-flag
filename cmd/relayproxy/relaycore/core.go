@@ -15,13 +15,13 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/metric"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentobs"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader/statedir"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
-	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
 // Deps are the injected dependencies of a [Core]. Every field is optional.
@@ -223,6 +223,8 @@ type Core struct {
 	state   *statedir.Store
 	// segs owns the stores of the dynamic segments.
 	segs *segmentstore.Connections
+	// segObs counts what the resolvers of the dynamic segments do, for each connection.
+	segObs *segmentobs.Observers
 	// segWait is the timer of the watcher of the version keys.
 	segWait flagruntime.Wait
 	// jitter is the serialized source of Deps.Jitter, nil when there is none.
@@ -253,8 +255,8 @@ type Core struct {
 	// shutdownStarted lets the first Shutdown do the work.
 	shutdownStarted atomic.Bool
 	phase           phase
-	// segCounters counts what the resolvers of the dynamic segments do.
-	segCounters resolver.Counters
+	// segObsRegistered is true when segObs is registered with the registry.
+	segObsRegistered bool
 }
 
 // Holder returns the holder of the current runtime: handlers load the runtime from it for every request.

@@ -24,7 +24,7 @@ func TestImportLarge(t *testing.T) {
 	t.Parallel()
 
 	srv := segmenttest.StartServer(t, segmenttest.ValkeyImage)
-	back := makers()[0].build(t, srv, e2eSegments())
+	back := makers()[0].build(t, srv, e2eSegments(), nil)
 	ctx := t.Context()
 	target := e2eTarget(segSwap, redissegment.LayoutSet)
 

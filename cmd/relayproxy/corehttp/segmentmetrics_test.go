@@ -1,7 +1,9 @@
 package corehttp_test
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -60,17 +62,30 @@ func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 	assert.Equal(t, "redis", cfg.SegmentStores[0].Kind)
 	assert.Contains(t, []string{"connecting", "connected"}, cfg.SegmentStores[0].State)
 
-	counts, _ := segmentsInfo(t, cfg)
-	assert.Equal(t, &model.DynamicStatesInfo{Valid: 1, StoreError: 1}, counts.DynamicStates)
+	// a store that nothing has contacted yet reads healthy (see the probes page): the first lookup finds it dead
+	code, body := ofrepValue(t, rig, "dyn-flag", "alice")
+	require.Equal(t, http.StatusOK, code, string(body))
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		counts, _ := segmentsInfo(t, infoOf(t, rig))
+		if !assert.NotNil(collect, counts.DynamicStates) {
+			return
+		}
+
+		assert.Equal(collect, &model.DynamicStatesInfo{Valid: 1, StoreError: 1}, counts.DynamicStates)
+
+		got, found := series(t, rig, "semaphore_segment_dynamic", "status", "store_error")
+		assert.True(collect, found)
+		assert.InDelta(collect, 1, got, 0)
+	}, waitBound, time.Millisecond, "the dead store was never seen failing")
 
 	for _, want := range []struct {
 		family, label, value string
 		wantValue            float64
 	}{
-		{"semaphore_segment_dynamic", "status", "store_error", 1},
 		{"semaphore_segment_dynamic", "status", "healthy", 0},
 		{"semaphore_segment_lookups_total", "result", "hit", 0},
-		{"semaphore_segment_store_failed_calls_total", "", "", 0},
+		{"semaphore_segment_store_failed_calls_total", "", "", 1},
 		{"semaphore_segment_breaker_transitions_total", "to", "open", 0},
 	} {
 		got, found := series(t, rig, want.family, want.label, want.value)

@@ -1688,6 +1688,12 @@
                 },
                 "perFlagLabels": {
                     "type": "boolean"
+                },
+                "perSegmentLabels": {
+                    "type": "boolean"
+                },
+                "maxSegmentLabels": {
+                    "type": "integer"
                 }
             },
             "additionalProperties": false,

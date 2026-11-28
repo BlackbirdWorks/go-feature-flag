@@ -1,10 +1,12 @@
 package segmentadmin_test
 
 import (
+	"context"
 	"errors"
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,4 +135,105 @@ func TestReader_Next_sourceError(t *testing.T) {
 
 	_, err = reader.Next()
 	assert.ErrorIs(t, err, errBroken)
+}
+
+func TestNewSliceSource(t *testing.T) {
+	t.Parallel()
+
+	source := segmentadmin.NewSliceSource([]string{lineBreakID, "c"})
+
+	first, err := source.Next()
+	require.NoError(t, err)
+	assert.Equal(t, segmentadmin.Record{ID: lineBreakID, Line: 1}, first, "an id is never split or joined")
+
+	second, err := source.Next()
+	require.NoError(t, err)
+	assert.Equal(t, segmentadmin.Record{ID: "c", Line: 2}, second)
+
+	_, err = source.Next()
+	require.ErrorIs(t, err, io.EOF)
+}
+
+func TestWithContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("data goes through", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := io.ReadAll(segmentadmin.WithContext(t.Context(), strings.NewReader("abc")))
+		require.NoError(t, err)
+		assert.Equal(t, "abc", string(got))
+	})
+
+	t.Run("a read that blocks ends with the context", func(t *testing.T) {
+		t.Parallel()
+
+		pipeReader, pipeWriter := io.Pipe()
+
+		t.Cleanup(func() { _ = pipeWriter.Close() })
+
+		ctx, cancel := context.WithCancel(t.Context())
+		result := make(chan error, 1)
+
+		go func() {
+			_, err := segmentadmin.WithContext(ctx, pipeReader).Read(make([]byte, 8))
+			result <- err
+		}()
+
+		cancel()
+
+		select {
+		case err := <-result:
+			require.ErrorIs(t, err, context.Canceled)
+		case <-time.After(10 * time.Second):
+			require.FailNow(t, "the read did not end with the context")
+		}
+
+		_, err := segmentadmin.WithContext(ctx, pipeReader).Read(make([]byte, 8))
+		require.ErrorIs(t, err, context.Canceled, "a read after the end of the context fails at once")
+	})
+}
+
+func TestKeyCounter(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		pages     [][]string
+		limit     int
+		wantCount int
+		wantMore  bool
+	}{
+		{
+			name:      "duplicates across pages count once",
+			limit:     10,
+			pages:     [][]string{{"a", "b"}, {"b", "c", "a"}},
+			wantCount: 3,
+		},
+		{name: "the limit is exact", limit: 3, pages: [][]string{{"a", "b", "c"}, {"a"}}, wantCount: 3},
+		{
+			name:      "a key beyond the limit says more",
+			limit:     2,
+			pages:     [][]string{{"a", "b"}, {"c"}},
+			wantCount: 2,
+			wantMore:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			counter := segmentadmin.NewKeyCounter(tt.limit)
+
+			for _, page := range tt.pages {
+				if counter.Add(page) {
+					break
+				}
+			}
+
+			assert.Equal(t, tt.wantCount, counter.Count())
+			assert.Equal(t, tt.wantMore, counter.More())
+		})
+	}
 }

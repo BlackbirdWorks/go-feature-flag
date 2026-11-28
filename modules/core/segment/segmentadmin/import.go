@@ -2,10 +2,14 @@ package segmentadmin
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
@@ -20,8 +24,12 @@ const (
 	MaxBatchSize = 100_000
 	// DefaultTempTTL is the life of the temporary key when ImportOptions.TempTTL is zero.
 	DefaultTempTTL = time.Hour
-	// cleanupTimeout bounds the removal of the temporary key after a failure.
+	// cleanupTimeout bounds the removal of the temporary key and the release of the lock after a failure.
 	cleanupTimeout = 10 * time.Second
+	// DelWarnMembers is the size of a replaced set above which a DEL (the fallback of a server without UNLINK) may
+	// block the server for a noticeable time, and the report says so.
+	DelWarnMembers = 100_000
+	tokenBytes     = 16
 )
 
 // Target is a segment as its definition and the bootstrap file say it: the operator does not retype any of it.
@@ -42,14 +50,11 @@ type Target struct {
 
 // ImportOptions set how an import runs.
 type ImportOptions struct {
-	// BatchSize is the members of one SADD. Zero means [DefaultBatchSize].
-	BatchSize int
-	// TempTTL is the life of the temporary key, refreshed by every batch. Zero means [DefaultTempTTL].
-	TempTTL time.Duration
-	// AllowEmpty lets an input without a valid id empty the segment.
+	Token      string
+	BatchSize  int
+	TempTTL    time.Duration
 	AllowEmpty bool
-	// DryRun reads and validates the input and writes nothing.
-	DryRun bool
+	DryRun     bool
 }
 
 // Report is what an import did. It holds counts only, never an id.
@@ -60,6 +65,8 @@ type Report struct {
 	Rejected Rejections
 	// Read is the lines read.
 	Read int64
+	// Applied is the ids that an add or a remove sent to the store, whatever they changed.
+	Applied int64
 	// Accepted is the lines that are an id.
 	Accepted int64
 	// Added is the distinct ids written (zero for a dry run).
@@ -70,6 +77,8 @@ type Report struct {
 	Duplicates int64
 	// Swapped tells that the new set is live.
 	Swapped bool
+	// FallbackLarge tells that DEL (no UNLINK on the server) removed a set above [DelWarnMembers]: it may have blocked.
+	FallbackLarge bool
 	// CleanupFailed tells that the temporary key could not be removed after a failure: it expires.
 	CleanupFailed bool
 	// FellBackToDel tells that the server has no UNLINK and DEL removed the old set.
@@ -103,18 +112,25 @@ type importRun struct {
 	store  Store
 	target *Target
 	rep    *Report
-	tmp    string
-	old    string
+	keys   RunKeys
+	token  string
 	batch  []string
 	opts   ImportOptions
+	locked bool
 }
 
-// Import loads the ids of src into the set of the segment and swaps it in. The live set is untouched until the swap,
-// which is one MULTI/EXEC: a reader sees the whole old set or the whole new set. The order is: fill the temporary key
-// (in the slot of the live key, with a ttl that every batch refreshes), swap, bump the version key, remove the old
-// set without blocking. A failure or a cancelled context before the swap removes the temporary key and leaves the live
-// set as it was; a key that a killed run left expires, and the next run removes it.
-func Import(ctx context.Context, store Store, target *Target, src *Reader, opts ImportOptions) (*Report, error) {
+// Import loads the ids of src into the set of the segment and swaps it in. It is safe by construction:
+//
+//   - One import of a segment runs at a time: a lock key takes the token of the run (SET NX PX). A second run fails at
+//     once with [ErrImportRunning]. The lock and the temporary key are refreshed by every batch, in a script that
+//     checks the token, and removed at the end only if the token is still the run's.
+//   - The temporary key has the token in its name, so nothing else can share or recreate it. The key records its name
+//     in a last key, so that the next run removes exactly the key of a dead run, without a scan.
+//   - The swap is one script on the server: it moves the live key only if the lock holds the token, the temporary
+//     key exists and holds exactly the number of members that the run wrote. Otherwise nothing changes.
+//
+// The order is: fill, swap, bump the version key, remove the old set without blocking.
+func Import(ctx context.Context, store Store, target *Target, src Source, opts ImportOptions) (*Report, error) {
 	err := opts.fill()
 	if err != nil {
 		return nil, err
@@ -125,19 +141,25 @@ func Import(ctx context.Context, store Store, target *Target, src *Reader, opts 
 	}
 
 	run := &importRun{
-		store: store, target: target, opts: opts, rep: &Report{DryRun: opts.DryRun},
+		store: store, target: target, opts: opts, rep: &Report{DryRun: opts.DryRun}, token: opts.Token,
 	}
 
-	run.tmp, run.old, err = TempKeys(target.Key)
+	if run.token == "" {
+		run.token, err = newToken()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	run.keys, err = ImportKeys(target.Key, run.token)
 	if err != nil {
 		return nil, err
 	}
 
 	if !opts.DryRun {
-		// a killed run of this segment left its keys: they are removed, whatever the state
-		_, _, err = store.Unlink(ctx, run.tmp, run.old)
+		err = run.claim(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("remove a previous temporary key: %w", err)
+			return run.rep, err
 		}
 	}
 
@@ -146,28 +168,83 @@ func Import(ctx context.Context, store Store, target *Target, src *Reader, opts 
 		err = run.finish(ctx)
 	}
 
-	if err != nil {
-		if !errors.Is(err, ErrSwapped) && !opts.DryRun {
-			run.cleanup(ctx)
-		}
+	run.release(ctx, err)
 
-		return run.rep, err
-	}
-
-	return run.rep, nil
+	return run.rep, err
 }
 
-// cleanup removes the temporary key after a failure, on a context of its own: the one of the run may be the failure.
-func (run *importRun) cleanup(ctx context.Context) {
+func newToken() (string, error) {
+	raw := make([]byte, tokenBytes)
+
+	_, err := rand.Read(raw)
+	if err != nil {
+		return "", fmt.Errorf("make a token: %w", err)
+	}
+
+	return hex.EncodeToString(raw), nil
+}
+
+// claim takes the lock and removes the temporary key that the previous holder named, if it left one.
+func (run *importRun) claim(ctx context.Context) error {
+	ok, err := run.store.Lock(ctx, run.keys.Lock, run.token, run.opts.TempTTL)
+	if err != nil {
+		return fmt.Errorf("take the lock: %w", err)
+	}
+
+	if !ok {
+		return ErrImportRunning
+	}
+
+	run.locked = true
+
+	prev, found, err := run.store.Value(ctx, run.keys.Last)
+	if err != nil {
+		return run.fail(ctx, fmt.Errorf("read the last temporary key: %w", err))
+	}
+
+	if found && run.keys.Owns(prev) {
+		_, _, err = run.store.Unlink(ctx, prev)
+		if err != nil {
+			return run.fail(ctx, fmt.Errorf("remove the temporary key of a dead run: %w", err))
+		}
+	}
+
+	err = run.store.SetValue(ctx, run.keys.Last, run.keys.Tmp)
+	if err != nil {
+		return run.fail(ctx, fmt.Errorf("record the temporary key: %w", err))
+	}
+
+	return nil
+}
+
+func (run *importRun) fail(ctx context.Context, err error) error {
+	run.release(ctx, err)
+
+	return err
+}
+
+// release removes the temporary key after a failure (its name is the run's own, so it is never another run's key) and
+// the lock if the token is still the run's, on a context of its own: the one of the run may be the failure.
+func (run *importRun) release(ctx context.Context, failure error) {
+	if !run.locked {
+		return
+	}
+
 	cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 	defer cancel()
 
-	_, _, err := run.store.Unlink(cctx, run.tmp)
-	run.rep.CleanupFailed = err != nil // the ttl removes the key
+	if failure != nil && !errors.Is(failure, ErrSwapped) {
+		_, _, err := run.store.Unlink(cctx, run.keys.Tmp)
+		run.rep.CleanupFailed = err != nil // the ttl removes the key
+	}
+
+	err := run.store.Unlock(cctx, run.keys.Lock, run.keys.Last, run.token)
+	run.rep.CleanupFailed = run.rep.CleanupFailed || err != nil // the ttl removes the lock
+	run.locked = false
 }
 
 // fill reads the input and writes its ids to the temporary key in batches.
-func (run *importRun) fill(ctx context.Context, src *Reader) error {
+func (run *importRun) fill(ctx context.Context, src Source) error {
 	for {
 		err := ctx.Err()
 		if err != nil {
@@ -180,7 +257,7 @@ func (run *importRun) fill(ctx context.Context, src *Reader) error {
 		}
 
 		if err != nil {
-			return err
+			return fmt.Errorf("read the input: %w", err)
 		}
 
 		run.rep.Read++
@@ -204,7 +281,8 @@ func (run *importRun) fill(ctx context.Context, src *Reader) error {
 	}
 }
 
-// accept normalises a record as the relay does before a lookup.
+// accept normalises a record as the relay does before a lookup. An id with a control character (a line break, for one)
+// is rejected, whether it came from a file or from the command line.
 func (run *importRun) accept(rec *Record) (string, Reason) {
 	if rec.Reason != "" {
 		return "", rec.Reason
@@ -215,12 +293,13 @@ func (run *importRun) accept(rec *Record) (string, Reason) {
 		return "", ReasonInvalid
 	}
 
-	if id == "" {
+	switch {
+	case id == "":
 		return "", ReasonEmpty
-	}
-
-	if run.target.MaxIDBytes > 0 && len(id) > run.target.MaxIDBytes {
+	case run.target.MaxIDBytes > 0 && len(id) > run.target.MaxIDBytes:
 		return "", ReasonTooLong
+	case strings.ContainsFunc(id, unicode.IsControl):
+		return "", ReasonInvalid
 	}
 
 	return id, ""
@@ -233,9 +312,14 @@ func (run *importRun) flush(ctx context.Context) error {
 		return nil
 	}
 
-	added, err := run.store.SAdd(ctx, run.tmp, run.batch, run.opts.TempTTL)
+	added, held, err := run.store.StageAdd(
+		ctx, run.keys.Lock, run.keys.Tmp, run.token, run.batch, run.opts.TempTTL)
 	if err != nil {
 		return fmt.Errorf("write a batch: %w", err)
+	}
+
+	if !held {
+		return ErrLockLost
 	}
 
 	run.rep.Added += added
@@ -256,47 +340,53 @@ func (run *importRun) finish(ctx context.Context) error {
 
 	run.rep.Duplicates = run.rep.Accepted - run.rep.Added
 
-	if run.rep.Accepted == 0 {
-		_, fell, err := run.store.Unlink(ctx, run.target.Key) // nothing was written: the live set goes
-		if err != nil {
-			return fmt.Errorf("remove the live set: %w", err)
-		}
-
-		run.rep.FellBackToDel = fell
-		run.rep.Swapped = true
-
-		return run.bump(ctx)
-	}
-
-	// a temporary key that expired (or was removed) would leave the segment empty after the swap: RENAME of the live
-	// key to the old name has run when the second RENAME fails
-	exists, _, err := run.store.KeyTTL(ctx, run.tmp)
-	if err != nil {
-		return fmt.Errorf("check the temporary key: %w", err)
-	}
-
-	if !exists {
-		return ErrTempGone
-	}
-
-	err = run.store.Swap(ctx, run.target.Key, run.tmp, run.old, run.opts.TempTTL)
+	result, fell, err := run.store.Commit(ctx, &Commit{
+		Lock: run.keys.Lock, Tmp: run.keys.Tmp, Live: run.target.Key, Old: run.keys.Old, Last: run.keys.Last,
+		Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL,
+	})
 	if err != nil {
 		return fmt.Errorf("swap: %w", err)
 	}
 
+	switch result {
+	case Committed:
+	case LockLost:
+		return ErrLockLost
+	case TempGone:
+		return ErrTempGone
+	case CountMismatch:
+		return ErrIncomplete
+	}
+
 	run.rep.Swapped = true
+	run.rep.FellBackToDel = fell
 
 	err = run.bump(ctx)
 	if err != nil {
 		return err
 	}
 
-	_, fell, err := run.store.Unlink(ctx, run.old)
+	return run.removeOld(ctx)
+}
+
+// removeOld removes the replaced set without blocking, and tells when the fallback to DEL could have blocked.
+func (run *importRun) removeOld(ctx context.Context) error {
+	if run.rep.Added == 0 {
+		return nil
+	}
+
+	size, err := run.store.SCard(ctx, run.keys.Old)
+	if err != nil {
+		return fmt.Errorf("%w: read the old set (it expires): %w", ErrSwapped, err)
+	}
+
+	_, fell, err := run.store.Unlink(ctx, run.keys.Old)
 	if err != nil {
 		return fmt.Errorf("%w: remove the old set (it expires): %w", ErrSwapped, err)
 	}
 
 	run.rep.FellBackToDel = run.rep.FellBackToDel || fell
+	run.rep.FallbackLarge = fell && size > DelWarnMembers
 
 	return nil
 }

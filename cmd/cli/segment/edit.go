@@ -37,15 +37,15 @@ func edit(
 	ctx context.Context, com *Common, debug bool, streams *helper.Streams, deps *Deps, from string, ids []string,
 	remove bool,
 ) error {
-	src, closeSrc, err := input(from, ids, deps, segmentadmin.ReaderOptions{})
+	src, closeSrc, err := input(ctx, from, ids, deps, segmentadmin.ReaderOptions{})
 	if err != nil {
-		return err
+		return wrapErr(err)
 	}
 	defer closeSrc()
 
 	sess, err := open(ctx, com, debug, streams, deps)
 	if err != nil {
-		return err
+		return wrapErr(err)
 	}
 	defer sess.store.Close()
 
@@ -57,7 +57,10 @@ func edit(
 	}
 
 	if rep != nil {
-		sess.report(ctx, com.Segment, verb, rep)
+		reportErr := sess.report(ctx, com.Segment, verb, rep)
+		if err == nil {
+			err = reportErr
+		}
 	}
 
 	return wrapErr(err)

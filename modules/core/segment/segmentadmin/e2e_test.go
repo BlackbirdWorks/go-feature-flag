@@ -4,6 +4,8 @@ package segmentadmin_test
 
 import (
 	"context"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -32,7 +34,14 @@ const (
 )
 
 func e2eSegments() map[string]string {
-	return map[string]string{"enc": segEnc, "swap": segSwap, "cut": segCut, "edit": segEdit, "flags": segFlags}
+	return map[string]string{
+		"rows":  segRows,
+		"enc":   segEnc,
+		"swap":  segSwap,
+		"cut":   segCut,
+		"edit":  segEdit,
+		"flags": segFlags,
+	}
 }
 
 func e2eTarget(key string, layout redissegment.Layout) *segmentadmin.Target {
@@ -71,7 +80,7 @@ func TestE2E(t *testing.T) {
 			t.Parallel()
 
 			srv := maker.start(t)
-			back := maker.build(t, srv, e2eSegments())
+			back := maker.build(t, srv, e2eSegments(), nil)
 
 			require.Eventually(t, func() bool { return back.store.Ping(t.Context()) == nil }, 30*time.Second,
 				100*time.Millisecond, "the store does not answer")
@@ -87,6 +96,10 @@ func TestE2E(t *testing.T) {
 			t.Run("an interrupted import leaves the live set", func(t *testing.T) {
 				t.Parallel()
 				e2eInterrupted(t, back)
+			})
+			t.Run("the lock and the conditional swap", func(t *testing.T) {
+				t.Parallel()
+				e2eProtocol(t, back)
 			})
 			t.Run("add, remove and stat", func(t *testing.T) {
 				t.Parallel()
@@ -306,5 +319,222 @@ func e2eEdits(t *testing.T, back *backend) {
 		stat, err = segmentadmin.Stat(ctx, back.store, target, 1)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), stat.Count)
+	}
+}
+
+const (
+	segRows   = "semaphore:segment:{rows}"
+	rowsLock  = segRows + ":import:lock"
+	rowsToken = "e2e"
+	rowsTmp   = segRows + ":import:" + rowsToken + ":new"
+	rowsOld   = segRows + ":import:" + rowsToken + ":old"
+	rowsLast  = segRows + ":import:last"
+	rowsTheir = "theirs"
+)
+
+// e2eProtocol runs the rows of the protocol on the real store: the live set is never touched unless the swap condition
+// holds, and a run never removes the keys or the lock of another run.
+func e2eProtocol(t *testing.T, back *backend) {
+	t.Helper()
+
+	ctx := t.Context()
+	target := e2eTarget(segRows, redissegment.LayoutSet)
+
+	seed := func(t *testing.T) {
+		t.Helper()
+
+		_, _, err := back.store.Unlink(ctx, segRows, rowsLock, rowsLast, rowsTmp, rowsOld)
+		require.NoError(t, err)
+
+		_, err = back.store.SAdd(ctx, segRows, []string{"x", "y"}, 0)
+		require.NoError(t, err)
+	}
+
+	liveIntact := func(t *testing.T) {
+		t.Helper()
+
+		card, err := back.store.SCard(ctx, segRows)
+		require.NoError(t, err)
+		assert.Equal(t, int64(2), card, "the live set is untouched")
+
+		exists, _, err := back.store.KeyTTL(ctx, rowsOld)
+		require.NoError(t, err)
+		assert.False(t, exists, "the live set was never moved away")
+	}
+
+	run := func(onLine func(line int), size int, opts segmentadmin.ImportOptions) error {
+		opts.Token = rowsToken
+		opts.BatchSize = 1
+		_, err := segmentadmin.Import(
+			ctx,
+			back.store,
+			target,
+			newReader(t, &idSource{prefix: "row", n: size, onLine: onLine}),
+			opts,
+		)
+
+		return err
+	}
+
+	t.Run("a temporary key that expires between batches is not swapped in", func(t *testing.T) {
+		seed(t)
+
+		err := run(func(line int) {
+			if line == 3 {
+				_, _, _ = back.store.Unlink(ctx, rowsTmp)
+			}
+		}, 5, segmentadmin.ImportOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrIncomplete)
+		liveIntact(t)
+	})
+
+	t.Run("a temporary key deleted before the swap is not swapped in", func(t *testing.T) {
+		seed(t)
+
+		err := run(func(line int) {
+			if line == 6 {
+				_, _, _ = back.store.Unlink(ctx, rowsTmp)
+			}
+		}, 5, segmentadmin.ImportOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrTempGone)
+		liveIntact(t)
+	})
+
+	t.Run("a run that lost its lock does not swap and leaves the other run's keys", func(t *testing.T) {
+		seed(t)
+
+		_, err := back.store.SAdd(ctx, segRows+":import:"+rowsTheir+":new", []string{"theirs"}, time.Hour)
+		require.NoError(t, err)
+
+		err = run(func(line int) {
+			if line == 3 {
+				_ = back.store.SetValue(ctx, rowsLock, rowsTheir)
+			}
+		}, 5, segmentadmin.ImportOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrLockLost)
+		liveIntact(t)
+
+		holder, _, err := back.store.Value(ctx, rowsLock)
+		require.NoError(t, err)
+		assert.Equal(t, rowsTheir, holder, "the lock of the other run is not released")
+
+		card, err := back.store.SCard(ctx, segRows+":import:"+rowsTheir+":new")
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), card, "the temporary key of the other run is not removed")
+	})
+
+	t.Run("a lock taken over just before the swap is not swapped over", func(t *testing.T) {
+		seed(t)
+
+		err := run(func(line int) {
+			if line == 6 {
+				_ = back.store.SetValue(ctx, rowsLock, rowsTheir)
+			}
+		}, 5, segmentadmin.ImportOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrLockLost)
+		liveIntact(t)
+	})
+
+	t.Run("two imports at once: one wins, the other fails at once", func(t *testing.T) {
+		seed(t)
+
+		started, release := make(chan struct{}), make(chan struct{})
+		winner := make(chan error, 1)
+
+		go func() {
+			winner <- run(func(line int) {
+				if line == 1 {
+					close(started)
+					<-release
+				}
+			}, 3, segmentadmin.ImportOptions{})
+		}()
+
+		<-started
+
+		_, err := segmentadmin.Import(ctx, back.store, target, newReader(t, stringsReader("loser\n")),
+			segmentadmin.ImportOptions{Token: "second"})
+		require.ErrorIs(t, err, segmentadmin.ErrImportRunning)
+		close(release)
+		require.NoError(t, <-winner)
+
+		got, err := states(ctx, back.relay, "rows", "row-0", "row-1", "row-2", "x", "loser")
+		require.NoError(t, err)
+		assert.Equal(t, []segment.State{
+			segment.Member, segment.Member, segment.Member, segment.NotMember, segment.NotMember,
+		}, got, "the set is exactly the input of the winner")
+	})
+
+	t.Run("the temporary key that a dead run recorded is removed by the next run", func(t *testing.T) {
+		seed(t)
+
+		dead := segRows + ":import:dead:new"
+		_, err := back.store.SAdd(ctx, dead, []string{"junk"}, time.Hour)
+		require.NoError(t, err)
+		require.NoError(t, back.store.SetValue(ctx, rowsLast, dead))
+
+		require.NoError(t, run(nil, 2, segmentadmin.ImportOptions{}))
+
+		exists, _, err := back.store.KeyTTL(ctx, dead)
+		require.NoError(t, err)
+		assert.False(t, exists)
+	})
+}
+
+// TestE2EWriterACL proves that the writer line of the documentation is enough: a user made from that very line does
+// everything the tool does, on every store.
+func TestE2EWriterACL(t *testing.T) {
+	t.Parallel()
+
+	page, err := os.ReadFile("../../../../docs/tooling/segment.md")
+	require.NoError(t, err)
+
+	var line string
+
+	for text := range strings.SplitSeq(string(page), "\n") {
+		if strings.HasPrefix(text, "ACL SETUSER segwriter ") {
+			line = text
+		}
+	}
+
+	require.NotEmpty(t, line, "the documentation has a writer line")
+
+	args := strings.Fields(strings.Replace(line, ">secret", ">writerpass", 1))
+
+	for _, maker := range makers() {
+		t.Run(maker.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := maker.start(t)
+			admin := maker.build(t, srv, e2eSegments(), nil)
+			require.NoError(t, admin.admin(t.Context(), args...))
+
+			back := maker.build(t, srv, e2eSegments(), &credentials{user: "segwriter", pass: "writerpass"})
+			ctx := t.Context()
+
+			set := e2eTarget(segEdit, redissegment.LayoutSet)
+			keys := e2eTarget(segFlags, redissegment.LayoutKeys)
+
+			_, importErr := segmentadmin.Import(ctx, back.store, set, newReader(t, &idSource{prefix: "w", n: 3000}),
+				segmentadmin.ImportOptions{})
+			require.NoError(t, importErr)
+
+			_, importErr = segmentadmin.Import(ctx, back.store, set, newReader(t, &idSource{prefix: "v", n: 10}),
+				segmentadmin.ImportOptions{})
+			require.NoError(t, importErr)
+
+			for _, target := range []*segmentadmin.Target{set, keys} {
+				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\ntwo\n")), false, 0)
+				require.NoError(t, err)
+				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\n")), true, 0)
+				require.NoError(t, err)
+
+				stat, statErr := segmentadmin.Stat(ctx, back.store, target, 100)
+				require.NoError(t, statErr)
+				assert.True(t, stat.Exists)
+			}
+
+			require.NoError(t, back.store.Ping(ctx))
+		})
 	}
 }

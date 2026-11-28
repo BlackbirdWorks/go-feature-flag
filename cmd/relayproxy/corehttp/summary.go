@@ -23,6 +23,10 @@ const (
 	kindObject  = "object"
 	// kindDynamicSegment counts the dynamic segment definitions of the flag sets, by state.
 	kindDynamicSegment = "dynamicSegment"
+	// kindUnresolvedSegment counts the segment names that flags use and no segments object defines, in the one state
+	// stateUnresolved.
+	kindUnresolvedSegment = "unresolvedSegment"
+	stateUnresolved       = "unresolved"
 	// The states of a dynamic segment: served as defined, or rejected because the connections cannot serve it.
 	stateValid    = "valid"
 	stateRejected = "rejected"
@@ -125,6 +129,7 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 		if set.Segments != nil {
 			sum.dynamic[stateValid] += set.Segments.Dynamic - set.Segments.RejectedDefinitions
 			sum.dynamic[stateRejected] += set.Segments.RejectedDefinitions
+			sum.dynamic[stateUnresolved] += set.Segments.Unresolved
 		}
 
 		if state != resourceReady {

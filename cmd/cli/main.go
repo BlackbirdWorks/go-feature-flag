@@ -20,6 +20,12 @@ var (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 
+	// the first signal ends the context; the default handling comes back, so that a second one ends the process
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+
 	code := cliapp.Main(
 		ctx,
 		os.Args[1:],

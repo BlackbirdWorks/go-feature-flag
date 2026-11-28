@@ -3,6 +3,7 @@ package segmentadmin
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -12,12 +13,20 @@ import (
 // RedisStore is a [Store] over go-redis: a single node or a cluster.
 type RedisStore struct {
 	client redis.UniversalClient
+	stage  *redis.Script
+	commit *redis.Script
+	unlock *redis.Script
 }
 
 var _ Store = (*RedisStore)(nil)
 
 // NewRedis returns a [Store] over a go-redis client. Close closes the client.
-func NewRedis(client redis.UniversalClient) *RedisStore { return &RedisStore{client: client} }
+func NewRedis(client redis.UniversalClient) *RedisStore {
+	return &RedisStore{
+		client: client, stage: redis.NewScript(stageScript), commit: redis.NewScript(commitScript),
+		unlock: redis.NewScript(unlockScript),
+	}
+}
 
 // Close implements [Store].
 func (s *RedisStore) Close() { _ = s.client.Close() }
@@ -93,32 +102,51 @@ func (s *RedisStore) SetKeys(ctx context.Context, keys []string) (int64, error) 
 	return created, nil
 }
 
-// Swap implements [Store].
-func (s *RedisStore) Swap(ctx context.Context, live, tmp, old string, oldTTL time.Duration) error {
-	pipe := s.client.TxPipeline()
-	first := pipe.Rename(ctx, live, old)
-	second := pipe.Rename(ctx, tmp, live)
-	persist := pipe.Persist(ctx, live) // RENAME carries the expiry of the temporary key
-	pipe.PExpire(ctx, old, oldTTL)
-
-	_, _ = pipe.Exec(ctx) // the commands carry their own errors: a missing live key fails only the first
-
-	err := first.Err()
-	if err != nil && !IsNoSuchKey(err) {
-		return storeErr("RENAME", err)
+// Lock implements [Store].
+func (s *RedisStore) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
+	ok, err := s.client.SetNX(ctx, key, token, ttl).Result()
+	if err != nil {
+		return false, storeErr("SET", err)
 	}
 
-	err = second.Err()
-	if err != nil {
-		return storeErr("RENAME", err)
-	}
+	return ok, nil
+}
 
-	err = persist.Err()
+// Unlock implements [Store].
+func (s *RedisStore) Unlock(ctx context.Context, lock, last, token string) error {
+	err := s.unlock.Run(ctx, s.client, []string{lock, last}, token).Err()
 	if err != nil {
-		return storeErr("PERSIST", err)
+		return storeErr("EVAL", err)
 	}
 
 	return nil
+}
+
+// StageAdd implements [Store].
+func (s *RedisStore) StageAdd(
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
+) (int64, bool, error) {
+	args := append([]any{token, ttl.Milliseconds()}, toAny(members)...)
+
+	added, err := s.stage.Run(ctx, s.client, []string{lock, tmp}, args...).Int64()
+	if err != nil {
+		return 0, false, storeErr("EVAL", err)
+	}
+
+	return max(added, 0), added >= 0, nil
+}
+
+// Commit implements [Store].
+func (s *RedisStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
+	code, err := s.commit.Run(ctx, s.client, []string{commit.Lock, commit.Tmp, commit.Live, commit.Old},
+		commit.Token, commit.Want, commit.OldTTL.Milliseconds()).Int64()
+	if err != nil {
+		return LockLost, false, storeErr("EVAL", err)
+	}
+
+	result, fell := commitResult(code)
+
+	return result, fell, nil
 }
 
 // Unlink implements [Store].
@@ -201,24 +229,12 @@ func (s *RedisStore) KeyTTL(ctx context.Context, key string) (bool, time.Duratio
 // CountKeys implements [Store].
 func (s *RedisStore) CountKeys(ctx context.Context, prefix string, limit int) (int, bool, error) {
 	var (
-		mu    sync.Mutex
-		total int
-		more  bool
+		mu      sync.Mutex
+		counter = NewKeyCounter(limit)
 	)
 
 	count := func(ctx context.Context, node *redis.Client) error {
-		mu.Lock()
-		left := limit - total
-		mu.Unlock()
-
-		n, over, err := scanRedis(ctx, node, prefix, left)
-
-		mu.Lock()
-		total += n
-		more = more || over
-		mu.Unlock()
-
-		return err
+		return scanRedis(ctx, node, prefix, counter, &mu)
 	}
 
 	var err error
@@ -231,36 +247,30 @@ func (s *RedisStore) CountKeys(ctx context.Context, prefix string, limit int) (i
 	}
 
 	if err != nil {
-		return total, more, storeErr("SCAN", err)
+		return counter.Count(), counter.More(), storeErr("SCAN", err)
 	}
 
-	return min(total, limit), more || total > limit, nil
+	return counter.Count(), counter.More(), nil
 }
 
-// scanRedis counts the keys of one node, up to limit.
-func scanRedis(ctx context.Context, node *redis.Client, prefix string, limit int) (int, bool, error) {
-	var (
-		cursor uint64
-		count  int
-	)
+// scanRedis counts the keys of one node.
+func scanRedis(ctx context.Context, node *redis.Client, prefix string, counter *KeyCounter, mu *sync.Mutex) error {
+	var cursor uint64
 
-	for limit > 0 {
+	for {
 		keys, next, err := node.Scan(ctx, cursor, ScanPattern(prefix), scanCount).Result()
 		if err != nil {
-			return count, false, storeErr("SCAN", err)
+			return fmt.Errorf("scan: %w", err)
 		}
 
-		count += len(keys)
-		if count >= limit {
-			return limit, count > limit || next != 0, nil
-		}
+		mu.Lock()
+		full := counter.Add(keys)
+		mu.Unlock()
 
-		if next == 0 {
-			return count, false, nil
+		if full || next == 0 {
+			return nil
 		}
 
 		cursor = next
 	}
-
-	return 0, true, nil
 }

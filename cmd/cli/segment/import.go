@@ -24,17 +24,17 @@ type ImportCmd struct {
 
 // Run imports the ids.
 func (cmd *ImportCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Streams, deps *Deps) error {
-	src, closeSrc, err := input(cmd.From, nil, deps, segmentadmin.ReaderOptions{
+	src, closeSrc, err := input(ctx, cmd.From, nil, deps, segmentadmin.ReaderOptions{
 		Format: segmentadmin.Format(cmd.Format), Column: cmd.Column, MaxLineBytes: cmd.MaxLineBytes,
 	})
 	if err != nil {
-		return err
+		return wrapErr(err)
 	}
 	defer closeSrc()
 
 	sess, err := open(ctx, &cmd.Common, parent.Debug, streams, deps)
 	if err != nil {
-		return err
+		return wrapErr(err)
 	}
 	defer sess.store.Close()
 
@@ -42,7 +42,10 @@ func (cmd *ImportCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Stre
 		BatchSize: cmd.BatchSize, TempTTL: cmd.TempTTL, AllowEmpty: cmd.AllowEmpty, DryRun: cmd.DryRun,
 	})
 	if rep != nil {
-		sess.report(ctx, cmd.Segment, "import", rep)
+		reportErr := sess.report(ctx, cmd.Segment, "import", rep)
+		if err == nil {
+			err = reportErr
+		}
 	}
 
 	return wrapErr(err)

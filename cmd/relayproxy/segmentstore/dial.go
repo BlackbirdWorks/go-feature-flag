@@ -3,10 +3,12 @@ package segmentstore
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
 // dialerOf is the dialer of a connection by its kind; nil for a kind that cannot serve segments.
@@ -52,4 +54,24 @@ func tlsConfig(cfg *bootstrap.StoreTLS, secrets bootstrap.LoadOptions) (*tls.Con
 	}
 
 	return out, nil
+}
+
+// errCertificate is the class of a dial that failed because the certificate of the store was not verified (a CA that
+// did not sign it, a name that does not match, an expired certificate).
+var errCertificate = errors.New("tls: the certificate of the store was not verified")
+
+// dialClass reduces the error of a dial to its class, so that no address or certificate text reaches a log line.
+func dialClass(err error) error {
+	var (
+		verify  *tls.CertificateVerificationError
+		unknown x509.UnknownAuthorityError
+		host    x509.HostnameError
+		invalid x509.CertificateInvalidError
+	)
+
+	if errors.As(err, &verify) || errors.As(err, &unknown) || errors.As(err, &host) || errors.As(err, &invalid) {
+		return errCertificate
+	}
+
+	return valkeysegment.ErrUnavailable
 }

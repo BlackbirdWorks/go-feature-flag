@@ -97,38 +97,45 @@ func open(ctx context.Context, com *Common, debug bool, streams *helper.Streams,
 	return &session{store: store, target: res.target, log: logger, out: streams.Stdout}, nil
 }
 
-// input opens the ids of --from, or the ids of the arguments.
-func input(
-	from string, ids []string, deps *Deps, opts segmentadmin.ReaderOptions,
-) (*segmentadmin.Reader, func(), error) {
-	var src io.Reader
+// inputSource is the ids of one command: a file, standard input or the arguments.
+type inputSource struct {
+	segmentadmin.Source
+}
 
+// input opens the ids of --from, or the ids of the arguments. A read of standard input ends with the context.
+func input(
+	ctx context.Context, from string, ids []string, deps *Deps, opts segmentadmin.ReaderOptions,
+) (*inputSource, func(), error) {
 	closer := func() {}
 
 	switch {
 	case from == "-":
-		src = deps.Stdin
+		return newReader(segmentadmin.WithContext(ctx, deps.Stdin), opts, closer)
 	case from != "":
 		file, err := deps.Open(from)
 		if err != nil {
 			return nil, closer, fmt.Errorf("open the input: %w", err)
 		}
 
-		src, closer = file, func() { _ = file.Close() }
+		return newReader(segmentadmin.WithContext(ctx, file), opts, func() { _ = file.Close() })
 	case len(ids) > 0:
-		src = strings.NewReader(strings.Join(ids, "\n"))
-	default:
-		return nil, closer, fmt.Errorf("%w: %w", helper.ErrUsage, ErrNoInput)
+		return &inputSource{Source: segmentadmin.NewSliceSource(ids)}, closer, nil
 	}
 
+	return nil, closer, fmt.Errorf("%w: %w", helper.ErrUsage, ErrNoInput)
+}
+
+func newReader(
+	src io.Reader, opts segmentadmin.ReaderOptions, closer func(),
+) (*inputSource, func(), error) {
 	reader, err := segmentadmin.NewReader(src, opts)
 	if err != nil {
 		closer()
 
-		return nil, closer, fmt.Errorf("input: %w", err)
+		return nil, func() {}, fmt.Errorf("input: %w", wrapErr(err))
 	}
 
-	return reader, closer, nil
+	return &inputSource{Source: reader}, closer, nil
 }
 
 // wrapErr gives an invalid input the exit code of invalid input, and a failure of the store the one of a transport.
@@ -141,6 +148,9 @@ func wrapErr(err error) error {
 	case errors.Is(err, segmentadmin.ErrEmptyInput), errors.Is(err, segmentadmin.ErrKeysLayout),
 		errors.Is(err, segmentadmin.ErrBadOptions):
 		code = helper.ExitInvalid
+	case errors.Is(err, segmentadmin.ErrImportRunning), errors.Is(err, segmentadmin.ErrLockLost),
+		errors.Is(err, segmentadmin.ErrTempGone), errors.Is(err, segmentadmin.ErrIncomplete):
+		code = helper.ExitConflict
 	case errors.Is(err, segmentadmin.ErrStore):
 		code = helper.ExitTransport
 	default:
@@ -151,7 +161,7 @@ func wrapErr(err error) error {
 }
 
 // report prints the counts of an operation.
-func (s *session) report(ctx context.Context, name, verb string, rep *segmentadmin.Report) {
+func (s *session) report(ctx context.Context, name, verb string, rep *segmentadmin.Report) error {
 	var lines strings.Builder
 
 	fmt.Fprintf(&lines, "segment: %s\noperation: %s\nread: %d\naccepted: %d\n", name, verb, rep.Read, rep.Accepted)
@@ -190,14 +200,26 @@ func (s *session) report(ctx context.Context, name, verb string, rep *segmentadm
 		lines.WriteString("note: the server has no UNLINK, DEL was used\n")
 	}
 
+	if rep.FallbackLarge {
+		lines.WriteString(
+			"warning: DEL removed a large set and may have blocked the server; upgrade to a server with UNLINK\n",
+		)
+	}
+
 	if rep.CleanupFailed {
 		lines.WriteString("note: the temporary key was not removed, it expires\n")
 	}
 
-	_, _ = io.WriteString(s.out, lines.String())
+	_, err := io.WriteString(s.out, lines.String())
 
 	s.log.LogAttrs(ctx, slog.LevelDebug, "done", slog.String("operation", verb), slog.Int64("read", rep.Read),
 		slog.Int64("accepted", rep.Accepted), slog.Int64("added", rep.Added))
+
+	if err != nil {
+		return fmt.Errorf("write the result: %w", err)
+	}
+
+	return nil
 }
 
 // Run parses args against the segment command tree and runs the selected subcommand. It is for tests and embedders;

@@ -3,6 +3,12 @@ package flagruntime
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/blackbirdworks/semaphore/cmdhelpers/configfile"
 	"github.com/blackbirdworks/semaphore/modules/core/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -122,7 +128,12 @@ func (b *batch) provider() *prefetched {
 		return &prefetched{view: b.view}
 	}
 
-	_ = b.view.Contains(context.Background(), b.lookups) // an error leaves the lookups Unknown, and so STORE_ERROR
+	// an error leaves the lookups Unknown, and so STORE_ERROR
+	if b.view.traced {
+		b.tracedLookups()
+	} else {
+		_ = b.view.Contains(context.Background(), b.lookups)
+	}
 
 	answers := make(map[lookupKey]segment.State, len(b.lookups))
 	for i := range b.lookups {
@@ -177,4 +188,51 @@ func (f *FlagSet) usesServed(key string) bool {
 	_, ok := f.dynTerms[key]
 
 	return ok
+}
+
+// tracedLookups is the batch of the lookups inside its span. The evaluator is not given the context of the request, so
+// the span is a root span.
+func (b *batch) tracedLookups() {
+	ctx, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(context.Background(), spanName)
+	defer span.End()
+
+	err := b.view.Contains(ctx, b.lookups)
+	describeSpan(span, b.view, b.lookups, err)
+}
+
+// spanName is the span around the batch of the memberships of an evaluation.
+const spanName = "segmentLookups"
+
+// describeSpan describes the span of a batch. The attributes are the connections (names of the bootstrap file) and
+// counts, never a segment, an identifier or the text of an error.
+func describeSpan(span trace.Span, view *SegmentView, lookups []segment.Lookup, err error) {
+	if !span.IsRecording() {
+		return
+	}
+
+	unanswered := 0
+
+	for i := range lookups {
+		if lookups[i].State == segment.Unknown {
+			unanswered++
+		}
+	}
+
+	result := "answered"
+
+	switch {
+	case err != nil:
+		result = "failed"
+
+		span.SetStatus(codes.Error, "segment lookups failed")
+	case unanswered > 0:
+		result = "unanswered"
+	}
+
+	span.SetAttributes(
+		attribute.StringSlice("semaphore.segment.connections", view.Connections()),
+		attribute.Int("semaphore.segment.lookups", len(lookups)),
+		attribute.Int("semaphore.segment.unanswered", unanswered),
+		attribute.String("semaphore.segment.result", result),
+	)
 }

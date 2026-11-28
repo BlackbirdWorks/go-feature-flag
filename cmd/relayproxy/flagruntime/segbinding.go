@@ -338,7 +338,7 @@ func (b *segBinding) build(
 	if len(segs) > 0 && take.lookup.res != nil && take.lookup.id == b.lookupID {
 		b.res, b.versioner, b.versioned = take.lookup.res, take.lookup.versioner, take.lookup.versioned
 	} else if len(segs) > 0 {
-		opts := env.options()
+		opts := env.options(key.connection)
 		opts.Segments = segs
 
 		res, err := resolver.New(binding.Provider, opts)

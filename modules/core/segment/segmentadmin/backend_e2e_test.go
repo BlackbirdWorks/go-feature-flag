@@ -34,11 +34,19 @@ type backend struct {
 	relay    segment.Provider
 	provider *resolver.Resolver
 	info     func(ctx context.Context, field string) (int64, error)
+	// admin runs a command (ACL SETUSER ...) on every node of the store.
+	admin func(ctx context.Context, args ...string) error
+}
+
+// credentials is the user that a backend connects as. Nil means the default user.
+type credentials struct {
+	user string
+	pass string
 }
 
 type backendMaker struct {
 	start func(tb testing.TB) *segmenttest.Server
-	build func(tb testing.TB, srv *segmenttest.Server, segs map[string]string) *backend
+	build func(tb testing.TB, srv *segmenttest.Server, segs map[string]string, as *credentials) *backend
 	name  string
 }
 
@@ -82,10 +90,15 @@ func wrap(tb testing.TB, inner segment.Provider) *resolver.Resolver {
 }
 
 func makers() []backendMaker {
-	valkeyBuild := func(tb testing.TB, srv *segmenttest.Server, segs map[string]string) *backend {
+	valkeyBuild := func(tb testing.TB, srv *segmenttest.Server, segs map[string]string, as *credentials) *backend {
 		tb.Helper()
 
-		client, err := valkey.NewClient(srv.ValkeyOption())
+		opt := srv.ValkeyOption()
+		if as != nil {
+			opt.Username, opt.Password = as.user, as.pass
+		}
+
+		client, err := valkey.NewClient(opt)
 		require.NoError(tb, err)
 
 		valkeySegs, _ := providerSegments(segs)
@@ -95,13 +108,19 @@ func makers() []backendMaker {
 		store := segmentadmin.NewValkey(client)
 		tb.Cleanup(store.Close)
 
-		return &backend{store: store, relay: prov, provider: wrap(tb, prov), info: valkeyInfo(client)}
+		return &backend{store: store, relay: prov, provider: wrap(tb, prov), info: valkeyInfo(client),
+			admin: valkeyAdmin(client)}
 	}
 
-	redisBuild := func(tb testing.TB, srv *segmenttest.Server, segs map[string]string) *backend {
+	redisBuild := func(tb testing.TB, srv *segmenttest.Server, segs map[string]string, as *credentials) *backend {
 		tb.Helper()
 
-		client := redis.NewUniversalClient(srv.RedisOptions())
+		opts := srv.RedisOptions()
+		if as != nil {
+			opts.Username, opts.Password = as.user, as.pass
+		}
+
+		client := redis.NewUniversalClient(opts)
 		_, redisSegs := providerSegments(segs)
 		prov, err := redissegment.New(client, &redissegment.Options{Segments: redisSegs, Timeout: lookupTimeout})
 		require.NoError(tb, err)
@@ -109,7 +128,8 @@ func makers() []backendMaker {
 		store := segmentadmin.NewRedis(client)
 		tb.Cleanup(store.Close)
 
-		return &backend{store: store, relay: prov, provider: wrap(tb, prov), info: redisInfo(client)}
+		return &backend{store: store, relay: prov, provider: wrap(tb, prov), info: redisInfo(client),
+			admin: redisAdmin(client)}
 	}
 
 	valkeyStart := func(tb testing.TB) *segmenttest.Server {
@@ -130,6 +150,54 @@ func makers() []backendMaker {
 		{name: "go-redis on a Valkey cluster", start: segmenttest.StartCluster, build: redisBuild},
 		{name: "go-redis on Redis", start: redisStart, build: redisBuild},
 	}
+}
+
+// valkeyAdmin runs a command on every node of the client.
+func valkeyAdmin(client valkey.Client) func(context.Context, ...string) error {
+	return func(ctx context.Context, args ...string) error {
+		for _, node := range client.Nodes() {
+			err := node.Do(ctx, node.B().Arbitrary(args...).Build()).Error()
+			if err != nil {
+				return fmt.Errorf("%s: %w", args[0], err)
+			}
+		}
+
+		return nil
+	}
+}
+
+// redisAdmin runs a command on every master of the client.
+func redisAdmin(client redis.UniversalClient) func(context.Context, ...string) error {
+	return func(ctx context.Context, args ...string) error {
+		anyArgs := toAnyArgs(args)
+
+		if cluster, ok := client.(*redis.ClusterClient); ok {
+			err := cluster.ForEachMaster(ctx, func(ctx context.Context, node *redis.Client) error {
+				return node.Do(ctx, anyArgs...).Err()
+			})
+			if err != nil {
+				return fmt.Errorf("%s: %w", args[0], err)
+			}
+
+			return nil
+		}
+
+		err := client.Do(ctx, anyArgs...).Err()
+		if err != nil {
+			return fmt.Errorf("%s: %w", args[0], err)
+		}
+
+		return nil
+	}
+}
+
+func toAnyArgs(args []string) []any {
+	out := make([]any, len(args))
+	for i, arg := range args {
+		out[i] = arg
+	}
+
+	return out
 }
 
 // valkeyInfo reads a number of INFO memory (used_memory_peak, ...) of the node that serves the client.
@@ -200,6 +268,7 @@ type idSource struct {
 	n      int
 	i      int
 	mu     sync.Mutex
+	ended  bool
 }
 
 func (s *idSource) Read(buf []byte) (int, error) {
@@ -211,6 +280,12 @@ func (s *idSource) Read(buf []byte) (int, error) {
 	for written < len(buf) {
 		if len(s.rest) == 0 {
 			if s.i >= s.n {
+				if !s.ended && s.onLine != nil {
+					s.onLine(s.n + 1)
+				}
+
+				s.ended = true
+
 				break
 			}
 
@@ -225,6 +300,10 @@ func (s *idSource) Read(buf []byte) (int, error) {
 		copied := copy(buf[written:], s.rest)
 		s.rest = s.rest[copied:]
 		written += copied
+
+		if s.onLine != nil && len(s.rest) == 0 {
+			break // one line for each read, so that the hook of a line runs between the batches
+		}
 	}
 
 	if written == 0 {

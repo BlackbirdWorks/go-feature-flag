@@ -2,6 +2,7 @@ package segmentadmin
 
 import (
 	"bufio"
+	"context"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -85,6 +86,79 @@ type Record struct {
 	Line int
 }
 
+// Source gives the lines of an input one at a time, and [io.EOF] at the end. A file, standard input and the ids of the
+// command line (and later an object of a bucket) are sources.
+type Source interface {
+	// Next returns the next record.
+	Next() (Record, error)
+}
+
+var (
+	_ Source = (*Reader)(nil)
+	_ Source = (*SliceSource)(nil)
+)
+
+// SliceSource is the ids of the command line: each one is a record, never joined with the others.
+type SliceSource struct {
+	ids  []string
+	next int
+}
+
+// NewSliceSource returns a [Source] of ids that are already separated.
+func NewSliceSource(ids []string) *SliceSource { return &SliceSource{ids: ids} }
+
+// Next implements [Source].
+func (s *SliceSource) Next() (Record, error) {
+	if s.next >= len(s.ids) {
+		return Record{Line: s.next}, io.EOF
+	}
+
+	s.next++
+
+	return Record{ID: s.ids[s.next-1], Line: s.next}, nil
+}
+
+// ctxReader stops a read that blocks when the context ends.
+type ctxReader struct {
+	src  io.Reader
+	done <-chan struct{}
+	err  func() error
+}
+
+type readResult struct {
+	err  error
+	data []byte
+}
+
+// WithContext returns a reader of src whose Read returns the error of ctx as soon as ctx ends, even when src blocks (a
+// pipe that no one closes). The read of src that is still in flight ends when src gives a value or is closed.
+func WithContext(ctx context.Context, src io.Reader) io.Reader {
+	return &ctxReader{src: src, done: ctx.Done(), err: ctx.Err}
+}
+
+func (r *ctxReader) Read(buf []byte) (int, error) {
+	err := r.err()
+	if err != nil {
+		return 0, fmt.Errorf("read the input: %w", err)
+	}
+
+	done := make(chan readResult, 1)
+
+	go func() {
+		own := make([]byte, len(buf))
+
+		n, readErr := r.src.Read(own)
+		done <- readResult{data: own[:n], err: readErr}
+	}()
+
+	select {
+	case res := <-done:
+		return copy(buf, res.data), res.err
+	case <-r.done:
+		return 0, fmt.Errorf("read the input: %w", r.err())
+	}
+}
+
 // Reader streams the ids of an input. It holds one line at a time. A source of an import (a file, standard input,
 // later an object of a bucket) is anything that gives an [io.Reader].
 type Reader struct {
@@ -108,8 +182,8 @@ func NewReader(src io.Reader, opts ReaderOptions) (*Reader, error) {
 		return nil, fmt.Errorf("%w: column must be 1 or more", ErrBadOptions)
 	}
 
-	if opts.MaxLineBytes < 0 {
-		return nil, fmt.Errorf("%w: max line bytes must be positive", ErrBadOptions)
+	if opts.MaxLineBytes < 0 || opts.MaxLineBytes > 0 && opts.MaxLineBytes < minLineBuffer {
+		return nil, fmt.Errorf("%w: max line bytes must be at least %d", ErrBadOptions, minLineBuffer)
 	}
 
 	if opts.MaxLineBytes == 0 {
@@ -117,7 +191,7 @@ func NewReader(src io.Reader, opts ReaderOptions) (*Reader, error) {
 	}
 
 	return &Reader{
-		src: bufio.NewReaderSize(src, max(opts.MaxLineBytes, minLineBuffer)), format: opts.Format,
+		src: bufio.NewReaderSize(src, opts.MaxLineBytes), format: opts.Format,
 		column: max(opts.Column, 1),
 	}, nil
 }

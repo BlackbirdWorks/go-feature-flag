@@ -11,11 +11,13 @@ import (
 )
 
 // DefaultScanLimit is the most keys that Stat counts of a keys layout segment.
-const DefaultScanLimit = 1_000_000
+const DefaultScanLimit = 100_000
 
 // Edit adds the ids of src to the segment (or removes them), in batches of batchSize, then bumps the version key.
-// Add and remove are for small edits of the live key: there is no temporary key and no swap.
-func Edit(ctx context.Context, store Store, target *Target, src *Reader, remove bool, batchSize int) (*Report, error) {
+// Add and remove are for small edits of the live key: there is no temporary key and no swap. When a failure or the end
+// of the context stops the edit after at least one batch was applied, the version key is still bumped (on a context of
+// its own), so that the relays see what was applied, and the error says how much: [ErrPartial].
+func Edit(ctx context.Context, store Store, target *Target, src Source, remove bool, batchSize int) (*Report, error) {
 	if batchSize == 0 {
 		batchSize = DefaultBatchSize
 	}
@@ -25,23 +27,46 @@ func Edit(ctx context.Context, store Store, target *Target, src *Reader, remove 
 	}
 
 	run := &importRun{
-		store: store, target: target, opts: ImportOptions{BatchSize: batchSize},
-		rep: &Report{},
+		store: store, target: target, opts: ImportOptions{BatchSize: batchSize}, rep: &Report{},
 	}
 
+	err := run.editAll(ctx, src, remove)
+	if err != nil {
+		if run.rep.Applied == 0 {
+			return run.rep, err
+		}
+
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		defer cancel()
+
+		bumpErr := Bump(cctx, store, target, run.rep)
+
+		return run.rep, fmt.Errorf("%w: %d of %d ids applied: %w", ErrPartial, run.rep.Applied, run.rep.Accepted,
+			errors.Join(err, bumpErr))
+	}
+
+	if run.rep.Applied == 0 {
+		return run.rep, nil // nothing changed: the relay has nothing to learn
+	}
+
+	return run.rep, Bump(ctx, store, target, run.rep)
+}
+
+// editAll reads the input and applies it in batches.
+func (run *importRun) editAll(ctx context.Context, src Source, remove bool) error {
 	for {
 		err := ctx.Err()
 		if err != nil {
-			return run.rep, fmt.Errorf("edit stopped: %w", err)
+			return fmt.Errorf("edit stopped: %w", err)
 		}
 
 		rec, err := src.Next()
 		if errors.Is(err, io.EOF) {
-			break
+			return run.apply(ctx, remove)
 		}
 
 		if err != nil {
-			return run.rep, err
+			return fmt.Errorf("read the input: %w", err)
 		}
 
 		run.rep.Read++
@@ -56,24 +81,13 @@ func Edit(ctx context.Context, store Store, target *Target, src *Reader, remove 
 		run.rep.Accepted++
 		run.batch = append(run.batch, id)
 
-		if len(run.batch) >= batchSize {
+		if len(run.batch) >= run.opts.BatchSize {
 			err = run.apply(ctx, remove)
 			if err != nil {
-				return run.rep, err
+				return err
 			}
 		}
 	}
-
-	err := run.apply(ctx, remove)
-	if err != nil {
-		return run.rep, err
-	}
-
-	if run.rep.Accepted == 0 {
-		return run.rep, nil // nothing changed: the relay has nothing to learn
-	}
-
-	return run.rep, Bump(ctx, store, target, run.rep)
 }
 
 // apply sends the batch to the live key.
@@ -81,6 +95,8 @@ func (run *importRun) apply(ctx context.Context, remove bool) error {
 	if len(run.batch) == 0 {
 		return nil
 	}
+
+	size := int64(len(run.batch))
 
 	defer func() { run.batch = run.batch[:0] }()
 
@@ -105,6 +121,8 @@ func (run *importRun) apply(ctx context.Context, remove bool) error {
 	if err != nil {
 		return fmt.Errorf("write a batch: %w", err)
 	}
+
+	run.rep.Applied += size
 
 	if remove {
 		run.rep.Removed += count

@@ -21,14 +21,15 @@ const (
 // stubServer is a loopback server that speaks the RESP of the commands that the write side sends, over a small
 // keyspace. Its listener is open from the start. It lets the two client implementations run without a container.
 type stubServer struct {
-	ln       net.Listener
-	sets     map[string]map[string]bool
-	strs     map[string]string
-	ttl      map[string]string
-	conns    map[net.Conn]struct{}
-	noUnlink bool
-	wg       sync.WaitGroup
-	mu       sync.Mutex
+	ln        net.Listener
+	sets      map[string]map[string]bool
+	strs      map[string]string
+	ttl       map[string]string
+	conns     map[net.Conn]struct{}
+	noUnlink  bool
+	wg        sync.WaitGroup
+	accepting sync.WaitGroup
+	mu        sync.Mutex
 }
 
 func startStub(t *testing.T, noUnlink bool) *stubServer {
@@ -42,12 +43,14 @@ func startStub(t *testing.T, noUnlink bool) *stubServer {
 		conns: map[net.Conn]struct{}{}, noUnlink: noUnlink,
 	}
 
-	srv.wg.Add(1)
+	srv.accepting.Add(1)
 
 	go srv.accept()
 
 	t.Cleanup(func() {
 		_ = lis.Close()
+
+		srv.accepting.Wait() // no connection is accepted (and tracked) after this
 
 		srv.mu.Lock()
 		for conn := range srv.conns {
@@ -64,7 +67,7 @@ func startStub(t *testing.T, noUnlink bool) *stubServer {
 func (s *stubServer) addr() string { return s.ln.Addr().String() }
 
 func (s *stubServer) accept() {
-	defer s.wg.Done()
+	defer s.accepting.Done()
 
 	for {
 		conn, err := s.ln.Accept()
@@ -190,26 +193,14 @@ func (s *stubServer) runData(name string, args []string) string {
 		return s.srem(args)
 	case opSET:
 		return s.set(args)
-	case "GET":
-		if val, ok := s.strs[args[1]]; ok {
-			return bulk(val)
-		}
-
-		return "$-1\r\n"
 	case "RENAME":
 		return s.rename(args[1], args[2])
-	case "PEXPIRE":
-		if s.exists(args[1]) {
-			s.ttl[args[1]] = args[2]
-
-			return integer(1)
-		}
-
-		return integer(0)
-	case "PERSIST":
-		delete(s.ttl, args[1])
-
-		return integer(1)
+	case opGET, "PEXPIRE", "PERSIST":
+		return s.runKey(name, args)
+	case "EVALSHA":
+		return "-NOSCRIPT No matching script. Please use EVAL.\r\n"
+	case "EVAL":
+		return s.eval(args)
 	case "SCARD":
 		return integer(len(s.sets[args[1]]))
 	case "PTTL":
@@ -219,6 +210,29 @@ func (s *stubServer) runData(name string, args []string) string {
 	}
 
 	return s.runDelete(name, args)
+}
+
+func (s *stubServer) runKey(name string, args []string) string {
+	switch name {
+	case opGET:
+		if val, ok := s.strs[args[1]]; ok {
+			return bulk(val)
+		}
+
+		return "$-1\r\n"
+	case "PEXPIRE":
+		if s.exists(args[1]) {
+			s.ttl[args[1]] = args[2]
+
+			return integer(1)
+		}
+
+		return integer(0)
+	}
+
+	delete(s.ttl, args[1])
+
+	return integer(1)
 }
 
 func (s *stubServer) runDelete(name string, args []string) string {
@@ -273,7 +287,8 @@ func (s *stubServer) srem(args []string) string {
 }
 
 func (s *stubServer) set(args []string) string {
-	if len(args) > 3 && strings.EqualFold(args[3], "NX") && s.exists(args[1]) {
+	if slices.ContainsFunc(args[3:], func(arg string) bool { return strings.EqualFold(arg, "NX") }) &&
+		s.exists(args[1]) {
 		return "$-1\r\n"
 	}
 
@@ -351,4 +366,66 @@ func (s *stubServer) scan(args []string) string {
 	out += outSb331.String()
 
 	return out
+}
+
+// eval runs, natively, the three scripts of the write side: they are told apart by what they call.
+func (s *stubServer) eval(args []string) string {
+	count, _ := strconv.Atoi(args[2])
+	keys, argv := args[3:3+count], args[3+count:]
+
+	switch {
+	case strings.Contains(args[1], "UNLINK"):
+		return s.evalCommit(keys, argv)
+	case strings.Contains(args[1], "SADD"):
+		return s.evalStage(keys, argv)
+	}
+
+	if s.strs[keys[0]] != argv[0] {
+		return integer(0)
+	}
+
+	s.del(keys[0])
+	s.del(keys[1])
+
+	return integer(1)
+}
+
+func (s *stubServer) evalStage(keys, argv []string) string {
+	if s.strs[keys[0]] != argv[0] {
+		return integer(-1)
+	}
+
+	added, _ := strconv.Atoi(
+		strings.TrimPrefix(strings.TrimSuffix(s.sadd(append([]string{"SADD", keys[1]}, argv[2:]...)), "\r\n"), ":"),
+	)
+	s.ttl[keys[1]], s.ttl[keys[0]] = argv[1], argv[1]
+
+	return integer(added)
+}
+
+func (s *stubServer) evalCommit(keys, argv []string) string {
+	want, _ := strconv.Atoi(argv[1])
+
+	switch {
+	case s.strs[keys[0]] != argv[0]:
+		return integer(1)
+	case want == 0:
+		s.del(keys[2])
+
+		return integer(0)
+	case !s.exists(keys[1]):
+		return integer(2)
+	case len(s.sets[keys[1]]) != want:
+		return integer(3)
+	}
+
+	if s.exists(keys[2]) {
+		s.rename(keys[2], keys[3])
+		s.ttl[keys[3]] = argv[2]
+	}
+
+	s.rename(keys[1], keys[2])
+	delete(s.ttl, keys[2])
+
+	return integer(0)
 }

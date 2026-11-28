@@ -3,6 +3,7 @@ package segmentadmin
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/valkey-io/valkey-go"
@@ -11,12 +12,20 @@ import (
 // ValkeyStore is a [Store] over valkey-go: a single node, a sentinel set or a cluster.
 type ValkeyStore struct {
 	client valkey.Client
+	stage  *valkey.Lua
+	commit *valkey.Lua
+	unlock *valkey.Lua
 }
 
 var _ Store = (*ValkeyStore)(nil)
 
 // NewValkey returns a [Store] over a valkey-go client. Close closes the client.
-func NewValkey(client valkey.Client) *ValkeyStore { return &ValkeyStore{client: client} }
+func NewValkey(client valkey.Client) *ValkeyStore {
+	return &ValkeyStore{
+		client: client, stage: valkey.NewLuaScript(stageScript), commit: valkey.NewLuaScript(commitScript),
+		unlock: valkey.NewLuaScript(unlockScript),
+	}
+}
 
 func storeErr(op string, err error) error {
 	return fmt.Errorf("%w: %s: %w", ErrStore, op, err)
@@ -91,40 +100,61 @@ func (s *ValkeyStore) SetKeys(ctx context.Context, keys []string) (int64, error)
 	return created, nil
 }
 
-// Swap implements [Store].
-func (s *ValkeyStore) Swap(ctx context.Context, live, tmp, old string, oldTTL time.Duration) error {
-	b := s.client.B()
-	res := s.client.DoMulti(ctx,
-		b.Multi().Build(),
-		b.Rename().Key(live).Newkey(old).Build(),
-		b.Rename().Key(tmp).Newkey(live).Build(),
-		b.Persist().Key(live).Build(), // RENAME carries the expiry of the temporary key
-		b.Pexpire().Key(old).Milliseconds(oldTTL.Milliseconds()).Build(),
-		b.Exec().Build(),
-	)
+// Lock implements [Store].
+func (s *ValkeyStore) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
+	res := s.client.Do(ctx, s.client.B().Set().Key(key).Value(token).Nx().PxMilliseconds(ttl.Milliseconds()).Build())
 
-	arr, err := res[len(res)-1].ToArray()
+	msg, err := res.ToMessage()
+	if valkey.IsValkeyNil(err) {
+		return false, nil
+	}
+
 	if err != nil {
-		return storeErr("EXEC", err)
+		return false, storeErr("SET", err)
 	}
 
-	if len(arr) != swapReplies {
-		return storeErr("EXEC", errShortReply)
-	}
+	return !msg.IsNil(), nil
+}
 
-	first := arr[0].Error()
-	if first != nil && !IsNoSuchKey(first) {
-		return storeErr("RENAME", first)
-	}
-
-	for _, one := range arr[1:3] {
-		err = one.Error()
-		if err != nil {
-			return storeErr("RENAME", err)
-		}
+// Unlock implements [Store].
+func (s *ValkeyStore) Unlock(ctx context.Context, lock, last, token string) error {
+	err := s.unlock.Exec(ctx, s.client, []string{lock, last}, []string{token}).Error()
+	if err != nil {
+		return storeErr("EVAL", err)
 	}
 
 	return nil
+}
+
+// StageAdd implements [Store].
+func (s *ValkeyStore) StageAdd(
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
+) (int64, bool, error) {
+	args := append([]string{token, strconv.FormatInt(ttl.Milliseconds(), 10)}, members...)
+
+	added, err := s.stage.Exec(ctx, s.client, []string{lock, tmp}, args).AsInt64()
+	if err != nil {
+		return 0, false, storeErr("EVAL", err)
+	}
+
+	return max(added, 0), added >= 0, nil
+}
+
+// Commit implements [Store].
+func (s *ValkeyStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
+	args := []string{
+		commit.Token, strconv.FormatInt(commit.Want, 10), strconv.FormatInt(commit.OldTTL.Milliseconds(), 10),
+	}
+
+	code, err := s.commit.Exec(ctx, s.client, []string{commit.Lock, commit.Tmp, commit.Live, commit.Old}, args).
+		AsInt64()
+	if err != nil {
+		return LockLost, false, storeErr("EVAL", err)
+	}
+
+	result, fell := commitResult(code)
+
+	return result, fell, nil
 }
 
 // Unlink implements [Store].
@@ -214,42 +244,40 @@ func (s *ValkeyStore) CountKeys(ctx context.Context, prefix string, limit int) (
 		}
 	}
 
-	total := 0
+	counter := NewKeyCounter(limit)
 
 	for _, node := range nodes {
-		n, more, err := scanNode(ctx, node, prefix, limit-total)
-		total += n
+		err := scanNode(ctx, node, prefix, counter)
+		if err != nil {
+			return counter.Count(), counter.More(), err
+		}
 
-		if err != nil || more {
-			return total, more, err
+		if counter.More() {
+			break
 		}
 	}
 
-	return total, false, nil
+	return counter.Count(), counter.More(), nil
 }
 
-// scanNode counts the keys of one node, up to limit.
-func scanNode(ctx context.Context, node valkey.Client, prefix string, limit int) (int, bool, error) {
-	var (
-		cursor uint64
-		count  int
-	)
+// scanNode counts the keys of one node.
+func scanNode(ctx context.Context, node valkey.Client, prefix string, counter *KeyCounter) error {
+	var cursor uint64
 
 	for {
 		entry, err := node.Do(ctx,
 			node.B().Scan().Cursor(cursor).Match(ScanPattern(prefix)).Count(scanCount).Build()).AsScanEntry()
 		if err != nil {
-			return count, false, storeErr("SCAN", err)
+			return storeErr("SCAN", err)
 		}
 
-		count += len(entry.Elements)
-		if count >= limit {
-			return limit, count > limit || entry.Cursor != 0, nil
+		if counter.Add(entry.Elements) {
+			return nil
 		}
 
 		cursor = entry.Cursor
 		if cursor == 0 {
-			return count, false, nil
+			return nil
 		}
 	}
 }

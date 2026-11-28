@@ -119,7 +119,12 @@ func TestManyRejectedDefinitionsAreAllCounted(t *testing.T) {
 	status := built.Runtime.Status.FlagSets["a"]
 	require.NotNil(t, status)
 	require.NotNil(t, status.Segments)
-	assert.Equal(t, flagruntime.SegmentCounts{Dynamic: total, RejectedDefinitions: total}, *status.Segments)
+	assert.Equal(t, flagruntime.SegmentCounts{
+		Dynamic:             total,
+		RejectedDefinitions: total,
+		Unresolved:          2,
+		UnresolvedNames:     []string{betaSegmentName, staffName},
+	}, *status.Segments)
 }
 
 func BenchmarkBuildRejectedDefinitions(b *testing.B) {

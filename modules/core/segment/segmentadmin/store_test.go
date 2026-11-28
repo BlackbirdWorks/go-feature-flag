@@ -3,7 +3,6 @@ package segmentadmin_test
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -28,9 +27,25 @@ func storeCases() []storeCase {
 		{name: "ping", want: "ok", run: casePing},
 		{name: "sadd counts the new members and sets the expiry", want: "2 1 true ttl=true", run: caseSAdd},
 		{name: "srem and scard", want: "1 1", run: caseSRem},
-		{name: "swap puts the new set live and keeps the old one", want: "1 true false", run: caseSwap},
-		{name: "swap without a live key", want: "1", run: caseSwapNoLive},
-		{name: "swap without a temporary key fails", want: "failed", run: caseSwapNoTemp},
+		{name: "commit puts the new set live and keeps the old one", want: "0 1 true false", run: caseCommit},
+		{name: "commit without a live key", want: "0 1", run: caseCommitNoLive},
+		{name: "commit refused when the lock is not the run's", want: "1 live=3 old=false",
+			run: caseCommitRefused(1, "other", false)},
+		{name: "commit refused when the temporary key is gone", want: "2 live=3 old=false",
+			run: caseCommitRefused(1, runToken, true)},
+		{name: "commit refused when the cardinality differs", want: "3 live=3 old=false",
+			run: caseCommitRefused(2, runToken, false)},
+		{name: "commit of an empty import removes the live key", want: "0 false", run: caseCommitEmpty},
+		{
+			name: "lock is taken once and released by its holder only",
+			want: "true false t1 locked=false last=false",
+			run:  caseLock,
+		},
+		{
+			name: "a batch is refused when the lock is not the run's",
+			want: "0 held=false exists=false",
+			run:  caseStageLost,
+		},
 		{name: "unlink counts what existed", want: "1 false", run: caseUnlink},
 		{name: "values", want: "v true  false", run: caseValues},
 		{name: "member keys are created once and counted by prefix", want: "2 1 2 false 1 true", run: caseKeys},
@@ -76,18 +91,40 @@ func caseSRem(ctx context.Context, store segmentadmin.Store) (string, error) {
 	return fmt.Sprintf("%d %d", removed, card), err
 }
 
-func caseSwap(ctx context.Context, store segmentadmin.Store) (string, error) {
+func tokenCommit(want int64, token string) *segmentadmin.Commit {
+	return &segmentadmin.Commit{
+		Lock: lockKey, Tmp: tmpKey, Live: liveKey, Old: oldKey, Last: lastKey, Token: token, Want: want,
+		OldTTL: time.Hour,
+	}
+}
+
+// stage takes the lock and writes the members of a temporary key, as an import does.
+func stage(ctx context.Context, store segmentadmin.Store, members ...string) error {
+	ok, err := store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil || !ok {
+		return fmt.Errorf("lock: %t: %w", ok, err)
+	}
+
+	_, held, err := store.StageAdd(ctx, lockKey, tmpKey, runToken, members, time.Hour)
+	if err != nil || !held {
+		return fmt.Errorf("stage: %t: %w", held, err)
+	}
+
+	return nil
+}
+
+func caseCommit(ctx context.Context, store segmentadmin.Store) (string, error) {
 	_, err := store.SAdd(ctx, liveKey, []string{"a", "b", "c"}, 0)
 	if err != nil {
 		return "", err
 	}
 
-	_, err = store.SAdd(ctx, tmpKey, []string{"b"}, time.Hour)
+	err = stage(ctx, store, "b")
 	if err != nil {
 		return "", err
 	}
 
-	err = store.Swap(ctx, liveKey, tmpKey, oldKey, time.Hour)
+	result, _, err := store.Commit(ctx, tokenCommit(1, runToken))
 	if err != nil {
 		return "", err
 	}
@@ -104,34 +141,137 @@ func caseSwap(ctx context.Context, store segmentadmin.Store) (string, error) {
 
 	_, liveTTL, err := store.KeyTTL(ctx, liveKey)
 
-	return fmt.Sprintf("%d %t %t", live, oldExists && oldTTL > 0, liveTTL > 0), err
+	return fmt.Sprintf("%d %d %t %t", result, live, oldExists && oldTTL > 0, liveTTL > 0), err
 }
 
-func caseSwapNoLive(ctx context.Context, store segmentadmin.Store) (string, error) {
-	_, err := store.SAdd(ctx, tmpKey, []string{"b"}, time.Hour)
+func caseCommitNoLive(ctx context.Context, store segmentadmin.Store) (string, error) {
+	err := stage(ctx, store, "b")
 	if err != nil {
 		return "", err
 	}
 
-	err = store.Swap(ctx, liveKey, tmpKey, oldKey, time.Hour)
+	result, _, err := store.Commit(ctx, tokenCommit(1, runToken))
 	if err != nil {
 		return "", err
 	}
 
 	card, err := store.SCard(ctx, liveKey)
 
-	return strconv.FormatInt(card, 10), err
+	return fmt.Sprintf("%d %d", result, card), err
 }
 
-func caseSwapNoTemp(ctx context.Context, store segmentadmin.Store) (string, error) {
-	outcome := "swapped"
+// caseCommitRefused runs a commit that must not change anything and returns its result and the live cardinality.
+func caseCommitRefused(want int64, token string, drop bool) func(context.Context, segmentadmin.Store) (string, error) {
+	return func(ctx context.Context, store segmentadmin.Store) (string, error) {
+		_, err := store.SAdd(ctx, liveKey, []string{"a", "b", "c"}, 0)
+		if err != nil {
+			return "", err
+		}
 
-	err := store.Swap(ctx, liveKey, tmpKey, oldKey, time.Hour)
+		err = stage(ctx, store, "b")
+		if err != nil {
+			return "", err
+		}
+
+		if drop {
+			_, _, err = store.Unlink(ctx, tmpKey)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		result, _, err := store.Commit(ctx, tokenCommit(want, token))
+		if err != nil {
+			return "", err
+		}
+
+		live, err := store.SCard(ctx, liveKey)
+		if err != nil {
+			return "", err
+		}
+
+		oldExists, _, err := store.KeyTTL(ctx, oldKey)
+
+		return fmt.Sprintf("%d live=%d old=%t", result, live, oldExists), err
+	}
+}
+
+func caseCommitEmpty(ctx context.Context, store segmentadmin.Store) (string, error) {
+	_, err := store.SAdd(ctx, liveKey, []string{"a"}, 0)
 	if err != nil {
-		outcome = "failed"
+		return "", err
 	}
 
-	return outcome, nil
+	ok, err := store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil || !ok {
+		return "", fmt.Errorf("lock: %t: %w", ok, err)
+	}
+
+	result, _, err := store.Commit(ctx, tokenCommit(0, runToken))
+	if err != nil {
+		return "", err
+	}
+
+	exists, _, err := store.KeyTTL(ctx, liveKey)
+
+	return fmt.Sprintf("%d %t", result, exists), err
+}
+
+func caseLock(ctx context.Context, store segmentadmin.Store) (string, error) {
+	first, err := store.Lock(ctx, lockKey, runToken, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	second, err := store.Lock(ctx, lockKey, "other", time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	err = store.SetValue(ctx, lastKey, tmpKey)
+	if err != nil {
+		return "", err
+	}
+
+	err = store.Unlock(ctx, lockKey, lastKey, "other") // not the holder: nothing is removed
+	if err != nil {
+		return "", err
+	}
+
+	held, _, err := store.Value(ctx, lockKey)
+	if err != nil {
+		return "", err
+	}
+
+	err = store.Unlock(ctx, lockKey, lastKey, runToken)
+	if err != nil {
+		return "", err
+	}
+
+	_, stillLocked, err := store.Value(ctx, lockKey)
+	if err != nil {
+		return "", err
+	}
+
+	_, stillLast, err := store.Value(ctx, lastKey)
+
+	return fmt.Sprintf("%t %t %s locked=%t last=%t", first, second, held, stillLocked, stillLast), err
+}
+
+func caseStageLost(ctx context.Context, store segmentadmin.Store) (string, error) {
+	ok, err := store.Lock(ctx, lockKey, "other", time.Hour)
+	if err != nil || !ok {
+		return "", fmt.Errorf("lock: %t: %w", ok, err)
+	}
+
+	added, held, err := store.StageAdd(ctx, lockKey, tmpKey, runToken, []string{"a"}, time.Hour)
+	if err != nil {
+		return "", err
+	}
+
+	exists, _, err := store.KeyTTL(ctx, tmpKey)
+
+	return fmt.Sprintf("%d held=%t exists=%t", added, held, exists), err
 }
 
 func caseUnlink(ctx context.Context, store segmentadmin.Store) (string, error) {
@@ -327,7 +467,16 @@ func TestStore_serverDown(t *testing.T) {
 			require.ErrorIs(t, store.Ping(ctx), segmentadmin.ErrStore)
 			_, err = store.SAdd(ctx, liveKey, []string{"a"}, time.Hour)
 			require.ErrorIs(t, err, segmentadmin.ErrStore)
-			require.ErrorIs(t, store.Swap(ctx, liveKey, tmpKey, oldKey, time.Hour), segmentadmin.ErrStore)
+
+			_, _, stageErr := store.StageAdd(ctx, lockKey, tmpKey, runToken, []string{"a"}, time.Hour)
+			require.ErrorIs(t, stageErr, segmentadmin.ErrStore)
+
+			_, _, commitErr := store.Commit(ctx, tokenCommit(1, runToken))
+			require.ErrorIs(t, commitErr, segmentadmin.ErrStore)
+
+			_, locked := store.Lock(ctx, lockKey, runToken, time.Hour)
+			require.ErrorIs(t, locked, segmentadmin.ErrStore)
+			require.ErrorIs(t, store.Unlock(ctx, lockKey, lastKey, runToken), segmentadmin.ErrStore)
 			_, _, err = store.CountKeys(ctx, memberPrefix, 10)
 			require.ErrorIs(t, err, segmentadmin.ErrStore)
 		})

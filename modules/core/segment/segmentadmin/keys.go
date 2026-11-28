@@ -2,14 +2,11 @@ package segmentadmin
 
 import "strings"
 
-// Suffixes of the temporary keys of an import.
 const (
-	tmpSuffix = ":import:new"
-	oldSuffix = ":import:old"
-	slots     = 16384
-	crcBits   = 8
-	crcPoly   = 0x1021
-	crcTop    = 0x8000
+	slots   = 16384
+	crcBits = 8
+	crcPoly = 0x1021
+	crcTop  = 0x8000
 )
 
 // hashTag returns the part of a key that a cluster hashes, and whether the key has a hash tag.
@@ -48,20 +45,43 @@ func Slot(key string) int {
 	return int(crc) % slots
 }
 
-// TempKeys returns the key that an import fills (tmp) and the key that holds the replaced set until it is removed
-// (old). Both are in the cluster slot of the live key: they keep its hash tag, or, when the live key has none, are
-// wrapped in one that is the whole live key (which hashes like the key). The names are fixed for a segment, so a run
-// that follows a killed one finds and removes what it left.
-func TempKeys(live string) (string, string, error) {
+// RunKeys are the keys of one import. All are in the cluster slot of the live key, which the script of the swap needs.
+type RunKeys struct {
+	// Lock holds the token of the run that may import the segment.
+	Lock string
+	// Last holds the name of the temporary key of the run that holds the lock, so that the next run removes exactly
+	// that key when the run died (no SCAN, no KEYS).
+	Last string
+	// Tmp is filled by the run; its name holds the token of the run, so nothing else can recreate or share it.
+	Tmp string
+	// Old holds the replaced set until it is removed.
+	Old string
+	// base is the prefix of the keys: the live key, or the live key wrapped in a hash tag.
+	base string
+}
+
+// ImportKeys returns the keys of the run of an import with a token. They keep the hash tag of the live key, or, when
+// the live key has none, wrap the live key in one (which hashes like the key). A key whose tag cannot be shared is
+// refused.
+func ImportKeys(live, token string) (RunKeys, error) {
 	base := live
 	if _, tagged := hashTag(live); !tagged {
 		base = "{" + live + "}"
 	}
 
-	tmp, old := base+tmpSuffix, base+oldSuffix
-	if Slot(tmp) != Slot(live) || Slot(old) != Slot(live) {
-		return "", "", ErrNoSlotTag
+	keys := RunKeys{
+		Lock: base + ":import:lock", Last: base + ":import:last", Tmp: base + ":import:" + token + ":new",
+		Old: base + ":import:" + token + ":old", base: base,
 	}
 
-	return tmp, old, nil
+	for _, key := range []string{keys.Lock, keys.Last, keys.Tmp, keys.Old} {
+		if Slot(key) != Slot(live) {
+			return RunKeys{}, ErrNoSlotTag
+		}
+	}
+
+	return keys, nil
 }
+
+// Owns tells whether a key is one that an import of the segment names (a leftover of a dead run).
+func (k *RunKeys) Owns(key string) bool { return strings.HasPrefix(key, k.base+":import:") }

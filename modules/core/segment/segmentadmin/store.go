@@ -19,6 +19,17 @@ var (
 	// ErrTempGone is returned when the temporary key is gone before the swap (it expired or was removed): nothing
 	// was swapped.
 	ErrTempGone = errors.New("the temporary key is gone before the swap: raise --temp-ttl")
+	// ErrIncomplete is returned when the temporary key does not hold what the run wrote (it expired and was
+	// recreated, or changed): nothing was swapped.
+	ErrIncomplete = errors.New("the temporary key does not hold the members that were written: nothing was swapped")
+	// ErrLockLost is returned when another run holds the lock when this one writes or swaps (the lock expired):
+	// nothing was swapped.
+	ErrLockLost = errors.New("the import lock is held by another run: nothing was swapped")
+	// ErrImportRunning is returned when another import of the segment holds the lock. A lock that a dead run left
+	// expires after its ttl.
+	ErrImportRunning = errors.New("another import of this segment is running (a dead run's lock expires by its ttl)")
+	// ErrPartial is returned when an add or a remove applied only a part of the ids.
+	ErrPartial = errors.New("partially applied")
 	// ErrNoSlotTag is returned for a key that cannot get a temporary key in its cluster slot.
 	ErrNoSlotTag = errors.New("the key has a hash tag that cannot be shared by a temporary key")
 	// ErrBadOptions is returned for options out of their bounds.
@@ -27,15 +38,11 @@ var (
 	ErrSwapped = errors.New("the change is in the store, but a later step failed")
 	// ErrStore is the root of the errors of a store command. The command is named, never its arguments.
 	ErrStore = errors.New("segment store")
-
-	errShortReply = errors.New("the reply of the transaction is short")
 )
 
 const (
 	// scanCount is the COUNT hint of a SCAN call.
 	scanCount = 1000
-	// swapReplies is the commands in the transaction of a swap.
-	swapReplies = 4
 	// ttlMissing and ttlNone are the replies of PTTL for a missing key and a key without expiry.
 	ttlMissing = -2
 	ttlNone    = -1
@@ -63,10 +70,6 @@ type Mutator interface {
 	SRem(ctx context.Context, key string, members []string) (int64, error)
 	// SetKeys creates the keys (one key for each member of the keys layout) and returns how many were new.
 	SetKeys(ctx context.Context, keys []string) (int64, error)
-	// Swap makes tmp the live key and keeps what was live under old, with the expiry oldTTL, in one MULTI/EXEC: a
-	// reader sees the whole old set or the whole new set. A live key that does not exist is not an error. The keys
-	// must be in one cluster slot.
-	Swap(ctx context.Context, live, tmp, old string, oldTTL time.Duration) error
 	// Unlink removes keys without blocking the server (UNLINK) and returns how many existed. A server that has no
 	// UNLINK is sent DEL, and fellBack says so.
 	Unlink(ctx context.Context, keys ...string) (removed int64, fellBack bool, err error)
@@ -86,10 +89,54 @@ type Inspector interface {
 	CountKeys(ctx context.Context, prefix string, limit int) (count int, more bool, err error)
 }
 
+// CommitResult is what the conditional swap did.
+type CommitResult int
+
+const (
+	// Committed means that the new set is live.
+	Committed CommitResult = iota
+	// LockLost means that the lock did not hold the token of the run: nothing changed.
+	LockLost
+	// TempGone means that the temporary key does not exist: nothing changed.
+	TempGone
+	// CountMismatch means that the temporary key does not hold the members that were written: nothing changed.
+	CountMismatch
+)
+
+// Commit is the conditional swap of an import. Every key must be in one cluster slot.
+type Commit struct {
+	// Lock, Tmp, Live and Old are the keys. Last is the key that names the temporary key.
+	Lock, Tmp, Live, Old, Last string
+	// Token is the token of the run.
+	Token string
+	// Want is the cardinality that the temporary key must have. Zero is the explicit empty import: the live key is
+	// removed, if the lock still holds the token.
+	Want int64
+	// OldTTL is the expiry of the replaced set.
+	OldTTL time.Duration
+}
+
+// Locker is the commands of the lock and of the conditional swap of an import.
+type Locker interface {
+	// Lock takes the lock key with the token for ttl (SET NX PX) and tells whether it was free.
+	Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error)
+	// Unlock removes the lock and the last key if, and only if, the lock still holds the token.
+	Unlock(ctx context.Context, lock, last, token string) error
+	// StageAdd adds members to the temporary key, and refreshes its expiry and the one of the lock, if, and only if,
+	// the lock holds the token (held is false otherwise, and nothing was written).
+	StageAdd(ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration) (
+		added int64, held bool, err error)
+	// Commit swaps in one step on the server: if the lock holds the token, the temporary key exists and has Want
+	// members, the live key moves to Old (with its expiry), the temporary key becomes the live key and loses its
+	// expiry. Otherwise nothing changes. fellBack is true when the empty path had to use DEL.
+	Commit(ctx context.Context, commit *Commit) (result CommitResult, fellBack bool, err error)
+}
+
 // Store is the write side of a segment store. An implementation exists for each client library.
 type Store interface {
 	Mutator
 	Inspector
+	Locker
 	// Ping checks the connection.
 	Ping(ctx context.Context) error
 	// Close releases the client.

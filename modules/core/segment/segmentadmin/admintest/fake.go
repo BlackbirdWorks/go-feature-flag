@@ -17,9 +17,6 @@ import (
 // ErrInjected is the failure that [Fake.Fail] returns.
 var ErrInjected = errors.New("injected failure")
 
-// ErrNoSuchKey is the failure of a swap whose temporary key does not exist.
-var ErrNoSuchKey = errors.New("ERR no such key")
-
 // ErrCrossSlot is the failure of a swap whose keys are not in one cluster slot.
 var ErrCrossSlot = errors.New("CROSSSLOT keys in request don't hash to the same slot")
 
@@ -198,37 +195,147 @@ func (f *Fake) SetKeys(ctx context.Context, keys []string) (int64, error) {
 	return created, nil
 }
 
-// Swap implements [segmentadmin.Store]: it fails when the keys are not in one slot, as a cluster does.
-func (f *Fake) Swap(ctx context.Context, live, tmp, old string, oldTTL time.Duration) error {
+// Lock implements [segmentadmin.Store]: SET NX.
+func (f *Fake) Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	err := f.enter(ctx, "SWAP", live)
+	err := f.enter(ctx, "LOCK", key)
+	if err != nil {
+		return false, err
+	}
+
+	if _, held := f.strs[key]; held {
+		return false, nil
+	}
+
+	f.strs[key] = token
+	f.ttls[key] = ttl
+
+	return true, nil
+}
+
+// Unlock implements [segmentadmin.Store]: the compare and delete.
+func (f *Fake) Unlock(ctx context.Context, lock, last, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	err := f.enter(ctx, "UNLOCK", lock)
 	if err != nil {
 		return err
 	}
 
-	if segmentadmin.Slot(live) != segmentadmin.Slot(tmp) || segmentadmin.Slot(live) != segmentadmin.Slot(old) {
-		return ErrCrossSlot
+	if f.strs[lock] == token {
+		delete(f.strs, lock)
+		delete(f.strs, last)
+		delete(f.ttls, lock)
 	}
-
-	if set, ok := f.sets[live]; ok {
-		f.sets[old] = set
-		f.ttls[old] = oldTTL
-	}
-
-	delete(f.sets, live)
-
-	set, ok := f.sets[tmp]
-	if !ok {
-		return ErrNoSuchKey // the live key has been moved already: a transaction does not roll back
-	}
-
-	f.sets[live] = set
-	delete(f.sets, tmp)
-	delete(f.ttls, tmp) // the expiry is dropped by PERSIST
 
 	return nil
+}
+
+// StageAdd implements [segmentadmin.Store]: the batch is written only while the lock holds the token.
+func (f *Fake) StageAdd(
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
+) (int64, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	err := f.enter(ctx, "SADD", tmp)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if f.strs[lock] != token {
+		return 0, false, nil
+	}
+
+	set := f.sets[tmp]
+	if set == nil {
+		set = map[string]struct{}{}
+		f.sets[tmp] = set
+	}
+
+	var added int64
+
+	for _, member := range members {
+		if _, ok := set[member]; !ok {
+			set[member] = struct{}{}
+			added++
+		}
+	}
+
+	f.ttls[tmp], f.ttls[lock] = ttl, ttl
+
+	return added, true, nil
+}
+
+// Commit implements [segmentadmin.Store]: the conditional swap, in one step as the script does it.
+func (f *Fake) Commit(ctx context.Context, commit *segmentadmin.Commit) (segmentadmin.CommitResult, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	err := f.enter(ctx, "SWAP", commit.Live)
+	if err != nil {
+		return segmentadmin.LockLost, false, err
+	}
+
+	for _, key := range []string{commit.Tmp, commit.Old, commit.Lock} {
+		if segmentadmin.Slot(key) != segmentadmin.Slot(commit.Live) {
+			return segmentadmin.LockLost, false, ErrCrossSlot
+		}
+	}
+
+	switch {
+	case f.strs[commit.Lock] != commit.Token:
+		return segmentadmin.LockLost, false, nil
+	case commit.Want == 0:
+		delete(f.sets, commit.Live)
+		delete(f.ttls, commit.Live)
+
+		return segmentadmin.Committed, f.noUnlink, nil
+	}
+
+	set, ok := f.sets[commit.Tmp]
+
+	switch {
+	case !ok:
+		return segmentadmin.TempGone, false, nil
+	case int64(len(set)) != commit.Want:
+		return segmentadmin.CountMismatch, false, nil
+	}
+
+	if live, exists := f.sets[commit.Live]; exists {
+		f.sets[commit.Old] = live
+		f.ttls[commit.Old] = commit.OldTTL
+	}
+
+	f.sets[commit.Live] = set
+	delete(f.sets, commit.Tmp)
+	delete(f.ttls, commit.Tmp)
+	delete(f.ttls, commit.Live) // PERSIST
+
+	return segmentadmin.Committed, false, nil
+}
+
+// Delete removes keys without a command and without a record, as an expiry would.
+func (f *Fake) Delete(keys ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for _, key := range keys {
+		delete(f.sets, key)
+		delete(f.strs, key)
+		delete(f.ttls, key)
+	}
+}
+
+// Put sets a string key without a command and without a record: another run that took a lock, say.
+func (f *Fake) Put(key, value string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.strs[key] = value
 }
 
 // Unlink implements [segmentadmin.Store].

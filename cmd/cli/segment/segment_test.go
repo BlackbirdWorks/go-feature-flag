@@ -8,6 +8,7 @@ import (
 	"maps"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,6 +21,7 @@ import (
 )
 
 const (
+	wantAdded1    = "added: 1"
 	flagSegments  = "--segments"
 	flagSegment   = "--segment"
 	cmdImport     = "import"
@@ -81,6 +83,22 @@ func runCmd(t *testing.T, store *admintest.Fake, stdin string, files map[string]
 
 	var out, errOut bytes.Buffer
 
+	err := runWith(
+		t.Context(),
+		store,
+		strings.NewReader(stdin),
+		files,
+		&helper.Streams{Stdout: &out, Stderr: &errOut},
+		args,
+	)
+
+	return &outcome{stdout: out.String(), stderr: errOut.String(), err: err}
+}
+
+func runWith(
+	ctx context.Context, store *admintest.Fake, stdin io.Reader, files map[string]string, streams *helper.Streams,
+	args []string,
+) error {
 	deps := segment.Deps{
 		LookupEnv: func(string) (string, bool) { return "", false },
 		ReadFile: func(name string) ([]byte, error) {
@@ -90,7 +108,7 @@ func runCmd(t *testing.T, store *admintest.Fake, stdin string, files map[string]
 
 			return nil, io.ErrUnexpectedEOF
 		},
-		Stdin: strings.NewReader(stdin),
+		Stdin: stdin,
 		Open: func(name string) (io.ReadCloser, error) {
 			if body, ok := files[name]; ok {
 				return io.NopCloser(strings.NewReader(body)), nil
@@ -107,9 +125,7 @@ func runCmd(t *testing.T, store *admintest.Fake, stdin string, files map[string]
 		},
 	}
 
-	err := segment.Run(t.Context(), args, &helper.Streams{Stdout: &out, Stderr: &errOut}, deps)
-
-	return &outcome{stdout: out.String(), stderr: errOut.String(), err: err}
+	return segment.Run(ctx, args, streams, deps)
 }
 
 func files() map[string]string {
@@ -130,6 +146,7 @@ func TestRun(t *testing.T) {
 		stdin        string
 		name         string
 		wantNoOutput string
+		lockedBy     string
 		preload      []string
 		wantOut      []string
 		args         []string
@@ -146,7 +163,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name: "import from standard input", args: append([]string{cmdImport, flagFrom, "-"}, common("vip")...),
-			stdin: "x\n", wantOut: []string{"added: 1"}, wantMembers: []string{"x"}, wantVersion: true,
+			stdin: "x\n", wantOut: []string{wantAdded1}, wantMembers: []string{"x"}, wantVersion: true,
 		},
 		{
 			name:  "import csv with rejected lines",
@@ -206,13 +223,30 @@ func TestRun(t *testing.T) {
 			name:        "add from standard input",
 			args:        append([]string{cmdAdd, flagFrom, "-"}, common("vip")...),
 			stdin:       "q\n",
-			wantOut:     []string{"added: 1"},
+			wantOut:     []string{wantAdded1},
 			wantMembers: []string{"q"},
 			wantVersion: true,
 		},
 		{
 			name: cmdRemove, args: append([]string{cmdRemove, "A"}, common("vip")...), preload: []string{"a", "b"},
 			wantOut: []string{"removed: 1"}, wantMembers: []string{"b"}, wantVersion: true,
+		},
+		{
+			name: "a line bound under the minimum is invalid input",
+			args: append([]string{cmdImport, flagFrom, "-", "--max-line-bytes", "4"}, common("vip")...), stdin: "a\n",
+			wantErr: segmentadmin.ErrBadOptions, wantCode: helper.ExitInvalid,
+		},
+		{
+			name: "an import that finds the lock taken is a conflict", lockedBy: "other", preload: []string{"old"},
+			args: append([]string{cmdImport, flagFrom, "-"}, common("vip")...), stdin: "a\n",
+			wantErr: segmentadmin.ErrImportRunning, wantCode: helper.ExitConflict, wantMembers: []string{"old"},
+		},
+		{
+			name:        "an id with a line break is rejected, not split",
+			args:        append([]string{cmdAdd, "a\nb", "ok"}, common("vip")...),
+			wantOut:     []string{wantAdded1, "rejected invalid: 1"},
+			wantMembers: []string{"ok"},
+			wantVersion: true,
 		},
 		{
 			name: "add without an id", args: append([]string{cmdAdd}, common("vip")...),
@@ -280,6 +314,10 @@ func TestRun(t *testing.T) {
 
 			if tt.failOp != "" {
 				store.Fail(tt.failOp, 1)
+			}
+
+			if tt.lockedBy != "" {
+				store.Put(liveKey+":import:lock", tt.lockedBy)
 			}
 
 			docs := files()
@@ -452,4 +490,53 @@ func TestHelpVars(t *testing.T) {
 	t.Parallel()
 
 	assert.Contains(t, segment.HelpVars(), "helpSegment")
+}
+
+func TestRun_inputThatNeverEnds(t *testing.T) {
+	t.Parallel()
+
+	pipeReader, pipeWriter := io.Pipe()
+
+	t.Cleanup(func() { _ = pipeWriter.Close() })
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	store := admintest.New()
+	result := make(chan error, 1)
+
+	go func() {
+		var out, errOut bytes.Buffer
+
+		result <- runWith(ctx, store, pipeReader, files(), &helper.Streams{Stdout: &out, Stderr: &errOut},
+			append([]string{cmdImport, flagFrom, "-"}, common("vip")...))
+	}()
+
+	require.Eventually(t, func() bool { return len(store.Calls()) > 0 }, 10*time.Second, time.Millisecond,
+		"the import did not start")
+	cancel()
+
+	select {
+	case err := <-result:
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "the command did not stop with its context")
+	}
+
+	assert.Empty(t, store.Keys(), "nothing is left in the store")
+}
+
+type failingWriter struct{}
+
+var errWrite = errors.New("write failed")
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errWrite }
+
+func TestRun_resultWriteError(t *testing.T) {
+	t.Parallel()
+
+	err := runWith(t.Context(), admintest.New(), strings.NewReader("a\n"), files(),
+		&helper.Streams{Stdout: failingWriter{}, Stderr: io.Discard},
+		append([]string{cmdImport, flagFrom, "-"}, common("vip")...))
+	require.ErrorIs(t, err, errWrite)
 }

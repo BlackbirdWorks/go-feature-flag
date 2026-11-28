@@ -53,18 +53,16 @@ column of a CSV line (`--format csv --column n`; a quoted field cannot hold a li
 - `--batch-size` (default 1000, at most 100000) is the ids of one `SADD`; `--temp-ttl` (default 1h) is the life of the temporary key.
 - The `keys` layout is refused (exit 2): it has no single key to swap, and any other protocol shows the relay a half built segment. Use `add` and `remove` for it.
 
-The steps, in this order:
+The protocol is safe by construction, not by narrow windows:
 
-1. Remove the temporary keys that a killed run of the same segment left.
-2. `SADD` the batches to the temporary key. Each batch refreshes its `PEXPIRE`.
-3. `MULTI`: `RENAME live old`, `RENAME temporary live`, `PERSIST live`, `PEXPIRE old`; `EXEC`. A reader sees the whole old set or the whole new set.
-4. `SET` the version key (when the definition has `version.key`) to the time of the swap, so that the relay sees the change. The swap comes first, the bump second.
-5. `UNLINK old`, which frees the old set in the background. A server without `UNLINK` (Redis before 4.0) gets `DEL`, and the report says so.
+1. **Lock.** `SET <key>:import:lock <token> NX PX <ttl>`. A second import of the segment fails at once (exit 3, "another import of this segment is running"). There is no `--force`: the lock of a dead run expires by its ttl (`--temp-ttl`, default 1h). Every batch refreshes the lock, and the lock is released at the end only if it still holds the token of the run.
+2. **Temporary key.** `<key>:import:<token>:new`: the name holds the token of the run, so no other run can share it or recreate it. The run records the name in `<key>:import:last`; the next run removes exactly that key if a dead run left it. This is a plain `GET` and `UNLINK`, not a `SCAN` (a scan of a slot is unbounded work; the recorded name is O(1)).
+3. **Batches.** Each batch is one script call that checks the token of the lock, `SADD`s at most 1000 ids at a time, and refreshes the ttl of the temporary key and of the lock. A batch is refused if the lock is no longer the run's.
+4. **Conditional swap.** One script on the server, keys in one slot. It swaps only if the lock still holds the token of the run, the temporary key exists, and its cardinality is exactly the number of distinct ids that the run wrote. Then `RENAME live old` (with a ttl for `old`), `RENAME temporary live`, `PERSIST live`. If any condition fails, nothing changes: the live set is not moved, and the run exits non-zero (`the temporary key is gone`, `does not hold the members that were written`, or `the import lock is held by another run`, exit 3). An empty import (`--allow-empty`) is its own path: the script removes the live key, only if the lock is the run's.
+5. **Version bump**, when the definition has `version.key`: the swap comes first, the bump second.
+6. **`UNLINK old`**, which frees the old set in the background. A server without `UNLINK` (Redis before 4.0) gets `DEL`; the report says so, and warns when the replaced set had more than 100,000 members, because `DEL` of a large set can block the server.
 
-Interruption: a cancelled context, a lost connection or SIGINT/SIGTERM before step 3 leaves the live set untouched and
-removes the temporary key. A process that is killed leaves a key that expires after `--temp-ttl` and that the next run removes.
-A failure after step 3 is reported as such (the new set is live); the old set expires in `--temp-ttl` if step 5 failed.
-Run one import of a segment at a time: the temporary key has one name for each segment.
+Interruption: a cancelled context, a lost connection or SIGINT/SIGTERM (a read of standard input that blocks ends with the signal; a second signal ends the process at once) before step 4 leaves the live set untouched. The cleanup of the temporary key and of the lock is best effort, with its own timeout: when it fails, the temporary key expires by its ttl, the lock expires by its ttl, and the next run removes the recorded key. A failure after step 4 is reported as such (the new set is live); the old set expires in `--temp-ttl` if step 6 failed.
 
 ## Add and remove
 
@@ -74,7 +72,7 @@ semaphore-cli segment remove --config relay.yaml --segments segments.yaml --segm
 ```
 
 Small edits of the live key (`SADD` and `SREM` for the `set` layout, `SET NX` and `UNLINK` of `<key><id>` for `keys`), then the version bump.
-The ids are normalised like an import. Without `--from`, the ids are the arguments.
+The ids are normalised like an import. Without `--from`, the ids are the arguments; each argument is one id (an id with a line break or another control character is rejected and counted, as in a file). If a batch fails after others were applied, the version is still bumped, and the command exits non-zero with `partially applied: N of M ids applied`.
 
 ## Stat
 
@@ -82,13 +80,13 @@ The ids are normalised like an import. Without `--from`, the ids are the argumen
 semaphore-cli segment stat --config relay.yaml --segments segments.yaml --segment vip
 ```
 
-Prints whether the segment exists, its members (`SCARD`; for `keys`, counted by `SCAN` up to `--scan-limit`, printed as `at least N` when it is hit),
+Prints whether the segment exists, its members (`SCARD`; for `keys`, distinct keys counted by `SCAN` up to `--scan-limit`, default 100,000, printed as `at least N` when it is hit; memory is bounded by that limit),
 the version token and the ttl of the set when it has one.
 
 ## Output and exit codes
 
 - Counts only: no id is printed, logged (`--debug` logs the steps to stderr) or put in an error.
-- 0 done, 1 failure, 2 invalid input (empty input, the `keys` layout, bad options), 4 the store failed.
+- 0 done, 1 failure, 2 invalid input (empty input, the `keys` layout, bad options such as `--max-line-bytes` under 16), 3 conflict (another import holds the lock, or the swap condition did not hold: nothing changed), 4 the store failed.
 
 ## Data contract
 
@@ -99,21 +97,21 @@ Key layouts (see [Redis](../configure-flags/segments-redis.md) and [Valkey](../c
 | `set` (default) | `key` of the definition, or `<keyPrefix>{<name>}` (prefix `semaphore:segment:`) | one set |
 | `keys` | `key` of the definition (a prefix), or `<keyPrefix><name>:` | one key `<prefix><id>` for each member |
 
-- The default set key holds the segment name in a hash tag. The temporary keys keep the tag of the live key (`<key>:import:new`, `<key>:import:old`), or, for a key without a tag, wrap the key in one (`{<key>}:import:new`), so that they are in the cluster slot of the live key and the swap works on a cluster. A key whose tag cannot be shared is refused.
+- The default set key holds the segment name in a hash tag. The keys of an import (`<key>:import:lock`, `<key>:import:last`, `<key>:import:<token>:new`, `<key>:import:<token>:old`) keep the tag of the live key, or, for a key without a tag, wrap the key in one (`{<key>}:import:...`), so that they are in the cluster slot of the live key and the scripts work on a cluster. A key whose tag cannot be shared is refused.
 - The version key is a string: the time of the last change. Keep it outside the prefix of a `keys` segment, or `stat` counts it.
-- The temporary key has a ttl from its first batch (`--temp-ttl`, refreshed by each batch). The live key has no ttl: `PERSIST` removes the one that `RENAME` carries over.
+- The temporary key and the lock have a ttl from the first batch (`--temp-ttl`, refreshed by each batch). The live key has no ttl: `PERSIST` removes the one that `RENAME` carries over.
 
 ACL of the relay (read only) and of the writer, side by side. The writer line lists every command the tool sends:
 
 ```text
 ACL SETUSER relay on >secret ~semaphore:segment:* resetchannels -@all +ping +hello +client +smismember +exists +get +sscan
-ACL SETUSER segwriter on >secret ~semaphore:segment:* ~audiences:* resetchannels -@all +ping +hello +client +cluster|slots +cluster|shards +role +multi +exec +sadd +srem +set +get +rename +persist +pexpire +unlink +del +scard +pttl +scan
+ACL SETUSER segwriter on >secret ~semaphore:segment:* ~audiences:* resetchannels -@all +ping +hello +client +cluster|slots +cluster|shards +role +eval +evalsha +get +set +sadd +srem +scard +exists +rename +persist +pexpire +pttl +scan +unlink +del
 ```
 
-- `+cluster|...` and `+role` are for a cluster client and for `stat` of a `keys` segment on a cluster. `+del` is for the fallback only. Adapt the key patterns to your keys.
+- `+eval` and `+evalsha` run the three scripts (batch, swap, unlock); the commands inside them (`get`, `set`, `sadd`, `scard`, `exists`, `rename`, `persist`, `pexpire`, `unlink`, `del`) are checked against the user too. `+cluster|...` and `+role` are for a cluster client and for `stat` of a `keys` segment on a cluster. `+del` is for the fallback only. Adapt the key patterns to your keys. A test makes a user from exactly this line and runs every command of the tool with it.
 - Lazy free: `UNLINK` frees in a background thread whatever the settings. The `RENAME` that puts the new set live never frees a set, because the old one has been moved to its own key first. Set `lazyfree-lazy-user-del yes` anyway if other tools use `DEL` on these keys.
 - Memory: during a rebuild the store holds the old set, the new set and the old set until `UNLINK` has run. The peak is about old plus new. Plan for it.
-- A batch is one command of at most `--batch-size` members, so no command runs long and no other command waits for the import. There is no `KEYS`, no `DEL` of a large key and no script over the whole set.
+- A batch is one script call of at most `--batch-size` members (scripts add them 1000 at a time), so no command runs long and no other command waits for the import. There is no `KEYS`, no `SCAN` and no script over the whole set. `UNLINK` frees the old set in the background; the `DEL` fallback of a server without `UNLINK` can block while it frees a large set.
 
 ## Measured
 
