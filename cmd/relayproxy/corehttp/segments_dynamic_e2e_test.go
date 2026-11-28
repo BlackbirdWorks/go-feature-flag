@@ -171,13 +171,9 @@ func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 
 	counts, state = segmentsInfo(t, infoOf(t, rig))
 	assert.Equal(t, string(flagruntime.ObjectOK), state)
-	require.NotNil(t, counts.DynamicStates)
-	assert.Equal(t, 1, counts.Static)
-	assert.Equal(t, 1, counts.Dynamic)
-	assert.Equal(t, 1, counts.DynamicStates.Valid)
-	// Nothing asked the dead store: it reads healthy once its connection was dialled (the dial is made when the
-	// generation binds, in the background) and in store error before, so the test accepts both and counts it once.
-	assert.Equal(t, 1, counts.DynamicStates.Healthy+counts.DynamicStates.StoreError, "the segment is counted once")
+	assert.Equal(t, model.SegmentCountsInfo{
+		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1, StoreError: 1},
+	}, *counts)
 
 	assert.Equal(t, 0, dynamicSegmentGauge(t, rig, "rejected"))
 	assert.Equal(t, 1, dynamicSegmentGauge(t, rig, "valid"))

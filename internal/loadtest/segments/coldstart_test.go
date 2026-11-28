@@ -68,4 +68,7 @@ func TestColdStart_FirstRequestsOnAHealthyStore(t *testing.T) {
 
 	t.Logf("first healthy answer %s after the start", time.Since(started).Round(time.Millisecond))
 	assert.Zero(t, failed.Load(), "no request failed")
+	// the dial is made when the generation binds, before the relay is ready: a burst after the start finds the
+	// connection up, even on a slow machine (before the fix all of the burst answered STORE_ERROR)
+	assert.Zero(t, storeErrs.Load(), "a healthy store answers the first requests")
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -199,4 +200,38 @@ func TestProxy_SetTargetRedirectsNewConnections(t *testing.T) {
 	got, err := roundTrip(dial(t, proxy), "moved")
 	require.NoError(t, err)
 	assert.Equal(t, "moved\n", got)
+}
+
+// A refused connection never reaches the target: the proxy checks before it dials.
+func TestProxy_RefuseDoesNotDialTheTarget(t *testing.T) {
+	t.Parallel()
+
+	target, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = target.Close() })
+
+	var dialled atomic.Int64
+
+	go func() {
+		for {
+			conn, acceptErr := target.Accept()
+			if acceptErr != nil {
+				return
+			}
+
+			dialled.Add(1)
+
+			_ = conn.Close()
+		}
+	}()
+
+	proxy, err := testproxy.Start(target.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(proxy.Close)
+
+	proxy.SetRefuse(true)
+
+	_, err = roundTrip(dial(t, proxy), "refused")
+	require.Error(t, err, "the proxy closed the connection")
+	assert.Zero(t, dialled.Load(), "the target saw no connection")
 }

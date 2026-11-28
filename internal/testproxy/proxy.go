@@ -109,6 +109,23 @@ func (p *Proxy) currentTarget() string {
 	return p.target
 }
 
+func (p *Proxy) refusing() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.refuse || p.closed
+}
+
+// untrack forgets the connections that a pump closed.
+func (p *Proxy) untrack(conns ...net.Conn) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, conn := range conns {
+		delete(p.conns, conn)
+	}
+}
+
 // track registers a connection, and reports false when the proxy refuses or is closed.
 func (p *Proxy) track(conns ...net.Conn) bool {
 	p.mu.Lock()
@@ -132,6 +149,12 @@ func (p *Proxy) accept() {
 			return
 		}
 
+		if p.refusing() {
+			_ = client.Close()
+
+			continue
+		}
+
 		upstream, err := (&net.Dialer{Timeout: dialTimeout}).DialContext(context.Background(), "tcp", p.currentTarget())
 		if err != nil || !p.track(client, upstream) {
 			_ = client.Close()
@@ -153,6 +176,8 @@ func (p *Proxy) pump(dst, src net.Conn) {
 	defer func() {
 		_ = dst.Close()
 		_ = src.Close()
+
+		p.untrack(dst, src)
 	}()
 
 	buf := make([]byte, chunkSize)
