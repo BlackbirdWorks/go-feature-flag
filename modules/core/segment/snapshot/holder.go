@@ -128,7 +128,16 @@ func (h *Holder) Lookup(id string) segment.State {
 // It does not allocate and does not lock.
 func (h *Holder) Answer(id string) (segment.State, segment.Status) {
 	cur := h.cur.Load()
-	if cur == nil || cur.set == nil {
+	if cur == nil {
+		return segment.Unknown, segment.StatusStoreError
+	}
+
+	if cur.set == nil {
+		if cur.missing {
+			// the store answered that the segment is missing and the policy is unknown: that is an answer, not a failure
+			return segment.Unknown, segment.StatusHealthy
+		}
+
 		return segment.Unknown, segment.StatusStoreError
 	}
 

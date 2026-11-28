@@ -345,27 +345,15 @@ func TestRunSegmentVersions(t *testing.T) {
 
 	var (
 		failures atomic.Int32
-		release  = make(chan struct{})
-		entered  = make(chan struct{}, 64)
+		tick     = newTicker()
 		done     = make(chan struct{})
 	)
-
-	wait := func(ctx context.Context, _ time.Duration) error {
-		entered <- struct{}{}
-
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-release:
-			return nil
-		}
-	}
 
 	go func() {
 		defer close(done)
 
 		flagruntime.RunSegmentVersions(ctx, holder, &flagruntime.SegmentPoll{
-			Wait: wait, Tick: time.Second, OnError: func(error) { failures.Add(1) },
+			Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second, OnError: func(error) { failures.Add(1) },
 		})
 	}()
 
@@ -378,7 +366,6 @@ func TestRunSegmentVersions(t *testing.T) {
 	}
 
 	source.Fail(segment.OpVersion, errStoreDown)
-	bounded("the watcher did not wait", entered)
 
 	// the ticks of one second: the first poll is due at once, the next one five seconds later
 	steps := []struct {
@@ -394,9 +381,7 @@ func TestRunSegmentVersions(t *testing.T) {
 	}
 
 	for _, step := range steps {
-		release <- struct{}{}
-
-		bounded("the watcher did not wait again", entered)
+		tick.tick(t, 1)
 		assert.Equal(t, step.wantFailures, failures.Load(), step.name)
 	}
 

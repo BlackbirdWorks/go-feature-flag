@@ -43,7 +43,7 @@ func series(t *testing.T, rig *v2, family, label, value string) (float64, bool) 
 func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection, cold: true})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t), cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocGood)}
 	rig.sets = []controlplane.FlagSet{{
@@ -89,7 +89,7 @@ func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 func TestE2E_SnapshotSegmentsAreObservable(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection, cold: true})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t), cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(
 		segHeaderYAML + "  - name: audience\n    connection: audiences\n")}

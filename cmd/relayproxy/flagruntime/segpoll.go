@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
@@ -20,11 +21,15 @@ type SegmentPoll struct {
 	Wait Wait
 	// Jitter returns a duration in [0, limit): the spread of the first poll of a binding. Nil means no spread.
 	Jitter func(limit time.Duration) time.Duration
-	// Logger (optional) receives one line for each failure that is new and for each change of the state of a connection
-	// (down, then works again). Nil discards.
+	// Logger (optional) receives one line for each change of the state of a connection (down, then works again), and one
+	// for a set that fails while its store works. The failures of a store that is down are detail (debug). Nil discards.
 	Logger *slog.Logger
 	// OnError (optional) receives the failures of a poll. A holder that fails the same way as before is reported once.
+	// It is called from the pass of a connection, so it may run beside another call.
 	OnError func(error)
+	// OnPass (optional) is called with true when the loop starts the pass of a connection and with false when the pass
+	// ends: for a test or a metric, never on the request path.
+	OnPass func(connection string, running bool)
 	// OnConnection (optional) is called when the store of a connection starts failing (down) or works again, never
 	// for each evaluation or poll.
 	OnConnection func(connection string, down bool)
@@ -49,15 +54,17 @@ func RandomSpread(limit time.Duration) time.Duration {
 
 // RunSegmentVersions refreshes the dynamic segments of the current runtime every tick, off the request path, until ctx
 // ends (or Wait fails): it reads the version keys of the lookup segments and refreshes the holders of the snapshot
-// segments. Each distinct binding is polled once when its interval is due, however many flag sets use it; the bindings
-// of one connection are polled in order, and each connection in a pass of its own bounded by the interval, so a store
-// that hangs delays no other. The time of the loop is the sum of the ticks it waited, so it needs no wall clock and a
-// test that drives Wait drives the polls. The loop is owned by the run context of the relay and joins its passes.
+// segments. Each distinct binding is polled once when its interval is due, however many flag sets use it. The bindings
+// of one connection are polled in order in a pass of their own; the loop never waits for a pass, and a connection whose
+// pass still runs is skipped, so a store that hangs delays no other connection and there is at most one pass for each
+// connection. Each holder refresh has its own deadline ([DefaultPullTimeout]). The time of the loop is the sum of the
+// ticks it waited, so it needs no wall clock and a test that drives Wait drives the polls. The loop is owned by the run
+// context of the relay; the passes end with it, and it returns after them.
 func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) {
-	var (
-		now  = time.Unix(0, 0)
-		down = map[string]bool{}
-	)
+	run := &passRunner{poll: poll, running: map[string]*atomic.Bool{}}
+	now := time.Unix(0, 0)
+
+	defer run.passes.Wait()
 
 	for {
 		if poll.Wait(ctx, poll.Tick) != nil {
@@ -69,27 +76,119 @@ func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) 
 		due := map[string][]*segBinding{}
 
 		for _, b := range bindings {
-			if b.due(now, poll.Jitter) {
+			if !run.busy(b.connection) && b.due(now, poll.Jitter) {
 				due[b.connection] = append(due[b.connection], b)
 			}
 		}
 
-		runPasses(ctx, due, now, poll.reportError(ctx))
-		reportConnections(bindings, down, poll.reportConnection(ctx))
+		byConn := map[string][]*segBinding{}
+		for _, b := range bindings {
+			byConn[b.connection] = append(byConn[b.connection], b)
+		}
+
+		for _, name := range slices.Sorted(maps.Keys(due)) {
+			run.start(ctx, name, due[name], byConn[name], now)
+		}
+
+		for _, name := range slices.Sorted(maps.Keys(byConn)) {
+			run.report(ctx, name, byConn[name])
+		}
 	}
 }
 
-// reportError logs a failure that is new and passes it to OnError.
-func (p *SegmentPoll) reportError(ctx context.Context) func(error) {
-	return func(err error) {
-		if p.Logger != nil {
-			p.Logger.LogAttrs(ctx, slog.LevelWarn, "a segment could not be refreshed", slog.Any("error", err))
+// passRunner starts the passes of the loop and keeps what they share.
+type passRunner struct {
+	poll    *SegmentPoll
+	running map[string]*atomic.Bool // only the loop touches the map
+	down    map[string]bool
+	passes  sync.WaitGroup
+	mu      sync.Mutex // guards down
+}
+
+func (r *passRunner) busy(connection string) bool {
+	flag := r.running[connection]
+
+	return flag != nil && flag.Load()
+}
+
+// start runs the pass of a connection: its due bindings in order, one after the other.
+func (r *passRunner) start(
+	ctx context.Context, connection string, list, all []*segBinding, now time.Time,
+) {
+	flag := r.running[connection]
+	if flag == nil {
+		flag = &atomic.Bool{}
+		r.running[connection] = flag
+	}
+
+	flag.Store(true)
+
+	if r.poll.OnPass != nil {
+		r.poll.OnPass(connection, true)
+	}
+
+	r.passes.Go(func() {
+		defer func() {
+			flag.Store(false)
+
+			if r.poll.OnPass != nil {
+				r.poll.OnPass(connection, false)
+			}
+		}()
+
+		var errs []error
+
+		for _, b := range list {
+			err := b.poll(ctx, now)
+			if err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		if p.OnError != nil {
-			p.OnError(err)
+		r.reportErrors(ctx, list, errs)
+		r.report(ctx, connection, all)
+	})
+}
+
+// reportErrors passes the failures of a pass to OnError. A store that fails writes its one line (see
+// report), and the failure of each set is detail; when the store works, a set that fails is a line of its own.
+func (r *passRunner) reportErrors(ctx context.Context, list []*segBinding, errs []error) {
+	level := slog.LevelWarn
+
+	for _, b := range list {
+		if b.unhealthy() {
+			level = slog.LevelDebug
 		}
 	}
+
+	for _, err := range errs {
+		if r.poll.Logger != nil {
+			r.poll.Logger.LogAttrs(ctx, level, "a segment could not be refreshed", slog.Any("error", err))
+		}
+
+		if r.poll.OnError != nil {
+			r.poll.OnError(err)
+		}
+	}
+}
+
+// report logs and reports the connection when its state changed since the last call: down when a binding of it fails.
+func (r *passRunner) report(ctx context.Context, name string, bindings []*segBinding) {
+	down := slices.ContainsFunc(bindings, (*segBinding).unhealthy)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.down == nil {
+		r.down = map[string]bool{}
+	}
+
+	if down == r.down[name] {
+		return
+	}
+
+	r.down[name] = down
+	r.poll.reportConnection(ctx)(name, down)
 }
 
 // reportConnection logs the change of the state of a connection and passes it to OnConnection.
@@ -106,49 +205,6 @@ func (p *SegmentPoll) reportConnection(ctx context.Context) func(string, bool) {
 
 		if p.OnConnection != nil {
 			p.OnConnection(name, down)
-		}
-	}
-}
-
-// runPasses polls the due bindings, one concurrent pass for each connection, and waits for them.
-func runPasses(ctx context.Context, due map[string][]*segBinding, now time.Time, onError func(error)) {
-	var passes sync.WaitGroup
-
-	for _, list := range due {
-		passes.Go(func() {
-			bound := list[0].interval
-			for _, b := range list {
-				bound = min(bound, b.interval)
-			}
-
-			pass, cancel := context.WithTimeout(ctx, bound)
-			defer cancel()
-
-			for _, b := range list {
-				err := b.poll(pass, now)
-				if err != nil && onError != nil {
-					onError(err)
-				}
-			}
-		})
-	}
-
-	passes.Wait()
-}
-
-// reportConnections calls report for each connection whose state changed since the last call.
-func reportConnections(bindings []*segBinding, down map[string]bool, report func(string, bool)) {
-	now := map[string]bool{}
-
-	for _, b := range bindings {
-		now[b.connection] = now[b.connection] || b.unhealthy()
-	}
-
-	for _, name := range slices.Sorted(maps.Keys(now)) {
-		if now[name] != down[name] {
-			down[name] = now[name]
-
-			report(name, now[name])
 		}
 	}
 }

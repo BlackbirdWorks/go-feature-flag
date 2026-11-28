@@ -84,7 +84,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
 		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: nameSet(check.names),
 	}
-	next.binds = newBindCache(st.b.opts.Segments, doc, next.rejected)
+	next.binds = newBindCache(st.b.opts.Segments, doc, next.rejected, prevBinds(prev))
 	next.status = segStatus(next)
 
 	return next
@@ -177,3 +177,12 @@ func (st *stage) delSeg(name string) {
 
 // segNamesChanged tells whether the set of names that segmentSources resolve to changed in this build.
 func (st *stage) segNamesChanged(changed bool) bool { return changed || st.segGood }
+
+// prevBinds is the bindings of the last good content of the object, which the new content takes over from.
+func prevBinds(prev *segState) *bindCache {
+	if prev == nil || !prev.loaded {
+		return nil
+	}
+
+	return prev.binds
+}

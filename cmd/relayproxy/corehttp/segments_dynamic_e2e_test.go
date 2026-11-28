@@ -122,7 +122,7 @@ func segmentsInfo(t *testing.T, cfg *model.ConfigInfo) (*model.SegmentCountsInfo
 func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection, cold: true})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t), cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocMissing)}
 	rig.sets = []controlplane.FlagSet{{

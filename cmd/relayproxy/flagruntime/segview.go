@@ -13,6 +13,10 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
 
+// DefaultPullTimeout is the deadline of the refresh of one snapshot segment, much longer than the poll interval: a big
+// set may take longer than the interval to pull, and a slow set never takes the time of another.
+const DefaultPullTimeout = time.Minute
+
 // DefaultVersionInterval is how often the version key of a segment is polled when its definition gives no interval.
 const DefaultVersionInterval = 5 * time.Second
 
@@ -73,6 +77,9 @@ type SegmentEnv struct {
 	Observer resolver.Observer
 	// Resolver holds the settings of the resolvers. Nil means the defaults.
 	Resolver *bootstrap.SegmentResolver
+	// PullTimeout is the deadline of the refresh of one snapshot segment (the version read and the pull of the
+	// members). Zero means [DefaultPullTimeout].
+	PullTimeout time.Duration
 }
 
 func (e *SegmentEnv) enabled() bool { return e != nil && e.Binder != nil }

@@ -160,3 +160,63 @@ func TestE2E_ValkeySnapshotReloadUnderLoad(t *testing.T) {
 	assert.Zero(t, failures.Load(), "no request failed or lost its member across the swaps")
 	assert.Equal(t, 1, infoOf(t, rig).SegmentBindings.Live, "the reloads kept the one binding")
 }
+
+// Publishing a changed segments object (here a static segment of it) swaps the generation at once: the snapshot segment
+// that did not change keeps its held set, so under concurrent load no evaluation of it loses targeting.
+func TestE2E_ValkeySnapshotObjectChangeUnderLoad(t *testing.T) {
+	t.Parallel()
+
+	store := startValkey(t)
+	rig := snapshotRig(t, store.address)
+
+	store.add(t, "aud", "alice")
+	store.setVersion(t, "1")
+
+	awaitEval(t, rig, "alice", isMember, "the segment serves before the load starts")
+
+	var (
+		requests, failures atomic.Int64
+		stop               = make(chan struct{})
+		wg                 sync.WaitGroup
+		stopOnce           sync.Once
+	)
+
+	stopWorkers := func() {
+		stopOnce.Do(func() { close(stop) })
+		wg.Wait()
+	}
+
+	t.Cleanup(stopWorkers)
+
+	for range 4 {
+		wg.Go(func() {
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+
+				got, err := tryEval(rig, "dyn-flag", "alice")
+
+				requests.Add(1)
+
+				if err != nil || !isMember(got) {
+					failures.Add(1)
+				}
+			}
+		})
+	}
+
+	for i := range 5 {
+		rig.segments[segObjectName] = []byte(snapshotSegDoc + "  - name: extra-" + string(rune('a'+i)) +
+			"\n    members: [alice]\n")
+		rig.publish(t)
+		rig.poll(t)
+	}
+
+	stopWorkers()
+
+	assert.Positive(t, requests.Load(), "the load ran")
+	assert.Zero(t, failures.Load(), "an unchanged snapshot segment answered from its held set across the swaps")
+}
