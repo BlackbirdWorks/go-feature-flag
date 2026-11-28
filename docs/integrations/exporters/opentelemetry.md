@@ -51,42 +51,26 @@ defer client.Close()
 
 ## Configure the relay proxy
 
-The relay proxy supports a per-flagset OpenTelemetry exporter (`kind: opentelemetry`) that creates one span per evaluation using `tracerName` and the process-wide OpenTelemetry `TracerProvider`. Configure the relay proxy's own OpenTelemetry SDK/exporter via the top-level `otel` section or environment variables (see the relay proxy observability docs).
+The relay proxy supports a OpenTelemetry exporter (`kind: opentelemetry`) that creates one span per evaluation using `tracerName` and the process-wide OpenTelemetry `TracerProvider`. Configure the relay proxy's own OpenTelemetry SDK/exporter via the top-level `otel` section or environment variables (see the relay proxy observability docs).
 
 ```yaml
-server:
-  mode: http
-  port: 1031
-
-# Configure the relay proxy OpenTelemetry SDK/exporter (process-level)
-otel:
-  exporter:
-    otlp:
-      endpoint: http://otel-collector:4318
-  resource:
-    attributes:
-      service.name: relay-proxy
-
-# A flagset that exports evaluation events as OpenTelemetry spans
-flagsets:
-  - name: default
-    apiKeys:
-      - "my-api-key"
-    retriever:
-      kind: file
-      path: ./flags.yaml
-    exporters:
-      - kind: opentelemetry
-        tracerName: semaphore
+version: 2
+observability:
+  tracing:
+    otlpEndpoint: http://otel-collector:4318
+exporters:
+  traces:
+    kind: opentelemetry
+    tracerName: semaphore
 ```
 
-Include `my-api-key` in your provider configuration or pass `X-API-Key: my-api-key` when making requests to this flagset.
+The exporter receives the evaluation events of every flag set.
 
 Notes:
 
-- This example uses the default OTLP HTTP/protobuf transport on port `4318`. To use gRPC, set `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` in the relay proxy environment and change the endpoint to your collector's gRPC port (typically `4317`). The YAML `otel.exporter.otlp.protocol` field does not select the transport.
-- Top-level `otel` config controls the OpenTelemetry SDK and OTLP exporter used by the proxy process; ensure it points to your collector or is configured via environment variables.
-- The per-flagset exporter currently accepts only `tracerName` and reuses the process-global `TracerProvider`.
+- This example uses the default OTLP HTTP/protobuf transport on port `4318`. To use gRPC, set `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` in the relay proxy environment and change the endpoint to your collector's gRPC port (typically `4317`). The bootstrap file does not select the transport.
+- `observability.tracing` controls the OpenTelemetry SDK and OTLP exporter used by the proxy process; ensure it points to your collector or is configured via environment variables.
+- The exporter accepts only `tracerName` and reuses the process-global `TracerProvider`.
 
 ## Notes
 

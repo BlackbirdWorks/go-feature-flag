@@ -1,9 +1,8 @@
 # GitHub
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -13,33 +12,6 @@ Fetch flag configurations from a file stored in a GitHub repository via the GitH
 > GitHub enforces rate limits; set `PollingInterval` carefully to avoid hitting them.
 >
 > **If the rate limit is reached, the retriever logs an error and pauses polling until GitHub resets the limit.**
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: github
-    repositorySlug: your-org/your-repo
-    path: config/flag/my-flags.yaml
-# ...
-```
-
-| Field name                | Mandatory | Type   | Default                  | Description |
-|---------------------------|:---------:|--------|--------------------------|-------------|
-| `kind`                    | Yes       | string | **none**                 | **Value should be `github`.**<br/>_Mandatory field identifying the retriever._ |
-| `repositorySlug`          | Yes       | string | **none**                 | Repository slug of the GitHub repository _(ex: `your-org/your-repo`)_. |
-| `path`                    | Yes       | string | **none**                 | Path to the file inside the repository _(ex: `config/flag/my-flags.yaml`)_. |
-| `branch`                  | No        | string | `main`                   | Branch to read in the repository. |
-| `token`                   | No        | string | **none**                 | GitHub PAT with `repo` permission for private repositories ([create a token](https://docs.github.com/en/free-pro-team@latest/github/authenticating-to-github/creating-a-personal-access-token)). Mutually exclusive with the GitHub App fields below. |
-| `baseUrl`                 | No        | string | `https://api.github.com` | Base URL for the GitHub API. Use for GitHub Enterprise or self-hosted instances _(ex: `https://github.acme.com/api/v3`)_. |
-| `timeout`                 | No        | int    | `10000`                  | Timeout in milliseconds when calling GitHub. |
-| `githubAppId`             | No        | int    | **none**                 | GitHub App ID. Required for GitHub App auth (see [GitHub App authentication](#github-app-authentication)). Mutually exclusive with `token`. |
-| `githubInstallationId`    | No        | int    | **none**                 | GitHub App installation ID. Required for GitHub App auth. |
-| `githubAppPrivateKey`     | No        | string | **none**                 | Inline PEM-encoded RSA private key for the GitHub App. Use this or `githubAppPrivateKeyFile`, not both. |
-| `githubAppPrivateKeyFile` | No        | string | **none**                 | Path to a PEM file containing the GitHub App private key (useful for Kubernetes secret mounts). Takes precedence over `githubAppPrivateKey` if both are set. |
 
 ## Configure the Go module
 
@@ -84,26 +56,6 @@ The retriever handles the OAuth flow internally: it signs a short-lived JWT with
 - Generate a private key in the app settings and store it securely (e.g., in a Kubernetes secret or AWS Secrets Manager).
 - Note the **App ID** (on the app settings page) and **Installation ID** (in the installation settings URL: `https://github.com/organizations/<org>/settings/installations/<id>`).
 
-### Relay proxy configuration
-
-```yaml
-# ...
-retrievers:
-  - kind: github
-    repositorySlug: myorg/my-flags-repo
-    path: flags/config.yaml
-    githubAppId: 12345
-    githubInstallationId: 67890
-    # Option A: path to a PEM file (recommended for Kubernetes secret mounts)
-    githubAppPrivateKeyFile: /var/secrets/github-app.pem
-    # Option B: inline PEM string — inject from a secret manager via environment variable
-    # githubAppPrivateKey: <contents of your .pem file>
-# ...
-```
-
-> [!NOTE]
-> `token` / `githubToken` and the GitHub App fields (`githubAppId`, `githubInstallationId`, `githubAppPrivateKey` / `githubAppPrivateKeyFile`) are mutually exclusive. Validation rejects configurations that supply both.
-
 ### Go module configuration
 
 ```go
@@ -126,18 +78,6 @@ defer client.Close()
 ## GitHub Enterprise / self-hosted instances
 
 Set `baseUrl` (YAML) or `BaseURL` (Go) to point to your GitHub Enterprise or self-hosted API endpoint.
-
-### Relay proxy configuration
-
-```yaml
-# ...
-retrievers:
-  - kind: github
-    repositorySlug: myorg/myrepo
-    path: config/flag/my-flags.yaml
-    baseUrl: "https://github.acme.com/api/v3"
-# ...
-```
 
 ### Go module configuration
 

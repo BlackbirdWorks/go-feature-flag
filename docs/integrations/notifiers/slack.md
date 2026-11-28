@@ -23,20 +23,18 @@ Each flag shows at most 50 changes, with a final line counting omitted changes.
 
 ## Configure the relay proxy
 
-Add the Slack notifier to your relay proxy configuration file:
+Add the notifier to the `notifiers` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 notifiers:
-  - kind: slack
-    webhookUrl: "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
-# ...
+  flag-changes:
+    kind: slack
+    webhookUrl: {fromEnv: SLACK_WEBHOOK_URL}
 ```
 
-| Field name | Mandatory | Type | Default | Description |
-|---|:---:|---|---|---|
-| `kind` | Yes | string | **none** | Must be `slack`. Identifies the notifier type. |
-| `webhookUrl` | Yes | string | **none** | Full URL of your Slack incoming webhook. |
+- `kind` is `slack`; `webhookUrl` (required) is a secret reference: `{fromEnv: NAME}` or `{fromFile: PATH}`. An inline URL is refused.
+- Optional: `meta` (a map of string).
 
 ## Configure the Go module
 

@@ -1,9 +1,8 @@
 # Redis
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -16,26 +15,6 @@ Store each flag as a `string:string` entry where the key is the flag name (optio
 On each poll, the retriever:
 - Runs Redis `Scan` filtered by `Prefix`
 - Reads all matching keys at once and parses each value as a JSON object
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: redis
-    redisOptions:
-      addr: "127.0.0.1:6379"
-    redisPrefix: "semaphore:"
-# ...
-```
-
-| Field name     | Mandatory | Type   | Default  | Description |
-|----------------|:---------:|--------|----------|-------------|
-| `kind`         | Yes       | string | **none** | **Value should be `redis`.**<br/>_Mandatory field identifying the retriever._ |
-| `redisOptions` | Yes       | object | **none** | Connection options for your Redis instance. Supports only the options in [`SerializableRedisOptions`](https://github.com/BlackbirdWorks/semaphore/blob/main/cmd/cli/evaluate/retrieverconf/serializable_redis_options.go), including `addr` (required), `username`, `password`, `db`, and `tlsEnabled`. Timeout and retry backoff values are in milliseconds. |
-| `redisPrefix`  | No        | string | **none** | Prefix prepended to flag names in Redis. |
 
 ## Configure the Go module
 

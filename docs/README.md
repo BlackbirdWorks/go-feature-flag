@@ -11,8 +11,9 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Installation](relay-proxy/install.md) and [Releasing](RELEASING.md)
 - [Getting started](relay-proxy/getting-started.md)
 - [Bootstrap file, version 2](relay-proxy/bootstrap-config.md) (the configuration of the relay: connections, flag sets, API keys, exporters)
-- [Config v2 relay core](relay-proxy/relay-core.md) (how the relay starts, reloads in place and shuts down)
-- [Probes and observability of the config v2 runtime](relay-proxy/probes.md) (`/livez`, `/readyz`, `/startupz`, the `/info` config section and the metrics)
+- [Schema reference](reference/schema.md) (generated: bootstrap file, manifest, flag-set and segments documents)
+- [Relay core](relay-proxy/relay-core.md) (how the relay starts, reloads in place and shuts down)
+- [Probes and observability](relay-proxy/probes.md) (`/livez`, `/readyz`, `/startupz`, the `/info` config section and the metrics)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
 - [Client compatibility](relay-proxy/client-compatibility.md) (OpenFeature and OFREP provider test coverage)
@@ -57,6 +58,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Publish to S3 (`s3publish`)](go-module/s3publish.md) (upload protocol: objects first, manifest last, conditional writes)
 
 ## Migration
+- [From the go-feature-flag relay proxy (config v1)](migration/from-go-feature-flag.md)
 - [Rename to Semaphore (old names that are still accepted)](migration/rename-to-semaphore.md)
 - [Prometheus metric renames](migration/metric-renames.md)
 - [Removal of `ffuser` and the `user` request field](migration/remove-ffuser.md)

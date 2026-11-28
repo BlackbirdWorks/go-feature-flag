@@ -1,9 +1,8 @@
 # Bitbucket
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -11,29 +10,6 @@ Fetch flag configurations from a file stored in a Bitbucket Git repository.
 
 > [!TIP]
 > Bitbucket enforces rate limits; set `PollingInterval` carefully to avoid hitting them.
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: bitbucket
-    repositorySlug: your-org/your-repo
-    path: config/flag/my-flags.yaml
-# ...
-```
-
-| Field name       | Mandatory | Type   | Default                     | Description |
-|------------------|:---------:|--------|-----------------------------|-------------|
-| `kind`           | Yes       | string | **none**                    | Value should be **`bitbucket`**.<br/>_Mandatory field identifying the retriever._ |
-| `repositorySlug` | Yes       | string | **none**                    | Repository slug of the Bitbucket repository _(ex: `your-org/your-repo`)_. |
-| `path`           | Yes       | string | **none**                    | Path to the file inside the repository _(ex: `config/flag/my-flags.yaml`)_. |
-| `baseUrl`        | No        | string | `https://api.bitbucket.org` | Base URL of your Bitbucket instance.<br/>Defaults to the public API `https://api.bitbucket.org`. |
-| `branch`         | No        | string | `main`                      | Branch to read in the repository. |
-| `token`          | No        | string | **none**                    | Bitbucket token used to access a private repository ([Create a Repository Access Token](https://support.atlassian.com/bitbucket-cloud/docs/create-a-repository-access-token/)). |
-| `timeout`        | No        | int    | `10000`                     | Timeout in milliseconds when calling Bitbucket. |
 
 ## Configure the Go module
 

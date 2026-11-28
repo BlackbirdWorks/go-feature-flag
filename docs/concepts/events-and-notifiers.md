@@ -2,7 +2,7 @@
 
 Evaluation events go to **exporters**, flag changes go to **notifiers**. Both are resources of the whole relay, not of a flag set. This page describes the package `cmd/relayproxy/events`.
 
-> **Status:** the package is built beside the running relay. It will become active when the relay switches to config v2 (a later release); until then the relay keeps building one exporter pipeline per flag set, as described in the [exporter](exporter.md) and [notifier](notifier.md) pages. Everything below that says what "the relay" does describes that later release.
+> **Status:** the relay runs this package: one pipeline per exporter and per notifier, shared by every flag set.
 
 ## The model
 
@@ -118,12 +118,12 @@ The counters are **cumulative per exporter name**: a reload that replaces the in
 | exporters | `file`, `webhook`, `log`, `s3`, `kinesis`, `sqs`, `redshift`, `googleStorage`, `kafka`, `pubsub`, `bigquery`, `azureBlobStorage`, `opentelemetry` |
 | notifiers | `slack`, `microsoftteams`, `discord`, `webhook` |
 
-- Defaults (`format`, `filename`, `csvTemplate`, `parquetCompressionCodec`, `logFormat`, `flushInterval`, `maxEventInMemory`) are those of version 1. The pipeline settings (`overflowPolicy`, `blockTimeout`, `maxBytes`, `drainTimeout`, `retry`) are listed with their defaults in the [bootstrap file](../relay-proxy/bootstrap-config.md#exporters-name).
-- `format` is accepted for `kinesis`, `kafka` and `sqs` as in version 1, but those kinds always write JSON: `csv` and `parquet` pass validation and have no effect there. `autoMigrate` is accepted for `bigquery`.
-- `kafka` takes the producer settings of version 1 as keys; see [Kafka producer settings](../relay-proxy/bootstrap-config.md#kafka-producer-settings) for the table of v1 fields and v2 keys.
+- The defaults of `format`, `filename`, `csvTemplate`, `parquetCompressionCodec`, `logFormat`, `flushInterval` and `maxEventInMemory` are in the [bootstrap file reference](../relay-proxy/bootstrap-config.md#exporters-name). The pipeline settings (`overflowPolicy`, `blockTimeout`, `maxBytes`, `drainTimeout`, `retry`) are listed with their defaults in the [bootstrap file](../relay-proxy/bootstrap-config.md#exporters-name).
+- `format` is accepted for `kinesis`, `kafka` and `sqs`, but those kinds always write JSON: `csv` and `parquet` pass validation and have no effect there. `autoMigrate` is accepted for `bigquery`.
+- `kafka` takes the producer settings as keys; see [Kafka producer settings](../relay-proxy/bootstrap-config.md#exporters-name-kafka).
 - `eventType: tracking` is not carried yet: such an exporter is rejected with a typed error.
-- `googleCredentials` of `googleStorage` and `pubsub` is applied as a client option (version 1 ignored it for these kinds).
-- The version 1 key `slackWebhookURL` is not carried over (version 2 has no aliases): use `webhookUrl`.
+- `googleCredentials` of `googleStorage` and `pubsub` is applied as a client option.
+- The notifier key is `webhookUrl`; `slackWebhookURL` is not accepted.
 
 ### AWS kinds and connections
 

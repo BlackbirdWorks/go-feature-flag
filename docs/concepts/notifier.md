@@ -6,7 +6,7 @@ A **notifier** sends alerts when Semaphore detects a change in your flag configu
 
 ## How it works
 
-- When a [retriever](retriever.md) polls and detects a flag change, Semaphore calls every configured notifier.
+- When a new generation of the [control plane](control-plane-polling.md) changes the flags, the relay proxy calls every notifier of the `notifiers` map. In the Go module, a [retriever](retriever.md) poll that detects a change does the same.
 - Common uses:
   - Posting flag updates to team chat (Slack, Discord, Microsoft Teams).
   - Triggering downstream automation via a webhook.
@@ -20,7 +20,7 @@ A **notifier** sends alerts when Semaphore detects a change in your flag configu
 | Feature | Notifiers | Exporters |
 |---|---|---|
 | **Purpose** | Notify on config changes | Export flag evaluation events |
-| **Trigger** | Retriever detects a flag change | Flag evaluation (for example `BoolValue()`) |
+| **Trigger** | A new generation (relay) or a retriever poll (Go module) changes the flags | Flag evaluation (for example `BoolValue()`) |
 | **Data sent** | Diff of changed flags | Flag key, variation, context, timestamp |
 | **Use cases** | Team alerts, webhooks | Analytics, usage monitoring, auditing |
 
@@ -30,6 +30,6 @@ A **notifier** sends alerts when Semaphore detects a change in your flag configu
 - Discord
 - Microsoft Teams
 - Webhook
-- Log
+- Log (Go module only)
 
 See [Configure notifiers](../integrations/notifiers/README.md) for setup examples.

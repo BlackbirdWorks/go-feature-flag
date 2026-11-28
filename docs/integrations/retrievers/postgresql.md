@@ -1,9 +1,8 @@
 # PostgreSQL
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -57,42 +56,6 @@ The PostgreSQL retriever is **flagset-aware**. When flagsets are enabled, it fil
 
 > [!WARNING]
 > Ensure the flagset name in your Semaphore configuration matches the value stored in the PostgreSQL `flagset` column.
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: postgresql
-    uri: "postgres://user:password@localhost:5432/dbname"
-    table: "go_feature_flag"
-# ...
-```
-
-| Field name | Mandatory | Type   | Default  | Description |
-|------------|:---------:|--------|----------|-------------|
-| `kind`     | Yes       | string | **none** | **Value should be `postgresql`.**<br/>_Mandatory field identifying the retriever._ |
-| `uri`      | Yes       | string | **none** | Connection URI of your PostgreSQL instance. |
-| `table`    | Yes       | string | **none** | Name of the table storing your flags. |
-| `columns`  | No        | object | **none** | Custom column name mapping. See [How to use custom column names](#how-to-use-custom-column-names). |
-
-### How to use custom column names
-
-Use `columns` to map the default column names to custom column names in your PostgreSQL table:
-
-```yaml
-# ...
-retrievers:
-  - kind: postgresql
-    uri: "postgres://user:password@localhost:5432/dbname"
-    table: "go_feature_flag"
-    columns:
-      flag_name: "name"
-      flagset: "namespace"
-      config: "settings"
-```
 
 ## Configure the Go module
 

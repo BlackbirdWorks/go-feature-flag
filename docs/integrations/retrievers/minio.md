@@ -41,9 +41,11 @@ The relay serves nothing until the bucket exists and holds a control plane. Befo
 
 1. Create the bucket, for example with the MinIO client: `mc alias set local http://localhost:9000 minioadmin minioadmin`
    then `mc mb local/my-featureflag-bucket`.
-2. Publish the flags and the manifest with the same bootstrap file, with the secrets it names in the environment
-   (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`): `semaphore-cli publish ./flags-repo --config bootstrap.yaml`. The source
-   directory layout and the other flags are in [Publish](../../tooling/publish.md).
+2. Publish the flags and the manifest, with the secrets the bootstrap file names in the environment
+   (`MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`): `semaphore-cli publish ./flags-repo --config bootstrap.yaml`. The host name
+   `minio` resolves only inside the Compose network. From the host, give the publisher a copy of the file with
+   `endpoint: http://localhost:9000`, or run the command in a container of the Compose network. The source directory
+   layout and the other flags are in [Publish](../../tooling/publish.md).
 
 The relay then picks the manifest up at its next poll.
 

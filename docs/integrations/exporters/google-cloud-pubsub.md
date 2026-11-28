@@ -9,22 +9,21 @@ Export evaluation data to a Google Cloud Pub/Sub topic.
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 exporters:
-  - kind: pubsub
-    projectID: "my-project-id"
-    topic: "semaphore-feature-events"
-# ...
+  evaluations:
+    kind: pubsub
+    projectId: my-project
+    topic: evaluation-events
 ```
 
-| Field name  | Mandatory | Type   | Default  | Description                                                                                         |
-|-------------|:---------:|--------|----------|-----------------------------------------------------------------------------------------------------|
-| `kind`      | Yes       | string | **none** | Value should be `pubsub`.<br/>_This field is mandatory and describes which exporter you are using._ |
-| `projectID` | Yes       | string | **none** | ID of your GCP project.                                                                             |
-| `topic`     | Yes       | string | **none** | Topic name on which messages are published.                                                         |
+- `projectId` and `topic` (required).
+- Optional: `googleCredentials` (a secret).
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

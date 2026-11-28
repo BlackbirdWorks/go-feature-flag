@@ -8,31 +8,29 @@ Every time `flushInterval` or `maxEventInMemory` is reached, a new file is added
 
 ## Configure the relay proxy
 
-Use the standard `s3` exporter configuration and select MinIO with AWS SDK environment variables:
+Use the `s3` exporter with an `s3` connection that points at your server. `pathStyle: true` addresses the bucket as
+`{endpoint}/{bucket}`, so a hostname endpoint such as `http://minio:9000` works with no DNS setup on the MinIO side.
 
 ```yaml
-# ...
-exporters:
-  - kind: s3
+version: 2
+connections:
+  evaluation-data:
+    type: s3
+    endpoint: http://minio:9000
+    region: us-east-1
     bucket: evaluation-data-bucket
-    path: /semaphore/variations/
-# ...
+    pathStyle: true
+    credentials:
+      type: static
+      accessKeyId: {fromEnv: MINIO_ACCESS_KEY}
+      secretAccessKey: {fromEnv: MINIO_SECRET_KEY}
+exporters:
+  evaluations:
+    kind: s3
+    connection: evaluation-data
 ```
 
-```shell
-export AWS_ENDPOINT_URL_S3=http://127.0.0.1:9000
-export AWS_ACCESS_KEY_ID=minioadmin
-export AWS_SECRET_ACCESS_KEY=minioadmin
-export AWS_DEFAULT_REGION=us-east-1
-```
-
-Only `kind` and `bucket` are mandatory. All other fields (`format`, `filename`, `path`, `flushInterval`, `maxEventInMemory`, `csvTemplate`, `parquetCompressionCodec`) behave as documented on the [AWS S3 exporter page](aws-s3.md).
-
-> [!WARNING]
-> **Use an IP address in `AWS_ENDPOINT_URL_S3`, or read below**
-> The AWS SDK addresses buckets as `http://{bucket}.{your-endpoint}` (virtual-host style), **except** when your endpoint is an IP address. `http://127.0.0.1:9000` works out of the box, whereas `http://minio:9000` makes the relay proxy call `http://evaluation-data-bucket.minio:9000` and fail.
->
-> The relay proxy has no setting to force path-style addressing. If you cannot use an IP address, set `MINIO_DOMAIN` on your MinIO server and make `{bucket}.{host}` resolve to it (see the [MinIO retriever page](../retrievers/minio.md#using-a-hostname-endpoint) for a full Docker Compose example).
+The other keys (`format`, `filename`, `path`, `csvTemplate`, `parquetCompressionCodec`) behave as on the [AWS S3 exporter page](aws-s3.md). The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

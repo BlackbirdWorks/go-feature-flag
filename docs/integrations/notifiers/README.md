@@ -8,7 +8,7 @@ A **notifier** alerts external systems when Semaphore loads an updated flag conf
 - **Automation**: Trigger downstream actions with the webhook notifier.
 - **Multiple notifiers**: Configure as many notifiers as you need at the same time.
 
-Semaphore triggers configured notifiers whenever a retriever's polling loop detects a configuration change. You can configure notifiers in the **relay proxy** or directly in the **Go module** (each notifier page shows both).
+The relay proxy triggers its notifiers when a new generation of the control plane changes the flags. The Go module triggers them when a retriever's polling loop detects a configuration change. You can configure notifiers in the **relay proxy** or directly in the **Go module** (each notifier page shows both).
 
 ## Author attribution (`metadata.updatedBy`)
 

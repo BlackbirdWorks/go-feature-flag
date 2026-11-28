@@ -24,20 +24,18 @@ Each message lists created, updated, and deleted flags. Updated flags show one s
 
 ## Configure the relay proxy
 
-Add the Microsoft Teams notifier to your relay proxy configuration file:
+Add the notifier to the `notifiers` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 notifiers:
-  - kind: microsoftteams
-    webhookUrl: "https://xxx.xxx/..."
-# ...
+  flag-changes:
+    kind: microsoftteams
+    webhookUrl: {fromEnv: TEAMS_WEBHOOK_URL}
 ```
 
-| Field name | Mandatory | Type | Default | Description |
-|---|:---:|---|---|---|
-| `kind` | Yes | string | **none** | Must be `microsoftteams`. Identifies the notifier type. |
-| `webhookUrl` | Yes | string | **none** | Full URL of your Microsoft Teams incoming webhook. |
+- `kind` is `microsoftteams`; `webhookUrl` (required) is a secret reference: `{fromEnv: NAME}` or `{fromFile: PATH}`. An inline URL is refused.
+- Optional: `meta` (a map of string).
 
 ## Configure the Go module
 

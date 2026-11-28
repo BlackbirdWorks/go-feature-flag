@@ -9,21 +9,26 @@ Export evaluation data to an AWS Kinesis stream.
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
+connections:
+  stream:
+    type: kinesis
+    region: eu-west-1
+    stream: evaluation-events
 exporters:
-  - kind: kinesis
-    streamArn: "arn:aws:kinesis:us-east-1:XXXX:stream/test-stream"
-# ...
+  evaluations:
+    kind: kinesis
+    connection: stream
 ```
 
-| Field name   | Mandatory | Type   | Default  | Description                                                                                                          |
-|--------------|:---------:|--------|----------|----------------------------------------------------------------------------------------------------------------------|
-| `kind`       | Yes       | string | **none** | Value should be `kinesis`.<br/>_This field is mandatory and describes which exporter you are using._                  |
-| `streamArn`  | Yes       | string | **none** | The ARN of your Kinesis stream. Required unless `streamName` is set.                                                 |
-| `streamName` | No        | string | **none** | The name of your Kinesis stream. Required if `streamArn` is not set.                                                 |
+- `connection` (required): a `kinesis` connection.
+- The stream: `streamName` or `streamArn` on the exporter, or `stream` on the connection.
+- `format` is accepted and ignored: the events are always JSON.
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

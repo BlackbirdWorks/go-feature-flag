@@ -27,20 +27,18 @@ Each message lists created, updated, and deleted flags. Updated flags show one s
 
 ## Configure the relay proxy
 
-Add the Discord notifier to your relay proxy configuration file:
+Add the notifier to the `notifiers` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 notifiers:
-  - kind: discord
-    webhookUrl: "https://discord.com/api/webhooks/yyyy/xxxxxxx"
-# ...
+  flag-changes:
+    kind: discord
+    webhookUrl: {fromEnv: DISCORD_WEBHOOK_URL}
 ```
 
-| Field name | Mandatory | Type | Default | Description |
-|---|:---:|---|---|---|
-| `kind` | Yes | string | **none** | Must be `discord`. Identifies the notifier type. |
-| `webhookUrl` | Yes | string | **none** | Full URL of your Discord incoming webhook. |
+- `kind` is `discord`; `webhookUrl` (required) is a secret reference: `{fromEnv: NAME}` or `{fromFile: PATH}`. An inline URL is refused.
+- Optional: `meta` (a map of string).
 
 ## Configure the Go module
 

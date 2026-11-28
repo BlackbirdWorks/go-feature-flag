@@ -1,37 +1,14 @@
 # Google Cloud Storage
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
 Load flag configurations from a Google Cloud Storage bucket.
 
 The [**Google Cloud Storage Retriever**](https://pkg.go.dev/github.com/blackbirdworks/semaphore/retriever/gcstorageretriever/#Retriever) uses the [`cloud.google.com/go/storage`](https://pkg.go.dev/cloud.google.com/go/storage) and [`google.golang.org/api/option`](https://pkg.go.dev/google.golang.org/api/option) packages to access your flags in Google Cloud Storage.
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: googleStorage
-    bucket: 2093u4pkasjc3
-    object: flags.yaml
-# ...
-```
-
-| Field name | Mandatory | Type   | Default  | Description |
-|------------|:---------:|--------|----------|-------------|
-| `kind`     | Yes       | string | **none** | Value should be **`googleStorage`**.<br/>_Mandatory field identifying the retriever._ |
-| `bucket`   | Yes       | string | **none** | Name of your Google Cloud Storage bucket _(ex: `my-featureflag-bucket`)_. |
-| `object`   | Yes       | string | **none** | Path to the file inside the bucket _(ex: `config/flag/my-flags.yaml`)_. |
-
-> [!NOTE]
-> Use GCP native authentication or set `GOOGLE_APPLICATION_CREDENTIALS` to authenticate with Google Cloud. See the [GCP authentication docs](https://cloud.google.com/docs/authentication) for details.
 
 ## Configure the Go module
 

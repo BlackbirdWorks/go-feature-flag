@@ -18,8 +18,7 @@ const (
 )
 
 // Exporter is an evaluation-data sink. Which keys apply depends on the kind. The AWS endpoint, region and
-// credentials of version 1 are replaced by a reference to a connection. Only the schema is defined here: the
-// runtime wiring comes later.
+// credentials of version 1 are replaced by a reference to a connection.
 type Exporter struct {
 	Meta                    map[string]string `json:"meta,omitempty"                    yaml:"meta,omitempty"`
 	Headers                 map[string]Secret `json:"headers,omitzero"                  yaml:"headers,omitempty"`
@@ -101,7 +100,8 @@ const (
 	NotifierDiscord        = "discord"
 )
 
-// Notifier sends flag changes. Which keys apply depends on the kind. Only the schema is defined here.
+// Notifier sends flag changes. Which keys apply depends on the kind. The relay builds and runs them from the
+// bootstrap file.
 type Notifier struct {
 	Meta        map[string]string `json:"meta,omitempty"       yaml:"meta,omitempty"`
 	Headers     map[string]Secret `json:"headers,omitzero"     yaml:"headers,omitempty"`

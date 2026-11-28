@@ -8,24 +8,26 @@ The Semaphore relay proxy provides built-in structured logging, OpenTelemetry tr
 
 The relay proxy logs through Go's [`log/slog`](https://pkg.go.dev/log/slog) package using a custom zero-allocation handler (`cmdhelpers/cmdlog`) supporting `json` and `logfmt`.
 
-By default, it logs to stdout in `json` format at `INFO` level. Configure this via `logLevel` and `logFormat`:
+By default, it logs to stdout in `json` format at `info` level. Configure this in the [bootstrap file](bootstrap-config.md#observability):
 
 ```yaml
-# ...
-logLevel: ERROR
-logFormat: json
-# ...
+observability:
+  logging:
+    level: error
+    format: json
 ```
 
-| Field name | Mandatory | Type | Default | Description |
-|---|---|---|---|---|
-| `logLevel` | No | string | **`INFO`** | Log level (`ERROR`, `WARN`, `INFO`, `DEBUG`). |
-| `logFormat` | No | string | **`json`** | Structured log format: `json` (JSON lines) or `logfmt` (`key=value` text). |
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `observability.logging.level` | string | `info` | `debug`, `info`, `warn`, `error` |
+| `observability.logging.format` | string | `json` | `json` (JSON lines) or `text` (`key=value` logfmt lines) |
+
+The flags `--log-level` and `--log-format`, and the variables `SEMAPHORE_LOG_LEVEL` and `SEMAPHORE_LOG_FORMAT`, override the file.
 
 ### Log output
 
 - **`json` records**: single line with `level` (`debug`, `info`, `warn`, `error`, or `fatal`), `ts` (decimal seconds since epoch), `caller` (`directory/file.go:line`), `msg`, and record attributes.
-- **`logfmt` records**: `ts=... level=... caller=... msg=... key=value` (durations in seconds; values with spaces, `=`, or `"` are quoted).
+- **`text` records (logfmt)**: `ts=... level=... caller=... msg=... key=value` (durations in seconds; values with spaces, `=`, or `"` are quoted).
 - **Request attributes**: access logs, handler errors, and recovered panics include `method` (inside `request` on access logs), `request_id` (from `X-Request-ID` when present), `flagset` (after API key resolution on endpoints that look it up), and `trace_id` / `span_id` when [tracing](#tracing) is enabled.
 - **Redaction**: configuration logs redact secrets, replacing API keys, tokens, and connection strings with `[REDACTED]`.
 
@@ -37,7 +39,7 @@ Differences from older Zap-based versions:
 
 ## Tracing
 
-When an OpenTelemetry exporter endpoint is set (`OTEL_EXPORTER_OTLP_ENDPOINT` or `otel.exporter.otlp.endpoint`), the relay proxy sends traces to your OpenTelemetry collector or compatible agent with service name **`semaphore`**.
+When an OpenTelemetry exporter endpoint is set (`observability.tracing.otlpEndpoint` or `OTEL_EXPORTER_OTLP_ENDPOINT`), the relay proxy sends traces to your OpenTelemetry collector or compatible agent with service name **`semaphore`**.
 
 ### Environment variable
 
@@ -45,15 +47,18 @@ When an OpenTelemetry exporter endpoint is set (`OTEL_EXPORTER_OTLP_ENDPOINT` or
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 ```
 
-### Configuration file
+### Bootstrap file
 
 ```yaml
-# ...
-otel:
-  exporter:
-    otlp:
-      endpoint: "http://localhost:4317"
+observability:
+  tracing:
+    otlpEndpoint: "localhost:4317"
+    serviceName: semaphore
+    sampler: parentbased_traceidratio
 ```
+
+The sampler is given to the SDK through `OTEL_TRACES_SAMPLER` when that variable is not set; see the
+[keys](bootstrap-config.md#observability).
 
 See the [OpenTelemetry SDK environment variables docs](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) for additional options.
 
@@ -65,7 +70,7 @@ See the [OpenTelemetry SDK environment variables docs](https://opentelemetry.io/
 
 ### OpenTelemetry metrics
 
-When OpenTelemetry is configured (an OTLP endpoint is set and `otel.sdk.disabled` is not), the relay proxy also exports OpenTelemetry **metrics** to the same endpoint under service name `semaphore`:
+When OpenTelemetry is configured (an OTLP endpoint is set and `OTEL_SDK_DISABLED` is not `true`), the relay proxy also exports OpenTelemetry **metrics** to the same endpoint under service name `semaphore`:
 
 - **Go runtime metrics**: `go.memory.used`, `go.memory.allocated`, `go.goroutine.count`, `go.processor.limit`, `go.schedule.duration`, `go.config.gogc`, etc.
 - **HTTP server metrics**: `http.server.request.duration`, etc., with the `http.route` attribute.
@@ -99,13 +104,15 @@ The metrics of the configuration (generations, reloads, rejected flags, objects 
 
 ## Use a dedicated monitoring port
 
-Set `monitoringPort` to serve `/health`, `/info`, and `/metrics` on a separate port from the main API:
+Give the relay an `ops` listener to serve `/health`, `/info`, `/metrics` and the probes on a separate port from the main API:
 
 ```yaml
-# ...
-monitoringPort: 1032 # only the monitoring endpoints will be exposed on this port
-# ...
+version: 2
+server:
+  listeners:
+    - {name: api, address: ":1031"}
+    - {name: ops, address: ":1032", role: ops}
 ```
 
 > [!NOTE]
-> By default, monitoring endpoints are served on the same port as the main service.
+> Without an `ops` listener, the monitoring endpoints are served on the `api` listener.

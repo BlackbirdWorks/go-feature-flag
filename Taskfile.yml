@@ -451,6 +451,11 @@ tasks:
         which govulncheck > /dev/null 2>&1 || {{.GOCMD}} install golang.org/x/vuln/cmd/govulncheck@latest
         GOWORK="{{.GOWORK_VAL}}" govulncheck ./cmd/relayproxy/...
 
+  docs-schema:
+    desc: Regenerate the schemas in .schema/ and the schema reference docs/reference/schema.md (a test fails when they are stale)
+    cmds:
+      - GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} run ./cmd/jsonschema-generator --schema-location .schema/flag-schema.json --bootstrap-schema-location .schema/bootstrap-schema.json --control-plane-schema-dir .schema --reference-location docs/reference/schema.md
+
   docs-install:
     desc: Install documentation site dependencies
     cmds:
