@@ -396,7 +396,8 @@ func (b *blockedResponse) Write(data []byte) (int, error) {
 	b.once.Do(func() { close(b.entered) })
 
 	for deadline := range b.set {
-		if deadline.Before(time.Now()) {
+		// the deadline of a revocation is in the past: any other deadline is a write that may go on
+		if deadline.Unix() <= 1 {
 			return 0, errBlockedWrite
 		}
 	}
@@ -453,4 +454,90 @@ func TestSSEBlockedWriteEndsAtRevocation(t *testing.T) {
 	}
 
 	assert.Zero(t, svc.Connections())
+}
+
+// A quiet stream is not reset between two events: the write deadline is cleared after each write, so a stream that is
+// idle for longer than the deadline still gets the next change. HTTP/2 resets a stream whose deadline expires, HTTP/1.1
+// does not care; both are served.
+func TestSSEQuietStreamKeepsItsConnection(t *testing.T) {
+	t.Parallel()
+
+	const deadline = 30 * time.Millisecond
+
+	tests := []struct {
+		name         string
+		http2        bool
+		wantProtocol int
+	}{
+		{name: "HTTP/1.1", http2: false, wantProtocol: 1},
+		{name: "HTTP/2", http2: true, wantProtocol: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := stream.NewSSEService(stream.WithWriteTimeout(deadline), stream.WithSSEHeartbeatInterval(0))
+			t.Cleanup(svc.Close)
+
+			subscribed := make(chan string, 1)
+
+			svc.SetOnSubscribe(func(id string) { subscribed <- id })
+
+			srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				svc.ServeKeyed(w, r, keyOne, func() bool { return true })
+			}))
+			srv.EnableHTTP2 = tt.http2
+
+			if tt.http2 {
+				srv.StartTLS()
+			} else {
+				srv.Start()
+			}
+
+			t.Cleanup(srv.Close)
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"?stream="+setOne, http.NoBody)
+			require.NoError(t, err)
+
+			resp, err := srv.Client().Do(req)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = resp.Body.Close() })
+
+			assert.Equal(t, tt.wantProtocol, resp.ProtoMajor)
+
+			client := &sseClient{lines: make(chan string, 8), ended: make(chan struct{})}
+
+			go func() {
+				defer close(client.ended)
+
+				scanner := bufio.NewScanner(resp.Body)
+				for scanner.Scan() {
+					if line := scanner.Text(); strings.HasPrefix(line, "data:") {
+						client.lines <- line
+					}
+				}
+			}()
+
+			select {
+			case <-subscribed:
+			case <-time.After(anonBound):
+				require.FailNow(t, "the client did not subscribe")
+			}
+
+			// the stream is idle for several deadlines: a deadline left armed would have reset it by now
+			<-time.After(5 * deadline)
+
+			require.NoError(t, svc.BroadcastFlagChanges(setOne, notifier.DiffCache{}))
+
+			select {
+			case line := <-client.lines:
+				assert.Contains(t, line, "refetchEvaluation")
+			case <-client.ended:
+				assert.Fail(t, "the quiet stream was reset")
+			case <-time.After(anonBound):
+				assert.Fail(t, "the quiet stream did not get the change")
+			}
+		})
+	}
 }

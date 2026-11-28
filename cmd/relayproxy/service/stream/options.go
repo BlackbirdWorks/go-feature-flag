@@ -37,8 +37,8 @@ func WithSSEHeartbeatInterval(interval time.Duration) Option {
 	}
 }
 
-// WithWriteTimeout sets the time a websocket client has to take a message before it is closed and removed. A value
-// <= 0 keeps the default.
+// WithWriteTimeout sets the time a websocket client has to take a message before it is closed and removed, and the
+// write deadline of every write of an SSE stream. A value <= 0 keeps the default.
 func WithWriteTimeout(timeout time.Duration) Option {
 	return func(o *options) {
 		if timeout > 0 {

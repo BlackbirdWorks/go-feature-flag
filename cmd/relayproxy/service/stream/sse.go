@@ -57,13 +57,15 @@ const AnonymousStreamPrefix = "anonymous:"
 
 // SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
 type SSEServiceImpl struct {
-	server          *sse.Server
-	activeStreams   map[string]int
-	anonymous       map[*anonymousClient]struct{}
-	keyed           map[*keyedClient]struct{}
-	done            chan struct{}
-	heartbeats      sync.WaitGroup
-	hasher          keyHasher
+	server        *sse.Server
+	activeStreams map[string]int
+	anonymous     map[*anonymousClient]struct{}
+	keyed         map[*keyedClient]struct{}
+	done          chan struct{}
+	heartbeats    sync.WaitGroup
+	hasher        keyHasher
+	// writeTimeout is the write deadline of every write of a stream.
+	writeTimeout    time.Duration
 	closeOnce       sync.Once
 	muActiveStreams sync.Mutex
 }
@@ -80,6 +82,7 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 		anonymous:     map[*anonymousClient]struct{}{},
 		keyed:         map[*keyedClient]struct{}{},
 		hasher:        newKeyHasher(),
+		writeTimeout:  newOptions(opts...).writeTimeout,
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
@@ -162,21 +165,25 @@ type keyedClient struct {
 	streamID string
 	keyID    uint64
 	revoked  atomic.Bool
+	// mu guards done: the handler sets it before it returns, and a revocation touches the response only while it is
+	// not set (the server clears the state of a response when its request ends).
+	mu   sync.Mutex
+	done bool
 }
 
-// sseWriteDeadline is the time the network gets to take one write of a stream (an event, a heartbeat, a flush). The
-// deadline is set before every write, so a healthy stream that lives for days never meets it, and a client that stopped
-// reading holds its goroutine for this long at most.
-const sseWriteDeadline = 10 * time.Second
-
-// streamWriter is the writer of one stream: it sets the write deadline before every write, and drops what is written
-// to a client whose key was revoked.
+// streamWriter is the writer of one stream: it sets the write deadline before every write and clears it after, and
+// drops what is written to a client whose key was revoked. A deadline left armed would reset a quiet stream (HTTP/2)
+// between two heartbeats.
 type streamWriter struct {
 	http.ResponseWriter
 
 	rc      *http.ResponseController
 	revoked *atomic.Bool
+	timeout time.Duration
 }
+
+// revokedDeadline is the write deadline of a revoked stream: in the past, so a blocked write ends at once.
+func revokedDeadline() time.Time { return time.Unix(1, 0) }
 
 func (w *streamWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
@@ -185,6 +192,8 @@ func (w *streamWriter) Write(data []byte) (int, error) {
 		return 0, io.ErrClosedPipe
 	}
 
+	defer w.disarm()
+
 	return w.ResponseWriter.Write(data) //nolint:wrapcheck // the writer of the response, errors are the client's
 }
 
@@ -192,6 +201,8 @@ func (w *streamWriter) Flush() {
 	if !w.arm() {
 		return
 	}
+
+	defer w.disarm()
 
 	_ = w.rc.Flush()
 }
@@ -204,16 +215,29 @@ func (w *streamWriter) arm() bool {
 
 	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. A writer that does
 	// not support deadlines (a test recorder) is written to as before.
-	_ = w.rc.SetWriteDeadline(time.Now().Add(sseWriteDeadline))
+	_ = w.rc.SetWriteDeadline(time.Now().Add(w.timeout))
 
 	if w.revoked != nil && w.revoked.Load() {
 		// revoked while the deadline was set: the deadline of the revocation must be the last one
-		_ = w.rc.SetWriteDeadline(time.Unix(1, 0))
+		_ = w.rc.SetWriteDeadline(revokedDeadline())
 
 		return false
 	}
 
 	return true
+}
+
+// disarm clears the deadline after a write, unless the stream was revoked meanwhile.
+func (w *streamWriter) disarm() {
+	if w.revoked != nil && w.revoked.Load() {
+		return
+	}
+
+	_ = w.rc.SetWriteDeadline(time.Time{})
+
+	if w.revoked != nil && w.revoked.Load() {
+		_ = w.rc.SetWriteDeadline(revokedDeadline())
+	}
 }
 
 // DisconnectRevoked ends the requests of the clients whose key does not route to their flag set anymore. The requests
@@ -246,8 +270,15 @@ func (s *SSEServiceImpl) DisconnectRevoked(routes KeyRoutes) {
 	s.muActiveStreams.Unlock()
 
 	for _, client := range revoked {
-		// a write that is blocked on the network ends now, and the request is cancelled
-		_ = client.rc.SetWriteDeadline(time.Unix(1, 0))
+		// a write that is blocked on the network ends now, and the request is cancelled; the response of a request that
+		// has returned is not touched
+		client.mu.Lock()
+
+		if !client.done {
+			_ = client.rc.SetWriteDeadline(revokedDeadline())
+		}
+
+		client.mu.Unlock()
 
 		client.cancel()
 	}
@@ -266,6 +297,10 @@ func (s *SSEServiceImpl) ServeKeyed(w http.ResponseWriter, r *http.Request, apiK
 	s.muActiveStreams.Unlock()
 
 	defer func() {
+		client.mu.Lock()
+		client.done = true
+		client.mu.Unlock()
+
 		s.muActiveStreams.Lock()
 		delete(s.keyed, client)
 		s.muActiveStreams.Unlock()
@@ -324,7 +359,7 @@ func (s *SSEServiceImpl) serve(w http.ResponseWriter, r *http.Request, revoked *
 		r = r.WithContext(ctx)
 	}
 
-	w = &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked}
+	w = &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked, timeout: s.writeTimeout}
 
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}
