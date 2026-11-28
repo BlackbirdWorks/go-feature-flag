@@ -36,7 +36,8 @@ const (
 connections:
   control: {type: file, path: /tmp/control}
   cache: {type: redis, addresses: ["127.0.0.1:1"], password: {fromEnv: SEGPASS}, tls: {enable: true}}
-  fast: {type: valkey, addresses: ["127.0.0.1:1"], forceSingleClient: true, timeouts: {connect: 200ms}}
+  fast: {type: valkey, addresses: ["127.0.0.1:1"], forceSingleClient: true, atomic: false,
+    timeouts: {connect: 200ms, io: 2s}}
   tuned: {type: redis, addresses: ["127.0.0.1:1"], db: 2, maxRetries: -1, poolSize: 4, lookupTimeout: 50ms,
     keyPrefix: "p:", atomic: true, timeouts: {connect: 100ms, read: 100ms, write: 100ms}}
   nopass: {type: redis, addresses: ["127.0.0.1:1"], password: {fromEnv: MISSING}}

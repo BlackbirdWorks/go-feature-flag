@@ -108,6 +108,7 @@ connections:
     timeouts:
       connect: 2s
       io: 1s
+    atomic: true
     lookupTimeout: 150ms
     type: valkey
     username: semaphore

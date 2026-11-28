@@ -68,6 +68,7 @@ var (
 	ErrInit = errors.New("valkey segment: init failed")
 
 	errNegativeTimeout   = errors.New("timeout is negative")
+	errConnWriteTimeout  = errors.New("conn write timeout must be from 10ms to 1m")
 	errNegativeMaxID     = errors.New("max id bytes is negative")
 	errInvalidMissing    = errors.New("missing key must be unknown or notMember")
 	errInvalidName       = errors.New("invalid segment name")

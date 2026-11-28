@@ -18,6 +18,7 @@ import (
 // valkeyHandle is a valkey-go client shared by every generation.
 type valkeyHandle struct {
 	client  valkey.Client
+	atomic  *bool
 	prefix  string
 	timeout time.Duration
 }
@@ -51,8 +52,15 @@ func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOption
 			opt.BlockingPipeline = math.MaxInt // a batch of any size stays on the shared connection
 		}
 
+		timeout := lookupTimeout(conn.LookupTimeout)
+		opt.ConnWriteTimeout = valkeysegment.DefaultConnWriteTimeout(timeout)
+
 		if t := conn.Timeouts; t != nil {
-			opt.Dialer.Timeout, opt.ConnWriteTimeout = durationOf(t.Connect), durationOf(t.IO)
+			opt.Dialer.Timeout = durationOf(t.Connect)
+
+			if io := durationOf(t.IO); io > 0 {
+				opt.ConnWriteTimeout = io
+			}
 		}
 
 		client, err := valkey.NewClient(opt)
@@ -60,7 +68,10 @@ func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOption
 			return nil, fmt.Errorf("valkey: %w", valkeysegment.ErrUnavailable) // the error holds an address
 		}
 
-		return &valkeyHandle{client: client, prefix: conn.KeyPrefix, timeout: lookupTimeout(conn.LookupTimeout)}, nil
+		return &valkeyHandle{
+			client: client, prefix: conn.KeyPrefix, timeout: timeout,
+			atomic: conn.Atomic,
+		}, nil
 	}
 }
 
@@ -80,6 +91,7 @@ func (h *valkeyHandle) Bind(
 
 	prov, err := valkeysegment.New(h.client, &valkeysegment.Options{
 		Segments: segs, KeyPrefix: h.prefix, MissingKey: valkeysegment.MissingKey(missing), Timeout: h.timeout,
+		Atomic: h.atomic,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("valkey provider: %w", err)
