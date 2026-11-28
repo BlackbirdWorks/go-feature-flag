@@ -109,7 +109,6 @@ notifiers:
     endpointUrl: {fromFile: /run/secrets/audit-url}
     secret: {fromFile: /run/secrets/audit-signing}
 auth:
-  anonymousFlagSet: public
   adminKeys:
     - 7d9f1e0c-6a43-4c2e-9d57-0f6b3f0f1a11
     - {fromEnv: SEMAPHORE_ADMIN_KEY}

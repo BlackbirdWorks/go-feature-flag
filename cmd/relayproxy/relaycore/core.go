@@ -182,6 +182,9 @@ func (c *Core) Evaluator() *flagruntime.Evaluator { return c.eval }
 // change it afterwards.
 func (c *Core) Collect(event events.Event) bool { return c.events.Collect(event) }
 
+// DropNotPublic counts the events of a caller without a key that were refused: their flag is not a public one.
+func (c *Core) DropNotPublic(count int) { c.events.DropNotPublic(count) }
+
 // Status returns a snapshot of the status. It reads atomics and immutable values and never blocks.
 func (c *Core) Status() Status {
 	return Status{

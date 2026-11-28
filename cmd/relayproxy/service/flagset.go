@@ -39,6 +39,17 @@ type FlagSet interface {
 	ForceRefresh() bool
 }
 
+// PublicScope is a [FlagSet] that is the public flag set: a caller without an API key is a caller of the public flags
+// only, so the events it sends are accepted for these flags and no other.
+type PublicScope interface {
+	// IsPublic reports that the flag set is the public one.
+	IsPublic() bool
+	// HasFlag reports whether the flag is one of the flag set.
+	HasFlag(key string) bool
+	// DropNotPublic counts events that were refused because their flag is not public.
+	DropNotPublic(count int)
+}
+
 // FlagSetResolver finds the flag set of an API key. It is the seam of the HTTP layer: the config v2 core implements
 // it, the tests of the handlers implement it on engine clients.
 type FlagSetResolver interface {

@@ -55,7 +55,7 @@ func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	// request to the correct flagset. After that point the apiKey is not needed anymore, so we delete it.
 	query := r.URL.Query()
 	if apiKey == "" {
-		// no key: the stream of the clients of the anonymous flag set, closed when the access ends
+		// no key: the stream of the clients without a key, closed when the public flags are withdrawn
 		query.Set("stream", stream.AnonymousStreamPrefix+flagsetName)
 	} else {
 		query.Set("stream", flagsetName)

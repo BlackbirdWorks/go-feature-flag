@@ -26,7 +26,6 @@ func TestServerSettings(t *testing.T) {
 		doc           string
 		wantErr       string
 		wantStreamURL string
-		wantAnonymous string
 		wantDelay     int
 		wantJSON      int64
 		wantYAML      int64
@@ -39,11 +38,11 @@ func TestServerSettings(t *testing.T) {
 		},
 		{
 			name: "everything set", wantPprof: true, wantHide: true,
-			doc: settingsBase + "auth:\n  anonymousFlagSet: public\n" + opsListeners +
+			doc: settingsBase + opsListeners +
 				"  hideBanner: true\n  ops: {pprof: {enabled: true}}\n" +
 				"  ofrepEventStream: {baseUrl: \"https://flags.example.com/base\", inactivityDelaySec: 30}\n" +
 				"  validateFlags: {maxJsonBodySize: 2MiB, maxYamlBodySize: 100KiB, maxTomlBodySize: 1500B}\n",
-			wantStreamURL: "https://flags.example.com/base", wantDelay: 30, wantAnonymous: "public",
+			wantStreamURL: "https://flags.example.com/base", wantDelay: 30,
 			wantJSON: 2 << 20, wantYAML: 100 << 10, wantTOML: 1500,
 		},
 		{
@@ -60,11 +59,6 @@ func TestServerSettings(t *testing.T) {
 			name:    "an unknown key under ops",
 			doc:     settingsBase + "server:\n  ops: {pprof: {enable: true}}\n",
 			wantErr: bootstrap.ErrUnknownKey.Error(),
-		},
-		{
-			name:    "an anonymous flag set that is not a name",
-			doc:     settingsBase + "auth:\n  anonymousFlagSet: Not A Name\n",
-			wantErr: "auth.anonymousFlagSet (line 8): invalid name",
 		},
 		{
 			name:    "a stream URL that is not http",
@@ -126,7 +120,6 @@ func TestServerSettings(t *testing.T) {
 			assert.Equal(t, tt.wantHide, cfg.Server.HideBanner)
 			assert.Equal(t, tt.wantStreamURL, cfg.Server.OFREPEventStream.BaseURL)
 			assert.Equal(t, tt.wantDelay, cfg.Server.OFREPEventStream.InactivityDelaySec)
-			assert.Equal(t, tt.wantAnonymous, cfg.Auth.AnonymousFlagSet)
 			assert.Equal(t, tt.wantJSON, sizeOf(cfg.Server.ValidateFlags.MaxJSONBodySize))
 			assert.Equal(t, tt.wantYAML, sizeOf(cfg.Server.ValidateFlags.MaxYAMLBodySize))
 			assert.Equal(t, tt.wantTOML, sizeOf(cfg.Server.ValidateFlags.MaxTOMLBodySize))
@@ -176,4 +169,55 @@ func sizeOf(size *bootstrap.ByteSize) int64 {
 	}
 
 	return int64(*size)
+}
+
+// The one rule of a host:port address (the port is digits, no sign, no leading zero) holds for the brokers of a Kafka
+// exporter and for the OTLP endpoint, and the error names the path of the key.
+func TestAddressPortRuleOfBrokersAndOTLPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		doc      string
+		wantPath string
+	}{
+		{name: "a broker", doc: "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:9092\"]}}\n"},
+		{
+			name:     "a broker with a leading zero",
+			doc:      "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:09092\"]}}\n",
+			wantPath: "exporters.e.kafka.addresses[0]",
+		},
+		{
+			name:     "the second broker with a sign",
+			doc:      "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:9092\", \"h:+9092\"]}}\n",
+			wantPath: "exporters.e.kafka.addresses[1]",
+		},
+		{name: "the OTLP endpoint", doc: "observability:\n  tracing: {otlpEndpoint: \"collector:4317\"}\n"},
+		{
+			name:     "the OTLP endpoint with a leading zero",
+			doc:      "observability:\n  tracing: {otlpEndpoint: \"collector:04317\"}\n",
+			wantPath: "observability.tracing.otlpEndpoint",
+		},
+		{
+			name:     "the OTLP endpoint with a sign",
+			doc:      "observability:\n  tracing: {otlpEndpoint: \"collector:+4317\"}\n",
+			wantPath: "observability.tracing.otlpEndpoint",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := bootstrap.Parse([]byte(settingsBase+tt.doc), nil, options(nil, nil, false))
+			if tt.wantPath == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.NotNil(t, findError(t, err, bootstrap.ErrInvalidValue, tt.wantPath))
+		})
+	}
 }

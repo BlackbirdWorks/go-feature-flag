@@ -1,5 +1,18 @@
 {
   "config": {
+    "reloads": {
+      "applied": 4,
+      "ignored": 0,
+      "rejected": 0
+    },
+    "public": {
+      "sets": [],
+      "flags": 0,
+      "present": false
+    },
+    "staleness": {
+      "ageSeconds": 0
+    },
     "lastReload": {
       "at": "2025-06-15T12:00:00Z",
       "outcome": "applied",
@@ -11,14 +24,6 @@
       "outcome": "applied",
       "code": "applied",
       "generation": 3
-    },
-    "staleness": {
-      "ageSeconds": 0
-    },
-    "reloads": {
-      "applied": 4,
-      "ignored": 0,
-      "rejected": 0
     },
     "flagSets": [
       {

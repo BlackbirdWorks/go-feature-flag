@@ -44,7 +44,7 @@ func TestOpenAPI(t *testing.T) {
 	}
 }
 
-// The operations the anonymous flag set can reach document an optional key: the key schemes they accept, and the empty
+// The operations the public flags can reach document an optional key: the key schemes they accept, and the empty
 // requirement next to them, with the note that says why. The admin operations keep a required key.
 func TestOpenAPIOptionalKey(t *testing.T) {
 	t.Parallel()
@@ -91,7 +91,7 @@ func TestOpenAPIOptionalKey(t *testing.T) {
 			}
 
 			got[operation.OperationID] = requirements
-			noted[operation.OperationID] = strings.Contains(operation.Description, "auth.anonymousFlagSet")
+			noted[operation.OperationID] = strings.Contains(operation.Description, "published without API keys")
 		}
 	}
 

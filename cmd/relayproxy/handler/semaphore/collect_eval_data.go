@@ -89,12 +89,16 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 	}
 
 	logger := logging.FromContext(ctx)
-	counterTracking := 0
-	counterEvaluation := 0
+
+	var counterTracking, counterEvaluation int
 	// notIngested counts the feature events that did not reach the exporters of a flag set that tells (the v2 core):
 	// the ones that failed conversion and the ones its queue refused.
 	notIngested := 0
 	_, tells := flagset.(service.EventAcceptor)
+
+	// a caller without a key is a caller of the public flags only: its events are for these flags, the others are
+	// dropped and counted, and the answer is the same whether a flag exists or not
+	filter := newPublicFilter(flagset)
 
 	for i, event := range reqBody.Events {
 		// Check if context is cancelled before processing each event, to avoid
@@ -132,6 +136,12 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 
 			counterTracking++
 		default:
+			if filter.refuses(event) {
+				notIngested++
+
+				continue
+			}
+
 			if collectFeature(ctx, flagset, event, reqBody.Meta, tells, logger) {
 				counterEvaluation++
 			} else {
@@ -145,6 +155,8 @@ func (h *CollectEvalData) Handle(ctx context.Context, input *CollectEvalDataInpu
 		attribute.Int("collectEventData.evaluationCollectionSize", counterEvaluation),
 	)
 	h.metrics.IncCollectEvalData(float64(len(reqBody.Events)))
+
+	filter.report()
 
 	return &CollectEvalDataOutput{Body: model.CollectEvalDataResponse{
 		IngestedContentCount: len(reqBody.Events) - notIngested,
@@ -242,4 +254,45 @@ func formatCreationDate(ctx context.Context, input int64, logger *slog.Logger) i
 	}
 
 	return input
+}
+
+// publicFilter keeps the events of a caller without a key to the public flags. The zero value, and the filter of a
+// flag set that is not the public one, refuse nothing.
+type publicFilter struct {
+	scope   service.PublicScope
+	refused int
+}
+
+func newPublicFilter(flagset service.FlagSet) *publicFilter {
+	scope, ok := flagset.(service.PublicScope)
+	if !ok || !scope.IsPublic() {
+		return &publicFilter{scope: nil, refused: 0}
+	}
+
+	return &publicFilter{scope: scope, refused: 0}
+}
+
+// refuses reports whether the event is for a flag that is not public, and counts it.
+func (f *publicFilter) refuses(event map[string]any) bool {
+	if f.scope == nil || f.scope.HasFlag(flagKeyOf(event)) {
+		return false
+	}
+
+	f.refused++
+
+	return true
+}
+
+// report counts the refused events.
+func (f *publicFilter) report() {
+	if f.scope != nil {
+		f.scope.DropNotPublic(f.refused)
+	}
+}
+
+// flagKeyOf is the flag key of a feature event, empty when it has none.
+func flagKeyOf(event map[string]any) string {
+	key, _ := event["key"].(string)
+
+	return key
 }

@@ -11,17 +11,18 @@ import (
 // ErrNotPolling is returned by [Reader.Refresh] when the reader is not running: it was not started, or it stopped.
 var ErrNotPolling = errors.New("manifestreader: the reader is not polling")
 
-// RefreshResult is the outcome of the round a [Reader.Refresh] waited for.
+// RefreshResult is the outcome of the round a [Reader.Refresh] waited for. It is never serialised: the endpoint of the
+// relay answers with a type of its own.
 type RefreshResult struct {
 	// Poll is the result of the poll of the manifest: a Poll* result and its reason.
-	Poll PollStatus `json:"poll"`
+	Poll PollStatus
 	// Generation is the generation of the held manifest after the round, zero before the first accepted one.
-	Generation uint64 `json:"generation"`
+	Generation uint64
 	// Changed says that the round accepted a manifest of another generation than the one held before it.
 	Changed bool
 	// Revision is the number of the last snapshot the reader emitted, zero before the first: the snapshot the round
 	// produced, or the one that was already out when it produced none.
-	Revision uint64 `json:"changed"`
+	Revision uint64
 }
 
 // refreshCall is the waiters of one round: they all get its result.

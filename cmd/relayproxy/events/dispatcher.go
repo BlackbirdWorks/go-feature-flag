@@ -110,6 +110,7 @@ type Dispatcher struct {
 	dropShutdown   atomic.Uint64
 	dropNoExporter atomic.Uint64
 	dropDrain      atomic.Uint64
+	dropNotPublic  atomic.Uint64
 	// inflight counts the collectors between their check of closed and the end of their send.
 	inflight atomic.Int64
 	// mu guards the delivery of a batch (read) against the swap of the set (write).
@@ -180,6 +181,14 @@ func (d *Dispatcher) Collect(event Event) bool {
 	}
 }
 
+// DropNotPublic counts events that were refused before the queue: they came from a caller without an API key and their
+// flag is not a public one.
+func (d *Dispatcher) DropNotPublic(count int) {
+	if count > 0 {
+		d.dropNotPublic.Add(uint64(count))
+	}
+}
+
 // Start starts the workers. The end of the context shuts the dispatcher down like [Dispatcher.Shutdown] with the
 // drain timeout of the configuration as its deadline.
 func (d *Dispatcher) Start(ctx context.Context) error {
@@ -242,7 +251,7 @@ func (d *Dispatcher) Status() Status {
 			Accepted: d.accepted.Load(),
 			Dropped: Drops{
 				QueueFull: d.dropFull.Load(), Shutdown: d.dropShutdown.Load(),
-				NoExporter: d.dropNoExporter.Load(), Drain: d.dropDrain.Load(),
+				NoExporter: d.dropNoExporter.Load(), Drain: d.dropDrain.Load(), NotPublic: d.dropNotPublic.Load(),
 			},
 		},
 		Exporters: make([]ExporterStatus, 0, len(names)),

@@ -99,6 +99,7 @@ func (c *Collector) Collect(out chan<- prometheus.Metric) {
 	counter(c.dropped, snap.Queue.Dropped.Shutdown, ReasonShutdown)
 	counter(c.dropped, snap.Queue.Dropped.NoExporter, ReasonNoExporter)
 	counter(c.dropped, snap.Queue.Dropped.Drain, ReasonDrain)
+	counter(c.dropped, snap.Queue.Dropped.NotPublic, ReasonNotPublic)
 
 	for i := range snap.Exporters {
 		c.collectExporter(out, &snap.Exporters[i], gauge, counter)
