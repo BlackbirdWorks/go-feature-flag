@@ -40,9 +40,9 @@ func TestDocumentedBootstrapFilesLoad(t *testing.T) {
 			var files []string
 
 			switch block.lang {
-			case "yaml", "yml":
+			case langYAML, "yml":
 				files = []string{block.body}
-			case "shell", "bash", "sh":
+			case langShell, "bash", "sh":
 				files = heredocs(block.body, "YAML")
 			}
 
@@ -118,7 +118,7 @@ func TestGettingStartedBlocksAreMarked(t *testing.T) {
 		lang       string
 		wantMarker string
 	}{
-		{lang: "shell", wantMarker: markerRun},
+		{lang: langShell, wantMarker: markerRun},
 		{lang: "text", wantMarker: markerOutput},
 	}
 

@@ -8,253 +8,253 @@ the [bootstrap file](../relay-proxy/bootstrap-config.md). The meaning of each bo
 
 ## Bootstrap file
 
-The file of the relay proxy, `version: 2`. File: `.schema/bootstrap-schema.json`.
+The file of the relay proxy, `version: 2`. File: `.schema/bootstrap-schema.json`. Reload says what a reload of the file does with the key: `live` applies it in place, `restart` keeps it out until the next start and names it in `pendingRestart`.
 
-| Key | Type | Required | Default | Allowed | Description |
-|---|---|---|---|---|---|
-| `auth` | object |  |  |  |  |
-| `auth.adminKeys` | list of string or object |  |  |  |  |
-| `auth.adminKeys[].fromEnv` | string |  |  | length at least 1 |  |
-| `auth.adminKeys[].fromFile` | string |  |  | length at least 1 |  |
-| `connections` | map of object |  |  | names match `^[a-z][a-z0-9-]{0,62}$` |  |
-| `connections.<name>.bucket` | string |  |  |  | Only for `s3`. |
-| `connections.<name>.caBundleFile` | string |  |  |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
-| `connections.<name>.credentials` | object |  |  |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
-| `connections.<name>.credentials.accessKeyId` | secret | for `static` |  |  | Only for `static`. |
-| `connections.<name>.credentials.externalId` | secret |  |  |  | Only for `assumeRole`. |
-| `connections.<name>.credentials.roleArn` | string | for `assumeRole`, `webIdentity` |  |  | Only for `assumeRole`, `webIdentity`. |
-| `connections.<name>.credentials.secretAccessKey` | secret | for `static` |  |  | Only for `static`. |
-| `connections.<name>.credentials.sessionName` | string |  |  |  | Only for `assumeRole`, `webIdentity`. |
-| `connections.<name>.credentials.sessionToken` | secret |  |  |  | Only for `static`. |
-| `connections.<name>.credentials.tokenFile` | string | for `webIdentity` |  |  | Only for `webIdentity`. |
-| `connections.<name>.credentials.type` | string |  | `chain` | one of `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity` |  |
-| `connections.<name>.endpoint` | string |  |  |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
-| `connections.<name>.pathStyle` | boolean |  |  |  | Only for `s3`. |
-| `connections.<name>.poll` | object |  |  |  | Only for `s3`. |
-| `connections.<name>.poll.interval` | duration |  | `60s` |  |  |
-| `connections.<name>.poll.jitter` | number |  | `0.1` | at least 0; at most 1 |  |
-| `connections.<name>.region` | string | yes |  | matches `\S` | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
-| `connections.<name>.requestChecksumCalculation` | string |  | `whenSupported` | one of `whenSupported`, `whenRequired` | Only for `s3`. |
-| `connections.<name>.responseChecksumValidation` | string |  | `whenSupported` | one of `whenSupported`, `whenRequired` | Only for `s3`. |
-| `connections.<name>.retry` | object or boolean |  |  |  | Only for `kinesis`, `redshift`, `s3`, `sqs`, `valkey`. |
-| `connections.<name>.retry.maxAttempts` | integer |  | `3` | at least 1; at most 20 |  |
-| `connections.<name>.retry.maxBackoff` | duration |  | `20s` |  |  |
-| `connections.<name>.timeouts` | object |  |  |  | Only for `kinesis`, `redis`, `redshift`, `s3`, `sqs`, `valkey`. |
-| `connections.<name>.timeouts.connect` | duration |  | `10s` |  |  |
-| `connections.<name>.timeouts.request` | duration |  | `30s` |  |  |
-| `connections.<name>.type` | string | yes |  | one of `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis`, `valkey` | Only for `file`, `kinesis`, `redis`, `redshift`, `s3`, `sqs`, `valkey`. |
-| `connections.<name>.stream` | string |  |  |  | Only for `kinesis`. |
-| `connections.<name>.queueUrl` | string |  |  |  | Only for `sqs`. |
-| `connections.<name>.path` | string | yes |  | matches `\S` | Only for `file`. |
-| `connections.<name>.addresses` | list of string | yes |  | at least items: 1 | Only for `redis`, `valkey`. |
-| `connections.<name>.atomic` | boolean |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.cluster` | boolean |  |  |  | Only for `redis`. |
-| `connections.<name>.db` | integer |  |  | at least 0 | Only for `redis`. |
-| `connections.<name>.keyPrefix` | string |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.lookupTimeout` | duration |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.maxRetries` | integer |  |  | at least -1 | Only for `redis`. |
-| `connections.<name>.password` | secret |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.poolSize` | integer |  |  | at least 1 | Only for `redis`. |
-| `connections.<name>.timeouts.read` | duration |  |  |  |  |
-| `connections.<name>.timeouts.write` | duration |  |  |  |  |
-| `connections.<name>.tls` | object |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.tls.caBundleFile` | string |  |  |  |  |
-| `connections.<name>.tls.enable` | boolean |  |  |  |  |
-| `connections.<name>.tls.serverName` | string |  |  |  |  |
-| `connections.<name>.username` | string |  |  |  | Only for `redis`, `valkey`. |
-| `connections.<name>.blockingPipeline` | integer |  |  | at least 0 | Only for `valkey`. |
-| `connections.<name>.forceSingleClient` | boolean |  |  |  | Only for `valkey`. |
-| `connections.<name>.pipelining` | string |  | `always` | one of `always`, `auto` | Only for `valkey`. |
-| `connections.<name>.timeouts.io` | duration |  |  |  |  |
-| `controlPlane` | object |  |  |  |  |
-| `controlPlane.connection` | string | yes |  |  |  |
-| `controlPlane.manifest` | object |  |  |  |  |
-| `controlPlane.manifest.channel` | string |  | `stable` |  |  |
-| `controlPlane.manifest.jitter` | number |  | `0.1` | at least 0; less than 1 |  |
-| `controlPlane.manifest.key` | string |  |  |  |  |
-| `controlPlane.manifest.maxObjects` | integer |  | `20000` | at least 1 |  |
-| `controlPlane.manifest.pollInterval` | duration |  | `60s` |  |  |
-| `controlPlane.stateDir` | string |  |  |  |  |
-| `evaluation` | object |  |  |  |  |
-| `evaluation.contextEnrichment` | map |  |  |  | Merged into the context of every evaluation. Values: strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity). |
-| `evaluation.disableSemaphoreMetadata` | boolean |  |  |  |  |
-| `evaluation.environment` | string |  |  |  |  |
-| `exporters` | map of object |  |  | names match `^[a-z][a-z0-9-]{0,62}$` |  |
-| `exporters.<name>.accountKey` | secret |  |  |  | Only for `azureBlobStorage`. |
-| `exporters.<name>.accountName` | string | for `azureBlobStorage` |  |  | Only for `azureBlobStorage`. |
-| `exporters.<name>.autoMigrate` | boolean |  |  |  | Only for `bigquery`, `redshift`. |
-| `exporters.<name>.blockTimeout` | duration |  | `50ms` |  |  |
-| `exporters.<name>.bucket` | string | for `googleStorage` |  |  | Only for `googleStorage`. |
-| `exporters.<name>.clusterIdentifier` | string |  |  |  | Only for `redshift`. |
-| `exporters.<name>.connection` | string | for `kinesis`, `redshift`, `s3`, `sqs` |  |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
-| `exporters.<name>.container` | string | for `azureBlobStorage` |  |  | Only for `azureBlobStorage`. |
-| `exporters.<name>.csvTemplate` | string |  |  |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
-| `exporters.<name>.database` | string | for `redshift` |  |  | Only for `redshift`. |
-| `exporters.<name>.datasetId` | string | for `bigquery` |  |  | Only for `bigquery`. |
-| `exporters.<name>.dbUser` | string |  |  |  | Only for `redshift`. |
-| `exporters.<name>.drainTimeout` | duration |  | `10s` |  |  |
-| `exporters.<name>.endpointUrl` | secret | for `webhook` |  |  | Only for `webhook`. |
-| `exporters.<name>.eventType` | string |  |  |  |  |
-| `exporters.<name>.filename` | string |  |  |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
-| `exporters.<name>.flushInterval` | duration |  | `60s` |  |  |
-| `exporters.<name>.format` | string |  |  | one of `json`, `csv`, `parquet` | Only for `azureBlobStorage`, `file`, `googleStorage`, `kafka`, `kinesis`, `s3`, `sqs`. |
-| `exporters.<name>.googleCredentials` | secret |  |  |  | Only for `bigquery`, `googleStorage`, `pubsub`. |
-| `exporters.<name>.headers` | map of secret |  |  |  | Only for `webhook`. |
-| `exporters.<name>.kafka` | object | for `kafka` |  |  | Only for `kafka`. |
-| `exporters.<name>.kafka.addresses` | list of string | yes |  |  |  |
-| `exporters.<name>.kafka.apiVersionsRequest` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.channelBufferSize` | integer |  |  |  |  |
-| `exporters.<name>.kafka.clientId` | string |  |  |  |  |
-| `exporters.<name>.kafka.metadata` | object |  |  |  |  |
-| `exporters.<name>.kafka.metadata.allowAutoTopicCreation` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.metadata.full` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.metadata.refreshFrequency` | duration |  |  |  |  |
-| `exporters.<name>.kafka.metadata.retry` | object |  |  |  |  |
-| `exporters.<name>.kafka.metadata.retry.backoff` | duration |  |  |  |  |
-| `exporters.<name>.kafka.metadata.retry.max` | integer |  |  |  |  |
-| `exporters.<name>.kafka.metadata.singleFlight` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.metadata.timeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.net` | object |  |  |  |  |
-| `exporters.<name>.kafka.net.dialTimeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.net.keepAlive` | duration |  |  |  |  |
-| `exporters.<name>.kafka.net.maxOpenRequests` | integer |  |  |  |  |
-| `exporters.<name>.kafka.net.readTimeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.net.resolveCanonicalBootstrapServers` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl` | object |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.authIdentity` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.enable` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi` | object |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.authType` | string |  |  | one of `user`, `keytab` |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.disablePafxfast` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.kerberosConfigPath` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.keyTabPath` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.password` | secret |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.realm` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.serviceName` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.gssapi.username` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.handshake` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.mechanism` | string |  |  | one of `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `GSSAPI` |  |
-| `exporters.<name>.kafka.net.sasl.password` | secret |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.scramAuthzId` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.user` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.sasl.version` | integer |  |  |  |  |
-| `exporters.<name>.kafka.net.tls` | object |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.caFile` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.certFile` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.enable` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.insecureSkipVerify` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.keyFile` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.tls.serverName` | string |  |  |  |  |
-| `exporters.<name>.kafka.net.writeTimeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.producer` | object |  |  |  |  |
-| `exporters.<name>.kafka.producer.compression` | string |  |  | one of `none`, `gzip`, `snappy`, `lz4`, `zstd` |  |
-| `exporters.<name>.kafka.producer.compressionLevel` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.flush` | object |  |  |  |  |
-| `exporters.<name>.kafka.producer.flush.bytes` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.flush.frequency` | duration |  |  |  |  |
-| `exporters.<name>.kafka.producer.flush.maxMessages` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.flush.messages` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.idempotent` | boolean |  |  |  |  |
-| `exporters.<name>.kafka.producer.maxMessageBytes` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.partitioner` | string |  |  | one of `hash`, `random`, `roundrobin` |  |
-| `exporters.<name>.kafka.producer.requiredAcks` | string |  |  | one of `none`, `local`, `all` |  |
-| `exporters.<name>.kafka.producer.retry` | object |  |  |  |  |
-| `exporters.<name>.kafka.producer.retry.backoff` | duration |  |  |  |  |
-| `exporters.<name>.kafka.producer.retry.max` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.retry.maxBufferBytes` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.retry.maxBufferLength` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.timeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction` | object |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction.id` | string |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction.retry` | object |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction.retry.backoff` | duration |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction.retry.max` | integer |  |  |  |  |
-| `exporters.<name>.kafka.producer.transaction.timeout` | duration |  |  |  |  |
-| `exporters.<name>.kafka.rackId` | string |  |  |  |  |
-| `exporters.<name>.kafka.topic` | string | yes |  |  |  |
-| `exporters.<name>.kafka.version` | string |  |  |  |  |
-| `exporters.<name>.kind` | string | yes |  | one of `file`, `webhook`, `log`, `s3`, `kinesis`, `googleStorage`, `sqs`, `kafka`, `pubsub`, `bigquery`, `redshift`, `azureBlobStorage`, `opentelemetry` |  |
-| `exporters.<name>.logFormat` | string |  |  |  | Only for `log`. |
-| `exporters.<name>.maxBytes` | size |  |  |  |  |
-| `exporters.<name>.maxEventInMemory` | integer |  | `100000` | at least 1 |  |
-| `exporters.<name>.meta` | map of string |  |  |  |  |
-| `exporters.<name>.outputDir` | string | for `file` |  |  | Only for `file`. |
-| `exporters.<name>.overflowPolicy` | string |  | `dropNewest` | one of `dropNewest`, `dropOldest`, `block` | What a full queue of the exporter does: dropNewest drops the new event, dropOldest drops the oldest queued one, block waits up to blockTimeout for room and then drops the new event. An empty value is the default. |
-| `exporters.<name>.parquetCompressionCodec` | string |  |  |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
-| `exporters.<name>.path` | string |  |  |  | Only for `azureBlobStorage`, `googleStorage`, `s3`. |
-| `exporters.<name>.projectId` | string | for `bigquery`, `pubsub` |  |  | Only for `bigquery`, `pubsub`. |
-| `exporters.<name>.queueUrl` | string |  |  |  | Only for `sqs`. |
-| `exporters.<name>.retry` | object |  |  |  |  |
-| `exporters.<name>.retry.initialBackoff` | duration |  | `200ms` |  |  |
-| `exporters.<name>.retry.maxAttempts` | integer |  | `5` | at least 1; at most 20 | Attempts of one batch, the first included: 1 means no retry. |
-| `exporters.<name>.retry.maxBackoff` | duration |  | `5s` |  |  |
-| `exporters.<name>.retry.maxElapsed` | duration |  | `30s` |  |  |
-| `exporters.<name>.retry.onExhausted` | string |  | `keep` | one of `keep`, `drop` | What becomes of a batch that fails every attempt: keep hands it back to be sent again at the next flush (nothing is lost until the store of the exporter overflows), drop drops it and counts it. An empty value is the default. |
-| `exporters.<name>.secret` | secret |  |  |  | Only for `webhook`. |
-| `exporters.<name>.secretArn` | string |  |  |  | Only for `redshift`. |
-| `exporters.<name>.streamArn` | string |  |  |  | Only for `kinesis`. |
-| `exporters.<name>.streamName` | string |  |  |  | Only for `kinesis`. |
-| `exporters.<name>.tableName` | string |  |  |  | Only for `bigquery`, `redshift`. |
-| `exporters.<name>.topic` | string | for `pubsub` |  |  | Only for `pubsub`. |
-| `exporters.<name>.tracerName` | string |  |  |  | Only for `opentelemetry`. |
-| `exporters.<name>.workgroupName` | string |  |  |  | Only for `redshift`. |
-| `notifiers` | map of object |  |  | names match `^[a-z][a-z0-9-]{0,62}$` |  |
-| `notifiers.<name>.endpointUrl` | secret | for `webhook` |  |  | Only for `webhook`. |
-| `notifiers.<name>.headers` | map of secret |  |  |  | Only for `webhook`. |
-| `notifiers.<name>.kind` | string | yes |  | one of `slack`, `microsoftteams`, `webhook`, `discord` |  |
-| `notifiers.<name>.meta` | map of string |  |  |  |  |
-| `notifiers.<name>.secret` | secret |  |  |  | Only for `webhook`. |
-| `notifiers.<name>.webhookUrl` | secret | for `discord`, `microsoftteams`, `slack` |  |  | Only for `discord`, `microsoftteams`, `slack`. |
-| `observability` | object |  |  |  |  |
-| `observability.logging` | object |  |  |  |  |
-| `observability.logging.format` | string |  | `json` | one of `json`, `text` |  |
-| `observability.logging.level` | string |  | `info` | one of `debug`, `info`, `warn`, `error` |  |
-| `observability.metrics` | object |  |  |  |  |
-| `observability.metrics.enabled` | boolean |  | `true` |  |  |
-| `observability.metrics.legacyNames` | boolean |  |  |  |  |
-| `observability.metrics.perFlagLabels` | boolean |  |  |  |  |
-| `observability.tracing` | object |  |  |  |  |
-| `observability.tracing.otlpEndpoint` | string |  |  |  |  |
-| `observability.tracing.sampler` | string |  | `parentbased_always_off` | one of `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |  |
-| `observability.tracing.serviceName` | string |  | `semaphore` |  |  |
-| `segments` | object |  |  |  |  |
-| `segments.resolver` | object |  |  |  |  |
-| `segments.resolver.callTimeout` | duration |  |  |  |  |
-| `segments.resolver.default` | object |  |  |  |  |
-| `segments.resolver.default.breakerCooldown` | duration |  |  |  |  |
-| `segments.resolver.default.breakerFailures` | integer |  |  | at least 1 |  |
-| `segments.resolver.default.maxEntries` | integer |  |  | at least 1 |  |
-| `segments.resolver.default.negativeTtl` | duration |  |  |  |  |
-| `segments.resolver.default.noBreaker` | boolean |  |  |  |  |
-| `segments.resolver.default.noCache` | boolean |  |  |  |  |
-| `segments.resolver.default.normalize` | string |  |  | one of `none`, `trimLower` |  |
-| `segments.resolver.default.shards` | integer |  |  | at least 1 |  |
-| `segments.resolver.default.ttl` | duration |  |  |  |  |
-| `segments.resolver.maxIdBytes` | integer |  |  | at least 1 |  |
-| `segments.resolver.maxOverdue` | integer |  |  | at least 1 |  |
-| `segments.resolver.shutdownGrace` | duration |  |  |  |  |
-| `server` | object |  |  |  |  |
-| `server.hideBanner` | boolean |  |  |  |  |
-| `server.listeners` | list of object |  |  |  |  |
-| `server.listeners[].address` | string |  |  |  |  |
-| `server.listeners[].name` | string | yes |  | matches `^[a-z][a-z0-9-]{0,62}$` |  |
-| `server.listeners[].protocols` | list of string |  |  | no duplicate |  |
-| `server.listeners[].role` | string |  | `api` | one of `api`, `ops` |  |
-| `server.ofrepEventStream` | object |  |  |  |  |
-| `server.ofrepEventStream.baseUrl` | string |  |  |  |  |
-| `server.ofrepEventStream.inactivityDelaySec` | integer |  |  | at least 0 |  |
-| `server.ops` | object |  |  |  |  |
-| `server.ops.pprof` | object |  |  |  |  |
-| `server.ops.pprof.enabled` | boolean |  | `false` |  |  |
-| `server.shutdown` | object |  |  |  |  |
-| `server.shutdown.drainDelay` | duration |  | `0s` |  |  |
-| `server.shutdown.timeout` | duration |  | `15s` |  |  |
-| `server.unixSocketPath` | string |  |  |  |  |
-| `server.validateFlags` | object |  |  |  |  |
-| `server.validateFlags.maxJsonBodySize` | size |  |  |  |  |
-| `server.validateFlags.maxTomlBodySize` | size |  |  |  |  |
-| `server.validateFlags.maxYamlBodySize` | size |  |  |  |  |
-| `version` | integer | yes |  | one of `2` |  |
+| Key | Type | Required | Default | Reload | Allowed | Description |
+|---|---|---|---|---|---|---|
+| `auth` | object |  |  | live |  |  |
+| `auth.adminKeys` | list of string or object |  |  | live |  |  |
+| `auth.adminKeys[].fromEnv` | string |  |  | live | length at least 1 |  |
+| `auth.adminKeys[].fromFile` | string |  |  | live | length at least 1 |  |
+| `connections` | map of object |  |  | restart | names match `^[a-z][a-z0-9-]{0,62}$` |  |
+| `connections.<name>.bucket` | string |  |  | restart |  | Only for `s3`. |
+| `connections.<name>.caBundleFile` | string |  |  | restart |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
+| `connections.<name>.credentials` | object |  |  | restart |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
+| `connections.<name>.credentials.accessKeyId` | secret | for `static` |  | restart |  | Only for `static`. |
+| `connections.<name>.credentials.externalId` | secret |  |  | restart |  | Only for `assumeRole`. |
+| `connections.<name>.credentials.roleArn` | string | for `assumeRole`, `webIdentity` |  | restart |  | Only for `assumeRole`, `webIdentity`. |
+| `connections.<name>.credentials.secretAccessKey` | secret | for `static` |  | restart |  | Only for `static`. |
+| `connections.<name>.credentials.sessionName` | string |  |  | restart |  | Only for `assumeRole`, `webIdentity`. |
+| `connections.<name>.credentials.sessionToken` | secret |  |  | restart |  | Only for `static`. |
+| `connections.<name>.credentials.tokenFile` | string | for `webIdentity` |  | restart |  | Only for `webIdentity`. |
+| `connections.<name>.credentials.type` | string |  | `chain` | restart | one of `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity`, `chain`, `static`, `assumeRole`, `webIdentity` |  |
+| `connections.<name>.endpoint` | string |  |  | restart |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
+| `connections.<name>.pathStyle` | boolean |  |  | restart |  | Only for `s3`. |
+| `connections.<name>.poll` | object |  |  | restart |  | Only for `s3`. |
+| `connections.<name>.poll.interval` | duration |  | `60s` | restart |  |  |
+| `connections.<name>.poll.jitter` | number |  | `0.1` | restart | at least 0; at most 1 |  |
+| `connections.<name>.region` | string | yes |  | restart | matches `\S` | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
+| `connections.<name>.requestChecksumCalculation` | string |  | `whenSupported` | restart | one of `whenSupported`, `whenRequired` | Only for `s3`. |
+| `connections.<name>.responseChecksumValidation` | string |  | `whenSupported` | restart | one of `whenSupported`, `whenRequired` | Only for `s3`. |
+| `connections.<name>.retry` | object or boolean |  |  | restart |  | Only for `kinesis`, `redshift`, `s3`, `sqs`, `valkey`. |
+| `connections.<name>.retry.maxAttempts` | integer |  | `3` | restart | at least 1; at most 20 |  |
+| `connections.<name>.retry.maxBackoff` | duration |  | `20s` | restart |  |  |
+| `connections.<name>.timeouts` | object |  |  | restart |  | Only for `kinesis`, `redis`, `redshift`, `s3`, `sqs`, `valkey`. |
+| `connections.<name>.timeouts.connect` | duration |  | `10s` | restart |  |  |
+| `connections.<name>.timeouts.request` | duration |  | `30s` | restart |  |  |
+| `connections.<name>.type` | string | yes |  | restart | one of `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis`, `valkey` | Only for `file`, `kinesis`, `redis`, `redshift`, `s3`, `sqs`, `valkey`. |
+| `connections.<name>.stream` | string |  |  | restart |  | Only for `kinesis`. |
+| `connections.<name>.queueUrl` | string |  |  | restart |  | Only for `sqs`. |
+| `connections.<name>.path` | string | yes |  | restart | matches `\S` | Only for `file`. |
+| `connections.<name>.addresses` | list of string | yes |  | restart | at least items: 1 | Only for `redis`, `valkey`. |
+| `connections.<name>.atomic` | boolean |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.cluster` | boolean |  |  | restart |  | Only for `redis`. |
+| `connections.<name>.db` | integer |  |  | restart | at least 0 | Only for `redis`. |
+| `connections.<name>.keyPrefix` | string |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.lookupTimeout` | duration |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.maxRetries` | integer |  |  | restart | at least -1 | Only for `redis`. |
+| `connections.<name>.password` | secret |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.poolSize` | integer |  |  | restart | at least 1 | Only for `redis`. |
+| `connections.<name>.timeouts.read` | duration |  |  | restart |  |  |
+| `connections.<name>.timeouts.write` | duration |  |  | restart |  |  |
+| `connections.<name>.tls` | object |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.tls.caBundleFile` | string |  |  | restart |  |  |
+| `connections.<name>.tls.enable` | boolean |  |  | restart |  |  |
+| `connections.<name>.tls.serverName` | string |  |  | restart |  |  |
+| `connections.<name>.username` | string |  |  | restart |  | Only for `redis`, `valkey`. |
+| `connections.<name>.blockingPipeline` | integer |  |  | restart | at least 0 | Only for `valkey`. |
+| `connections.<name>.forceSingleClient` | boolean |  |  | restart |  | Only for `valkey`. |
+| `connections.<name>.pipelining` | string |  | `always` | restart | one of `always`, `auto` | Only for `valkey`. |
+| `connections.<name>.timeouts.io` | duration |  |  | restart |  |  |
+| `controlPlane` | object |  |  | restart |  |  |
+| `controlPlane.connection` | string | yes |  | restart |  |  |
+| `controlPlane.manifest` | object |  |  | restart |  |  |
+| `controlPlane.manifest.channel` | string |  | `stable` | restart |  |  |
+| `controlPlane.manifest.jitter` | number |  | `0.1` | restart | at least 0; less than 1 |  |
+| `controlPlane.manifest.key` | string |  |  | restart |  |  |
+| `controlPlane.manifest.maxObjects` | integer |  | `20000` | restart | at least 1 |  |
+| `controlPlane.manifest.pollInterval` | duration |  | `60s` | restart |  |  |
+| `controlPlane.stateDir` | string |  |  | restart |  |  |
+| `evaluation` | object |  |  | restart |  |  |
+| `evaluation.contextEnrichment` | map |  |  | restart |  | Merged into the context of every evaluation. Values: strings, integers, finite numbers, booleans, lists and mappings with string keys (no timestamps, binary or infinity). |
+| `evaluation.disableSemaphoreMetadata` | boolean |  |  | restart |  |  |
+| `evaluation.environment` | string |  |  | restart |  |  |
+| `exporters` | map of object |  |  | restart | names match `^[a-z][a-z0-9-]{0,62}$` |  |
+| `exporters.<name>.accountKey` | secret |  |  | restart |  | Only for `azureBlobStorage`. |
+| `exporters.<name>.accountName` | string | for `azureBlobStorage` |  | restart |  | Only for `azureBlobStorage`. |
+| `exporters.<name>.autoMigrate` | boolean |  |  | restart |  | Only for `bigquery`, `redshift`. |
+| `exporters.<name>.blockTimeout` | duration |  | `50ms` | restart |  |  |
+| `exporters.<name>.bucket` | string | for `googleStorage` |  | restart |  | Only for `googleStorage`. |
+| `exporters.<name>.clusterIdentifier` | string |  |  | restart |  | Only for `redshift`. |
+| `exporters.<name>.connection` | string | for `kinesis`, `redshift`, `s3`, `sqs` |  | restart |  | Only for `kinesis`, `redshift`, `s3`, `sqs`. |
+| `exporters.<name>.container` | string | for `azureBlobStorage` |  | restart |  | Only for `azureBlobStorage`. |
+| `exporters.<name>.csvTemplate` | string |  |  | restart |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
+| `exporters.<name>.database` | string | for `redshift` |  | restart |  | Only for `redshift`. |
+| `exporters.<name>.datasetId` | string | for `bigquery` |  | restart |  | Only for `bigquery`. |
+| `exporters.<name>.dbUser` | string |  |  | restart |  | Only for `redshift`. |
+| `exporters.<name>.drainTimeout` | duration |  | `10s` | restart |  |  |
+| `exporters.<name>.endpointUrl` | secret | for `webhook` |  | restart |  | Only for `webhook`. |
+| `exporters.<name>.eventType` | string |  |  | restart |  |  |
+| `exporters.<name>.filename` | string |  |  | restart |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
+| `exporters.<name>.flushInterval` | duration |  | `60s` | restart |  |  |
+| `exporters.<name>.format` | string |  |  | restart | one of `json`, `csv`, `parquet` | Only for `azureBlobStorage`, `file`, `googleStorage`, `kafka`, `kinesis`, `s3`, `sqs`. |
+| `exporters.<name>.googleCredentials` | secret |  |  | restart |  | Only for `bigquery`, `googleStorage`, `pubsub`. |
+| `exporters.<name>.headers` | map of secret |  |  | restart |  | Only for `webhook`. |
+| `exporters.<name>.kafka` | object | for `kafka` |  | restart |  | Only for `kafka`. |
+| `exporters.<name>.kafka.addresses` | list of string | yes |  | restart |  |  |
+| `exporters.<name>.kafka.apiVersionsRequest` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.channelBufferSize` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.clientId` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.allowAutoTopicCreation` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.full` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.refreshFrequency` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.retry` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.retry.backoff` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.retry.max` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.singleFlight` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.metadata.timeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.net` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.dialTimeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.keepAlive` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.maxOpenRequests` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.readTimeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.resolveCanonicalBootstrapServers` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.authIdentity` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.enable` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.authType` | string |  |  | restart | one of `user`, `keytab` |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.disablePafxfast` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.kerberosConfigPath` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.keyTabPath` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.password` | secret |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.realm` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.serviceName` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.gssapi.username` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.handshake` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.mechanism` | string |  |  | restart | one of `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `GSSAPI` |  |
+| `exporters.<name>.kafka.net.sasl.password` | secret |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.scramAuthzId` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.user` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.sasl.version` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.caFile` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.certFile` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.enable` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.insecureSkipVerify` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.keyFile` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.tls.serverName` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.net.writeTimeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.compression` | string |  |  | restart | one of `none`, `gzip`, `snappy`, `lz4`, `zstd` |  |
+| `exporters.<name>.kafka.producer.compressionLevel` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.flush` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.flush.bytes` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.flush.frequency` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.flush.maxMessages` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.flush.messages` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.idempotent` | boolean |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.maxMessageBytes` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.partitioner` | string |  |  | restart | one of `hash`, `random`, `roundrobin` |  |
+| `exporters.<name>.kafka.producer.requiredAcks` | string |  |  | restart | one of `none`, `local`, `all` |  |
+| `exporters.<name>.kafka.producer.retry` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.retry.backoff` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.retry.max` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.retry.maxBufferBytes` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.retry.maxBufferLength` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.timeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction.id` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction.retry` | object |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction.retry.backoff` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction.retry.max` | integer |  |  | restart |  |  |
+| `exporters.<name>.kafka.producer.transaction.timeout` | duration |  |  | restart |  |  |
+| `exporters.<name>.kafka.rackId` | string |  |  | restart |  |  |
+| `exporters.<name>.kafka.topic` | string | yes |  | restart |  |  |
+| `exporters.<name>.kafka.version` | string |  |  | restart |  |  |
+| `exporters.<name>.kind` | string | yes |  | restart | one of `file`, `webhook`, `log`, `s3`, `kinesis`, `googleStorage`, `sqs`, `kafka`, `pubsub`, `bigquery`, `redshift`, `azureBlobStorage`, `opentelemetry` |  |
+| `exporters.<name>.logFormat` | string |  |  | restart |  | Only for `log`. |
+| `exporters.<name>.maxBytes` | size |  |  | restart |  |  |
+| `exporters.<name>.maxEventInMemory` | integer |  | `100000` | restart | at least 1 |  |
+| `exporters.<name>.meta` | map of string |  |  | restart |  |  |
+| `exporters.<name>.outputDir` | string | for `file` |  | restart |  | Only for `file`. |
+| `exporters.<name>.overflowPolicy` | string |  | `dropNewest` | restart | one of `dropNewest`, `dropOldest`, `block` | What a full queue of the exporter does: dropNewest drops the new event, dropOldest drops the oldest queued one, block waits up to blockTimeout for room and then drops the new event. An empty value is the default. |
+| `exporters.<name>.parquetCompressionCodec` | string |  |  | restart |  | Only for `azureBlobStorage`, `file`, `googleStorage`, `s3`. |
+| `exporters.<name>.path` | string |  |  | restart |  | Only for `azureBlobStorage`, `googleStorage`, `s3`. |
+| `exporters.<name>.projectId` | string | for `bigquery`, `pubsub` |  | restart |  | Only for `bigquery`, `pubsub`. |
+| `exporters.<name>.queueUrl` | string |  |  | restart |  | Only for `sqs`. |
+| `exporters.<name>.retry` | object |  |  | restart |  |  |
+| `exporters.<name>.retry.initialBackoff` | duration |  | `200ms` | restart |  |  |
+| `exporters.<name>.retry.maxAttempts` | integer |  | `5` | restart | at least 1; at most 20 | Attempts of one batch, the first included: 1 means no retry. |
+| `exporters.<name>.retry.maxBackoff` | duration |  | `5s` | restart |  |  |
+| `exporters.<name>.retry.maxElapsed` | duration |  | `30s` | restart |  |  |
+| `exporters.<name>.retry.onExhausted` | string |  | `keep` | restart | one of `keep`, `drop` | What becomes of a batch that fails every attempt: keep hands it back to be sent again at the next flush (nothing is lost until the store of the exporter overflows), drop drops it and counts it. An empty value is the default. |
+| `exporters.<name>.secret` | secret |  |  | restart |  | Only for `webhook`. |
+| `exporters.<name>.secretArn` | string |  |  | restart |  | Only for `redshift`. |
+| `exporters.<name>.streamArn` | string |  |  | restart |  | Only for `kinesis`. |
+| `exporters.<name>.streamName` | string |  |  | restart |  | Only for `kinesis`. |
+| `exporters.<name>.tableName` | string |  |  | restart |  | Only for `bigquery`, `redshift`. |
+| `exporters.<name>.topic` | string | for `pubsub` |  | restart |  | Only for `pubsub`. |
+| `exporters.<name>.tracerName` | string |  |  | restart |  | Only for `opentelemetry`. |
+| `exporters.<name>.workgroupName` | string |  |  | restart |  | Only for `redshift`. |
+| `notifiers` | map of object |  |  | restart | names match `^[a-z][a-z0-9-]{0,62}$` |  |
+| `notifiers.<name>.endpointUrl` | secret | for `webhook` |  | restart |  | Only for `webhook`. |
+| `notifiers.<name>.headers` | map of secret |  |  | restart |  | Only for `webhook`. |
+| `notifiers.<name>.kind` | string | yes |  | restart | one of `slack`, `microsoftteams`, `webhook`, `discord` |  |
+| `notifiers.<name>.meta` | map of string |  |  | restart |  |  |
+| `notifiers.<name>.secret` | secret |  |  | restart |  | Only for `webhook`. |
+| `notifiers.<name>.webhookUrl` | secret | for `discord`, `microsoftteams`, `slack` |  | restart |  | Only for `discord`, `microsoftteams`, `slack`. |
+| `observability` | object |  |  | restart |  |  |
+| `observability.logging` | object |  |  | restart |  |  |
+| `observability.logging.format` | string |  | `json` | restart | one of `json`, `text` |  |
+| `observability.logging.level` | string |  | `info` | restart | one of `debug`, `info`, `warn`, `error` |  |
+| `observability.metrics` | object |  |  | restart |  |  |
+| `observability.metrics.enabled` | boolean |  | `true` | restart |  |  |
+| `observability.metrics.legacyNames` | boolean |  |  | restart |  |  |
+| `observability.metrics.perFlagLabels` | boolean |  |  | restart |  |  |
+| `observability.tracing` | object |  |  | restart |  |  |
+| `observability.tracing.otlpEndpoint` | string |  |  | restart |  |  |
+| `observability.tracing.sampler` | string |  | `parentbased_always_off` | restart | one of `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |  |
+| `observability.tracing.serviceName` | string |  | `semaphore` | restart |  |  |
+| `segments` | object |  |  | restart |  |  |
+| `segments.resolver` | object |  |  | restart |  |  |
+| `segments.resolver.callTimeout` | duration |  |  | restart |  |  |
+| `segments.resolver.default` | object |  |  | restart |  |  |
+| `segments.resolver.default.breakerCooldown` | duration |  |  | restart |  |  |
+| `segments.resolver.default.breakerFailures` | integer |  |  | restart | at least 1 |  |
+| `segments.resolver.default.maxEntries` | integer |  |  | restart | at least 1 |  |
+| `segments.resolver.default.negativeTtl` | duration |  |  | restart |  |  |
+| `segments.resolver.default.noBreaker` | boolean |  |  | restart |  |  |
+| `segments.resolver.default.noCache` | boolean |  |  | restart |  |  |
+| `segments.resolver.default.normalize` | string |  |  | restart | one of `none`, `trimLower` |  |
+| `segments.resolver.default.shards` | integer |  |  | restart | at least 1 |  |
+| `segments.resolver.default.ttl` | duration |  |  | restart |  |  |
+| `segments.resolver.maxIdBytes` | integer |  |  | restart | at least 1 |  |
+| `segments.resolver.maxOverdue` | integer |  |  | restart | at least 1 |  |
+| `segments.resolver.shutdownGrace` | duration |  |  | restart |  |  |
+| `server` | object |  |  | per key |  |  |
+| `server.hideBanner` | boolean |  |  | restart |  |  |
+| `server.listeners` | list of object |  |  | restart |  |  |
+| `server.listeners[].address` | string |  |  | restart |  |  |
+| `server.listeners[].name` | string | yes |  | restart | matches `^[a-z][a-z0-9-]{0,62}$` |  |
+| `server.listeners[].protocols` | list of string |  |  | restart | no duplicate |  |
+| `server.listeners[].role` | string |  | `api` | restart | one of `api`, `ops` |  |
+| `server.ofrepEventStream` | object |  |  | restart |  |  |
+| `server.ofrepEventStream.baseUrl` | string |  |  | restart |  |  |
+| `server.ofrepEventStream.inactivityDelaySec` | integer |  |  | restart | at least 0 |  |
+| `server.ops` | object |  |  | restart |  |  |
+| `server.ops.pprof` | object |  |  | restart |  |  |
+| `server.ops.pprof.enabled` | boolean |  | `false` | restart |  |  |
+| `server.shutdown` | object |  |  | restart |  |  |
+| `server.shutdown.drainDelay` | duration |  | `0s` | restart |  |  |
+| `server.shutdown.timeout` | duration |  | `15s` | restart |  |  |
+| `server.unixSocketPath` | string |  |  | restart |  |  |
+| `server.validateFlags` | object |  |  | restart |  |  |
+| `server.validateFlags.maxJsonBodySize` | size |  |  | restart |  |  |
+| `server.validateFlags.maxTomlBodySize` | size |  |  | restart |  |  |
+| `server.validateFlags.maxYamlBodySize` | size |  |  | restart |  |  |
+| `version` | integer | yes |  | restart | one of `2` |  |
 
 ## Manifest
 
