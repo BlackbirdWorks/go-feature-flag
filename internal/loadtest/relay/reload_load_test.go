@@ -28,6 +28,7 @@ const (
 	reloadEvery = 200 * time.Millisecond
 	windowTail  = 25 * time.Millisecond
 	markerFlag  = "reload-marker"
+	serialEnv   = "SEMAPHORE_RELOAD_LOAD_SERIAL"
 	reloadBound = 30 * time.Second
 )
 
@@ -44,9 +45,9 @@ func markedFlags(n int) string {
 //
 // It measures wall time and the process shares the machine with nothing else: the parallel tests of the package are
 // paused until it ends, so it does not run in parallel.
-//
-//nolint:paralleltest // latency is the measure: a parallel test would load the machine during the run
 func TestReloadLoad_P99IsFlatDuringReloads(t *testing.T) {
+	t.Setenv(serialEnv, "1") // forbids t.Parallel: latency is the measure, a parallel test would load the machine
+
 	duration := defaultDuration
 
 	if raw, ok := os.LookupEnv(durationEnv); ok {
