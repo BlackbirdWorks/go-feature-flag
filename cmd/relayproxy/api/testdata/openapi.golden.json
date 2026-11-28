@@ -128,6 +128,9 @@
           "staleness": {
             "$ref": "#/components/schemas/StalenessInfo"
           },
+          "state": {
+            "$ref": "#/components/schemas/StateInfo"
+          },
           "withdrawn": {
             "items": {
               "$ref": "#/components/schemas/WithdrawnInfo"
@@ -148,6 +151,7 @@
           "withdrawn",
           "pendingRestart",
           "public",
+          "state",
           "generation",
           "snapshot"
         ],
@@ -791,6 +795,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "kept": {
+            "format": "int64",
+            "type": "integer"
+          },
           "kind": {
             "type": "string"
           },
@@ -814,7 +822,8 @@
           "state",
           "checksumHeld",
           "flags",
-          "rejected"
+          "rejected",
+          "kept"
         ],
         "type": "object"
       },
@@ -959,6 +968,39 @@
         },
         "required": [
           "ageSeconds"
+        ],
+        "type": "object"
+      },
+      "StateInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "keptFlags": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lastSaveError": {
+            "type": "string"
+          },
+          "saveErrors": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "saves": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lastSaveError",
+          "saves",
+          "saveErrors",
+          "keptFlags",
+          "enabled"
         ],
         "type": "object"
       },

@@ -27,10 +27,11 @@ func (c *Core) Refresh(ctx context.Context) (RefreshResult, error) {
 		return RefreshResult{}, fmt.Errorf("refresh: %w", err)
 	}
 
-	decided, err := c.engine.Await(ctx, polled.Revision)
+	// the decision and the generation served come as one: a swap after the decision does not mix them
+	decided, err := c.engine.AwaitDecision(ctx, polled.Revision)
 	if err != nil {
 		return RefreshResult{}, fmt.Errorf("refresh: %w", err)
 	}
 
-	return RefreshResult{Poll: polled, Engine: decided, Running: c.holder.Load().Generation}, nil
+	return RefreshResult{Poll: polled, Engine: decided.Reload, Running: decided.Running}, nil
 }

@@ -91,27 +91,29 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // are dropped, and the channel is closed.
 type Engine struct {
 	hooks         Hooks
-	last          atomic.Pointer[RoundResult]
-	rejected      *Reload
+	builder       *Builder
+	announced     map[string]struct{}
 	content       chan *Content
 	boot          chan *bootstrap.Config
 	changes       chan Change
 	queue         *pendingQueue
-	announced     map[string]struct{}
-	baseline      *bootstrap.Config
-	cur           *Runtime
-	running       map[string]runningObject
-	builder       *Builder
 	roundDone     atomic.Pointer[chan struct{}]
 	logger        *slog.Logger
+	last          atomic.Pointer[RoundResult]
+	running       map[string]runningObject
+	cur           *Runtime
+	rejected      *Reload
+	baseline      *bootstrap.Config
 	holder        *Holder
 	decided       atomic.Pointer[decision]
 	secrets       bootstrap.LoadOptions
+	taken         atomic.Uint64
 	withdrawnCap  int
 	changeBuf     int
 	snapshot      uint64
 	roundRevision uint64
 	bootstrapped  atomic.Bool
+	roundContent  bool
 	roundHadBoot  bool
 }
 
@@ -207,27 +209,52 @@ func (e *Engine) Result() RoundResult {
 type decision struct {
 	reload   Reload
 	revision uint64
+	// running is the generation of the runtime the round left stored: read in the same step as the decision.
+	running uint64
 }
+
+// Decision is what the engine decided of a revision, and the generation it served when it decided: the two are one
+// fact, so a swap that comes after the decision never changes the answer.
+type Decision struct {
+	Reload Reload
+	// Running is the generation of the runtime that was stored when the decision was made: the generation of the
+	// decision when it was applied, the last known good one when it was rejected or ignored.
+	Running uint64
+}
+
+// Taken is the revision of the content the engine took last, zero before any. The engine decides it next, and no
+// older revision is ever decided: whoever keeps content by revision can forget the older ones.
+func (e *Engine) Taken() uint64 { return e.taken.Load() }
 
 // Await returns when the engine has decided the content of the revision, or of a later one (the later content
 // replaces it: the engine keeps the latest only): the Reload is the decision, applied, ignored or rejected with its
 // code. Revision 0 means nothing to wait for. It waits on the end of the rounds, never polls, and ends with ctx.
 func (e *Engine) Await(ctx context.Context, revision uint64) (Reload, error) {
+	decided, err := e.AwaitDecision(ctx, revision)
+
+	return decided.Reload, err
+}
+
+// AwaitDecision is [Engine.Await] with the generation the relay served when the decision was made, taken with the
+// decision and not read afterwards: a later swap does not change it.
+func (e *Engine) AwaitDecision(ctx context.Context, revision uint64) (Decision, error) {
 	if revision == 0 {
-		return e.holder.Load().Status.LastReload, nil
+		current := e.holder.Load()
+
+		return Decision{Reload: current.Status.LastReload, Running: current.Generation}, nil
 	}
 
 	for {
 		done := *e.roundDone.Load()
 
 		if decided := e.decided.Load(); decided != nil && decided.revision >= revision {
-			return decided.reload, nil
+			return Decision{Reload: decided.reload, Running: decided.running}, nil
 		}
 
 		select {
 		case <-done:
 		case <-ctx.Done():
-			return Reload{}, fmt.Errorf("waiting for the revision %d: %w", revision, ctx.Err())
+			return Decision{}, fmt.Errorf("waiting for the revision %d: %w", revision, ctx.Err())
 		}
 	}
 }
@@ -312,9 +339,10 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	e.roundHadBoot = cfg != nil
 
-	e.roundRevision = 0
+	e.roundRevision, e.roundContent = 0, false
 	if content != nil {
 		e.roundRevision = content.Revision
+		e.taken.Store(content.Revision)
 	}
 
 	if content != nil {
@@ -350,6 +378,8 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	}
 
 	e.adoptBaseline(&boot, cfg)
+
+	e.roundContent = plan.built != nil
 
 	applied := e.cur.Status.LastReload
 
@@ -757,7 +787,7 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 		final = *applied
 	}
 
-	result := RoundResult{Reload: final}
+	result := RoundResult{Reload: final, Revision: e.roundRevision, ContentApplied: e.roundContent}
 	if applied != nil {
 		result.Events = events
 	}
@@ -766,7 +796,9 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 
 	if e.roundRevision > 0 {
 		// before the end of the round is signalled: a waiter that wakes up reads this decision
-		e.decided.Store(&decision{revision: e.roundRevision, reload: final})
+		e.decided.Store(&decision{
+			revision: e.roundRevision, reload: final, running: e.holder.Load().Generation,
+		})
 	}
 
 	next := make(chan struct{})

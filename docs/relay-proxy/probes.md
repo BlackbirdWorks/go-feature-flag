@@ -35,7 +35,7 @@ Reasons (closed list): `starting`, `waiting-for-manifest`, `shutting-down`. Stat
 `config` holds: `generation` (applied manifest generation), `snapshot`, `lastReload` (the most recent round of any
 outcome), `lastApplied` and `lastRejected` (outcome, code, generation, time), `reloads` (rounds by outcome), `staleness` (last confirmation by the control plane, last successful
 reload, age in seconds), `flagSets` (state `ready`, `degraded` or `pending`, problems, flags, number of API keys,
-rejected flags, and `segments` with the number of `static` and `dynamic` segments, left out when the flag set has none), `objects` (state, reason, checksum held and listed), `withdrawn` and `pendingRestart`.
+rejected flags, and `segments` with the number of `static` and `dynamic` segments, left out when the flag set has none), `objects` (state, reason, checksum held and listed, rejected flags, and `kept`: the rejected flags still served from an earlier version of the object), `state` (the state directory: `enabled`, `lastSaveError`, `saves`, `saveErrors`, and `keptFlags`: the flags a restart would not restore), `withdrawn` and `pendingRestart`.
 The free text of a failure (the detail of a round, the text of a problem) is not served, because it can quote the content
 of an object: `/info` shows closed codes, and the text is in the logs. `lastRejected` stays until a later applied round supersedes it, then it is absent; ignored (unchanged) rounds do not clear
 it. It works with zero flag sets.
@@ -53,7 +53,7 @@ it. It works with zero flag sets.
 | `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
 | `semaphore_config_pending_restart` | | settings that changed and need a restart |
 
-The generation of the manifest the reader holds, the S3 requests and the exporters have their own metrics
+The generation of the manifest the reader fetched (`semaphore_manifest_generation`: the engine may have rejected it; the generation served is `semaphore_config_generation{layer="applied"}`), the S3 requests and the exporters have their own metrics
 (`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).
 
 Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per

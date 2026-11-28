@@ -390,7 +390,7 @@ number of series would grow with the manifest (up to 20000 objects) and with eve
 
 | Series | Type | Labels | Meaning |
 |---|---|---|---|
-| `semaphore_manifest_generation` | gauge | `channel` | Generation of the held manifest (absent before the first accepted one) |
+| `semaphore_manifest_generation` | gauge | `channel` | Generation of the manifest the reader fetched and holds (absent before the first accepted one); the engine may not have applied it, `semaphore_config_generation{layer="applied"}` is the generation served |
 | `semaphore_manifest_last_sync_timestamp_seconds` | gauge | | Unix time of the last poll that confirmed the held manifest; 0 when none |
 | `semaphore_manifest_polls_total` | counter | `result`: `not_modified`, `updated`, `not_found`, `too_large`, `error` | Manifest polls |
 | `semaphore_manifest_objects` | gauge | `state`: `ok`, `stale`, `missing` | Objects of the held manifest |

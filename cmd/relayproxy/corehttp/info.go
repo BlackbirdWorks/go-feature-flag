@@ -54,6 +54,7 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		PendingRestart: []string{},
 		Public:         model.PublicInfo{Sets: []string{}, Flags: 0, Present: false},
 		Staleness:      staleness(status, now),
+		State:          stateInfo(&status.Source.Reader.State),
 	}
 
 	info.LastReload = roundInfo(status.Reloads.LastRound)
@@ -81,12 +82,23 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		failures[failure.Name] = failure
 	}
 
+	referenced := map[string]struct{}{}
+
 	for _, set := range current.FlagSets {
 		info.FlagSets = append(info.FlagSets, flagSetInfo(set))
+
+		for _, source := range set.Sources {
+			referenced[source] = struct{}{}
+		}
 	}
 
 	for _, obj := range current.Objects {
 		info.Objects = append(info.Objects, objectInfo(obj, failures))
+
+		// only the objects that a flag set serves from count: a restart loses nothing of the others
+		if _, used := referenced[obj.Name]; used {
+			info.State.KeptFlags += keptFlags(obj)
+		}
 	}
 
 	for _, w := range current.Withdrawn {
@@ -97,6 +109,25 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 	slices.SortFunc(info.Objects, func(a, b model.ObjectInfo) int { return strings.Compare(a.Name, b.Name) })
 
 	return info
+}
+
+func stateInfo(state *manifestreader.StateStatus) model.StateInfo {
+	return model.StateInfo{
+		Enabled: state.Enabled, LastSaveError: state.LastSaveError, Saves: state.Saves, SaveErrors: state.SaveErrors,
+	}
+}
+
+// keptFlags counts the rejected flags of the object that keep serving an earlier definition.
+func keptFlags(obj *flagruntime.ObjectStatus) int {
+	kept := 0
+
+	for _, rejection := range obj.Rejected {
+		if rejection.Kept {
+			kept++
+		}
+	}
+
+	return kept
 }
 
 func roundInfo(round *relaycore.RoundSummary) model.ReloadInfo {
@@ -154,5 +185,6 @@ func objectInfo(obj *flagruntime.ObjectStatus, failures map[string]manifestreade
 	return model.ObjectInfo{
 		Name: obj.Name, Kind: obj.Kind, State: string(obj.State), Reason: reason,
 		ChecksumHeld: obj.Checksum, ChecksumListed: want, Flags: obj.Flags, Rejected: len(obj.Rejected),
+		Kept: keptFlags(obj),
 	}
 }

@@ -68,7 +68,12 @@ func NewManifestReader(
 	collector := &ManifestReader{
 		status: status,
 		desc: manifestDescs{
-			generation: desc("generation", "Generation of the manifest the reader holds (the applied one).", "channel"),
+			generation: desc(
+				"generation",
+				"Generation of the manifest the reader fetched and holds. The engine may not have applied it: "+
+					"semaphore_config_generation{layer=\"applied\"} is the generation that is served.",
+				"channel",
+			),
 			lastSync: desc("last_sync_timestamp_seconds",
 				"Unix time of the last poll that confirmed the held manifest (a 200 that was accepted or a 304); "+
 					"0 when there was none."),

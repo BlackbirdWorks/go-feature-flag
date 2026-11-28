@@ -38,4 +38,23 @@ type ObjectInfo struct {
 	ChecksumListed string `json:"checksumListed,omitempty"`
 	Flags          int    `json:"flags"`
 	Rejected       int    `json:"rejected"`
+	// Kept is the number of rejected flags that are served from an earlier version of the object. The state directory
+	// holds the bytes of the object, not that earlier version: a restart serves none of these flags.
+	Kept int `json:"kept"`
+}
+
+// StateInfo is the state directory as /info shows it: whether one is in use, and whether the writes work. A write that
+// fails never stops the relay from serving; this is where it shows.
+type StateInfo struct {
+	// LastSaveError is the closed code of the failure of the last write (no-space, denied, io, unsafe), empty when it
+	// worked.
+	LastSaveError string `json:"lastSaveError"`
+	// Saves and SaveErrors count the writes that ended, and the ones that failed.
+	Saves      uint64 `json:"saves"`
+	SaveErrors uint64 `json:"saveErrors"`
+	// KeptFlags is the number of flags, over all objects, that are served from an earlier version of their object
+	// and that a restart from the state directory would not serve (see ObjectInfo.Kept).
+	KeptFlags int `json:"keptFlags"`
+	// Enabled tells that a state directory is in use.
+	Enabled bool `json:"enabled"`
 }

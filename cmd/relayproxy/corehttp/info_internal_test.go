@@ -17,13 +17,15 @@ import (
 // TestConfigInfo pins the objects of /info for the states the e2e scenarios cannot reach: a stale object keeps its held
 // checksum, shows the listed one and the closed reason; free text never appears.
 const (
-	staleName = "stale-obj"
-	kindFlags = "flags"
-	fineName  = "fine"
-	sameSum   = "same"
-	outIgnore = "ignored"
-	outApply  = "applied"
-	outReject = "rejected"
+	usedName   = "used"
+	unusedName = "unused"
+	staleName  = "stale-obj"
+	kindFlags  = "flags"
+	fineName   = "fine"
+	sameSum    = "same"
+	outIgnore  = "ignored"
+	outApply   = "applied"
+	outReject  = "rejected"
 )
 
 func TestConfigInfo(t *testing.T) {
@@ -100,4 +102,54 @@ func TestConfigInfo_NoRuntime(t *testing.T) {
 	assert.Equal(t, []model.ObjectInfo{}, got.Objects)
 	assert.Equal(t, []string{}, got.PendingRestart)
 	assert.Equal(t, model.StalenessInfo{}, got.Staleness)
+}
+
+// keptFlags of /info counts the flags that a restart would lose: the rejected flags that are still served from an
+// earlier version, in the objects that a flag set serves from.
+func TestConfigInfoKeptFlagsCountOnlyTheObjectsAFlagSetUses(t *testing.T) {
+	t.Parallel()
+
+	kept := []flagruntime.FlagRejection{{Flag: "x", Kept: true}, {Flag: "y"}, {Flag: "z", Kept: true}}
+	objects := map[string]*flagruntime.ObjectStatus{
+		usedName:   {Name: usedName, Kind: kindFlags, State: flagruntime.ObjectOK, Rejected: kept},
+		unusedName: {Name: unusedName, Kind: kindFlags, State: flagruntime.ObjectOK, Rejected: kept},
+	}
+
+	tests := []struct {
+		sets map[string]*flagruntime.FlagSetStatus
+		name string
+		// wantKept is config.state.keptFlags, wantPerObject the sum of objects[].kept
+		wantKept      int
+		wantPerObject int
+	}{
+		{
+			name: "an object no flag set uses is not counted", wantKept: 2, wantPerObject: 4,
+			sets: map[string]*flagruntime.FlagSetStatus{"a": {Name: "a", Sources: []string{usedName}}},
+		},
+		{
+			name: "both objects used", wantKept: 4, wantPerObject: 4,
+			sets: map[string]*flagruntime.FlagSetStatus{"a": {Name: "a", Sources: []string{usedName, unusedName}}},
+		},
+		{name: "no flag set", sets: map[string]*flagruntime.FlagSetStatus{}, wantKept: 0, wantPerObject: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			status := relaycore.Status{Source: controlsource.Status{
+				Runtime: &flagruntime.Status{Objects: objects, FlagSets: tt.sets},
+			}}
+
+			got := configInfo(&status, clock.Now())
+			assert.Equal(t, tt.wantKept, got.State.KeptFlags)
+
+			perObject := 0
+			for _, obj := range got.Objects {
+				perObject += obj.Kept
+			}
+
+			assert.Equal(t, tt.wantPerObject, perObject, "the count per object stays: it says which object has them")
+		})
+	}
 }

@@ -63,4 +63,10 @@ type RoundResult struct {
 	// withdrawn, or flags gained and lost, while it is still in the pending table) counts zero. A round that is
 	// not applied has none.
 	Events int `json:"events"`
+	// Revision is the revision of the snapshot whose content the round took, zero for a round without content. It is
+	// the signal that a snapshot was decided: [Engine.Await] and the persistence of the applied state use it.
+	Revision uint64 `json:"-"`
+	// ContentApplied tells that the round stored the content of Revision. An applied round is also a bootstrap change
+	// (an admin key) that came with content the engine rejected: it is not a content decision.
+	ContentApplied bool `json:"-"`
 }
