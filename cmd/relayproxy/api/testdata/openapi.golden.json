@@ -702,7 +702,6 @@
         },
         "required": [
           "key",
-          "value",
           "reason",
           "variant"
         ],
@@ -754,7 +753,6 @@
         },
         "required": [
           "key",
-          "value",
           "reason",
           "variant"
         ],

@@ -155,7 +155,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 
 	return writeJSON(w, http.StatusOK, model.OFREPEvaluateSuccessResponse{
 		Key:      flagKey,
-		Value:    flagValue.Value,
+		Value:    ofrepValue(flagValue.Reason, flagValue.Value),
 		Reason:   flagValue.Reason,
 		Variant:  flagValue.VariationType,
 		Metadata: metadata,
@@ -208,14 +208,9 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	for key, val := range allFlagsResp.GetFlags() {
 		flagNames = append(flagNames, key)
 
-		value := val.Value
-		if val.Reason == flagdef.ReasonError {
-			value = nil
-		}
-
 		response.Flags = append(response.Flags, model.OFREPFlagBulkEvaluateSuccessResponse{
 			Key:          key,
-			Value:        value,
+			Value:        ofrepValue(val.Reason, val.Value),
 			Reason:       val.Reason,
 			Variant:      val.VariationType,
 			Metadata:     h.bulkMetadata(&val),
@@ -313,6 +308,16 @@ func evaluationContextFromOFREPRequest(req *model.OFREPEvalFlagRequest) (ffconte
 	evalCtx := evalcore.ConvertEvaluationCtxFromRequest(targetingKey, ctx)
 
 	return evalCtx, nil
+}
+
+// ofrepValue clears the evaluated value when a flag is disabled or errored so OFREP
+// responses omit "value" instead of serializing "value": null.
+func ofrepValue(reason string, value any) any {
+	if reason == flagdef.ReasonError || reason == flagdef.ReasonDisabled {
+		return nil
+	}
+
+	return value
 }
 
 // writeJSON sends v as the JSON body of the response, with the status code.
