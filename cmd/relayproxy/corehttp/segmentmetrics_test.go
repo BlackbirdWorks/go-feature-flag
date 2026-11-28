@@ -43,7 +43,7 @@ func series(t *testing.T, rig *v2, family, label, value string) (float64, bool) 
 func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection, cold: true})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t), cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocGood)}
 	rig.sets = []controlplane.FlagSet{{
@@ -81,5 +81,42 @@ func TestE2E_DynamicSegmentsAreObservable(t *testing.T) {
 	for _, state := range []string{"idle", "connecting", "connected", "error"} {
 		_, found := series(t, rig, "semaphore_segment_store_state", "state", state)
 		assert.True(t, found, state)
+	}
+}
+
+// A snapshot segment that was never loaded is in /info and in the metrics: the held sets by connection and state, the
+// members, and the shared bindings.
+func TestE2E_SnapshotSegmentsAreObservable(t *testing.T) {
+	t.Parallel()
+
+	rig := newV2With(t, &v2Options{connections: deadConnection(t), cold: true})
+	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
+	rig.segments = map[string][]byte{segObjectName: []byte(
+		segHeaderYAML + "  - name: audience\n    connection: audiences\n")}
+	rig.sets = []controlplane.FlagSet{{
+		Name: setName, Sources: []string{flagsObject, dynFlagsObject}, SegmentSources: []string{segObjectName},
+		APIKeys: []string{tenantKey},
+	}}
+
+	rig.publish(t)
+	rig.poll(t)
+
+	bindings := infoOf(t, rig).SegmentBindings
+	require.NotNil(t, bindings)
+	assert.Equal(t, 1, bindings.Live)
+	assert.Equal(t, []model.SegmentSnapshotInfo{{Connection: "audiences", NeverLoaded: 1}}, bindings.Snapshots)
+
+	for _, want := range []struct {
+		family, label, value string
+		wantValue            float64
+	}{
+		{"semaphore_segment_snapshot_sets", "state", "never_loaded", 1},
+		{"semaphore_segment_snapshot_sets", "state", "loaded", 0},
+		{"semaphore_segment_snapshot_members", "", "", 0},
+		{"semaphore_segment_bindings", "", "", 1},
+	} {
+		got, found := series(t, rig, want.family, want.label, want.value)
+		assert.True(t, found, want.family+" "+want.value)
+		assert.InDelta(t, want.wantValue, got, 0)
 	}
 }

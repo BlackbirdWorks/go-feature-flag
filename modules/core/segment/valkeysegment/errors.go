@@ -50,9 +50,9 @@ var (
 	// ErrUnavailable is wrapped by a LookupError of ClassUnavailable.
 	ErrUnavailable = errors.New("valkey segment: store unavailable")
 	// ErrServer is wrapped by a LookupError of ClassServer.
-	ErrServer = errors.New("valkey segment: store returned an error")
+	ErrServer = answeredError("valkey segment: store returned an error")
 	// ErrProtocol is wrapped by a LookupError of ClassProtocol.
-	ErrProtocol = errors.New("valkey segment: unexpected reply")
+	ErrProtocol = answeredError("valkey segment: unexpected reply")
 	// ErrInvalidOptions is wrapped by the error of New and Dial for options that cannot work.
 	ErrInvalidOptions = errors.New("valkey segment: invalid options")
 	// ErrClosed is returned by a call after Shutdown.
@@ -110,3 +110,13 @@ func (e *LookupError) Unwrap() error {
 
 	return nil
 }
+
+// answeredError is the class of a failure in which the store answered with an error about one set: the store works (see
+// [segment.IsStoreAnswered]).
+type answeredError string
+
+// Error implements error.
+func (e answeredError) Error() string { return string(e) }
+
+// StoreAnswered implements the interface of [segment.IsStoreAnswered].
+func (answeredError) StoreAnswered() bool { return true }

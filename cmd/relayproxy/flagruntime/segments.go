@@ -21,6 +21,7 @@ type segState struct {
 	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
 	hashes    map[string]uint64              // the content hash of each definition (members included), built once
 	rejected  map[string]struct{}            // the dynamic definitions that the connections cannot serve
+	binds     *bindCache                     // the bindings of the object, built on first use and shared by the flag sets
 	name      string
 	checksum  string
 	attempted string
@@ -83,6 +84,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
 		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: nameSet(check.names),
 	}
+	next.binds = newBindCache(st.b.opts.Segments, doc, next.rejected, prevBinds(prev))
 	next.status = segStatus(next)
 
 	return next
@@ -91,7 +93,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 // noteDynamic checks the dynamic definitions of an accepted document against the connections and lists the ones that
 // are rejected, once for this content.
 func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocument) dynamicCheck {
-	check := checkDynamic(doc, st.b.opts.SegmentStores, st.b.opts.Segments.enabled())
+	check := checkDynamic(doc, st.b.opts.SegmentStores)
 	if len(check.reasons) > 0 {
 		st.built.SegmentRejections = append(st.built.SegmentRejections, SegmentRejection{
 			Object: name, Checksum: sum, Reason: "the dynamic definitions that the connections cannot serve are " +
@@ -124,6 +126,7 @@ func keepSeg(name string, prev *segState) *segState {
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
 		next.doc, next.sets, next.hashes, next.rejected = prev.doc, prev.sets, prev.hashes, prev.rejected
+		next.binds = prev.binds
 	}
 
 	return next
@@ -174,3 +177,12 @@ func (st *stage) delSeg(name string) {
 
 // segNamesChanged tells whether the set of names that segmentSources resolve to changed in this build.
 func (st *stage) segNamesChanged(changed bool) bool { return changed || st.segGood }
+
+// prevBinds is the bindings of the last good content of the object, which the new content takes over from.
+func prevBinds(prev *segState) *bindCache {
+	if prev == nil || !prev.loaded {
+		return nil
+	}
+
+	return prev.binds
+}

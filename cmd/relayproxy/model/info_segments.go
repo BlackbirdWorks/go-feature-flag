@@ -33,3 +33,23 @@ type SegmentStoreInfo struct {
 	Kind  string `json:"kind"`
 	State string `json:"state"`
 }
+
+// SegmentBindingsInfo is the shared state of the dynamic segments: one binding serves every flag set and every
+// generation that uses one segments object on one connection.
+type SegmentBindingsInfo struct {
+	// Snapshots is the state of the held sets (snapshot mode) of each connection.
+	Snapshots []SegmentSnapshotInfo `json:"snapshots,omitempty"`
+	// Live is the number of bindings that the served runtime uses.
+	Live int `json:"live"`
+}
+
+// SegmentSnapshotInfo counts the held sets of one connection by state: loaded, stale (the last refresh failed or the
+// set is over the limit), missing (the store does not have the segment) and never loaded; Members is the total.
+type SegmentSnapshotInfo struct {
+	Connection  string `json:"connection"`
+	Loaded      int    `json:"loaded"`
+	Stale       int    `json:"stale"`
+	Missing     int    `json:"missing"`
+	NeverLoaded int    `json:"neverLoaded"`
+	Members     int    `json:"members"`
+}

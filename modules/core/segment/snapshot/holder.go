@@ -29,6 +29,9 @@ const (
 	ClassMissing Class = "missing"
 	// ClassTooLarge means the segment is over the memory guard.
 	ClassTooLarge Class = "too-large"
+	// ClassSet means the store answered with an error about this set (a key of the wrong type, a reply that is not
+	// the one of the command): the store works, the set cannot be read.
+	ClassSet Class = "set"
 	// ClassCanceled means the context ended during the refresh.
 	ClassCanceled Class = "canceled"
 )
@@ -74,6 +77,9 @@ type snap struct {
 	missing  bool // the store answered that the segment does not exist: no set is held
 }
 
+// failing reports whether the last refresh failed: an error that is not the answer "the segment is missing".
+func (s *snap) failing() bool { return s.lastErr != ClassNone && s.lastErr != ClassMissing }
+
 // Holder keeps the member set of one segment. Reads are lock-free; Refresh is driven by the caller (it starts no
 // goroutine and no timer) and calls are serialised.
 type Holder struct {
@@ -82,11 +88,13 @@ type Holder struct {
 	name    string
 	opts    Options
 	refresh sync.Mutex
+	overdue atomic.Bool
 }
 
 var (
 	_ segment.Provider      = (*Holder)(nil)
 	_ segment.StaleReporter = (*Holder)(nil)
+	_ segment.Live          = (*Holder)(nil)
 )
 
 // New returns a holder of the segment name, empty until the first successful Refresh.
@@ -121,6 +129,42 @@ func (h *Holder) Lookup(id string) segment.State {
 	return segment.NotMember
 }
 
+// Answer implements [segment.Live]: the membership from the held set with the status of the answer, and no store call.
+// A set that was never loaded answers Unknown with a store error; a set older than it should be (the last refresh
+// failed, or the set is over the guard) answers with a stale status; a segment that is missing is an answer, healthy.
+// It does not allocate and does not lock.
+func (h *Holder) Answer(id string) (segment.State, segment.Status) {
+	cur := h.cur.Load()
+	if cur == nil {
+		return segment.Unknown, segment.StatusStoreError
+	}
+
+	if cur.set == nil {
+		if cur.missing && (cur.lastErr == ClassMissing || cur.lastErr == ClassNone) {
+			// the store answered that the segment is missing and the policy is unknown: that is an answer, not a failure
+			return segment.Unknown, segment.StatusHealthy
+		}
+
+		return segment.Unknown, segment.StatusStoreError
+	}
+
+	state := segment.NotMember
+	if cur.set.Contains(id) {
+		state = segment.Member
+	}
+
+	if cur.failing() || h.overdue.Load() {
+		return state, segment.StatusStale
+	}
+
+	return state, segment.StatusHealthy
+}
+
+// SetOverdue tells the holder that its set could not be refreshed for longer than the caller allows: the answers are
+// stale (the set is still used) until the caller clears it, which it does when a refresh works. The holder has no clock
+// of its own for this, and the lookups never read one.
+func (h *Holder) SetOverdue(overdue bool) { h.overdue.Store(overdue) }
+
 // Contains implements [segment.Provider] for the lookups of this segment; others are left alone. It does not allocate.
 func (h *Holder) Contains(ctx context.Context, lookups []segment.Lookup) error {
 	err := ctx.Err()
@@ -152,7 +196,7 @@ func (h *Holder) Contains(ctx context.Context, lookups []segment.Lookup) error {
 func (h *Holder) Stale() bool {
 	cur := h.cur.Load()
 
-	return cur != nil && cur.set != nil && !cur.missing && cur.lastErr != ClassNone
+	return cur != nil && cur.set != nil && (cur.failing() || h.overdue.Load())
 }
 
 // Status returns the state of the holder.
@@ -282,6 +326,10 @@ func (h *Holder) pull(ctx context.Context) (*segment.MemberSet, Class, error) {
 
 // fail records the class on the held snapshot (the set stays) and returns the error.
 func (h *Holder) fail(ctx context.Context, cur *snap, class Class, err error) error {
+	if ctx.Err() == nil && segment.IsStoreAnswered(err) {
+		class = ClassSet
+	}
+
 	if ctx.Err() != nil {
 		class = ClassCanceled
 		err = fmt.Errorf("snapshot of segment %q: %w", h.name, ctx.Err()) // the end of the context is the cause

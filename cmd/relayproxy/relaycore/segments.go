@@ -1,6 +1,7 @@
 package relaycore
 
 import (
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 )
@@ -11,6 +12,9 @@ type SegmentsStatus struct {
 	Sets map[string]SegmentSetHealth `json:"sets,omitempty"`
 	// Stores is the state of each connection that can serve segments.
 	Stores []segmentstore.ConnectionState `json:"stores,omitempty"`
+	// Bindings is the number of shared bindings that the served runtime uses (one for each segments object, connection
+	// and reading of a missing key), and the state of the held sets of each connection.
+	Bindings flagruntime.SegmentBindingsStatus `json:"bindings"`
 	// Resolver sums what the resolvers of every generation did since the start.
 	Resolver resolver.Stats `json:"resolver"`
 }
@@ -25,9 +29,10 @@ type SegmentSetHealth struct {
 // segmentsStatus reads the live state: the connections, the views of the runtime that is served and the counters.
 // It evaluates nothing and calls no store.
 func (c *Core) segmentsStatus() SegmentsStatus {
-	out := SegmentsStatus{Stores: c.segs.States(), Resolver: c.segCounters.Snapshot()}
+	rt := c.holder.Load()
+	out := SegmentsStatus{Stores: c.segs.States(), Resolver: c.segCounters.Snapshot(), Bindings: rt.SegmentBindings()}
 
-	for name, set := range c.holder.Load().FlagSets {
+	for name, set := range rt.FlagSets {
 		if set.Segments == nil || set.Segments.View == nil {
 			continue
 		}

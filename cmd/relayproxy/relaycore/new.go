@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
@@ -58,6 +60,8 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		runDone:  make(chan struct{}),
 		finished: make(chan struct{}),
 		released: make(chan struct{}),
+		// the reader and the poll of the segments draw from one source, from two goroutines: it is serialized once
+		jitter: SerializeJitter(deps.Jitter),
 	}
 
 	err = core.assemble(ctx, cfg, deps)
@@ -112,8 +116,9 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 		opts = append(opts, manifestreader.WithScheduler(deps.Scheduler))
 	}
 
-	if deps.Jitter != nil {
-		opts = append(opts, manifestreader.WithJitter(deps.Jitter))
+	// the reader and the poll of the segments draw from one source, from two goroutines: it is serialized once
+	if c.jitter != nil {
+		opts = append(opts, manifestreader.WithJitter(c.jitter))
 	}
 
 	c.reader, err = manifestreader.New(stores[plane.Connection], rcfg, opts...)
@@ -148,6 +153,11 @@ func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Ho
 	c.segWait = deps.SegmentWait
 	if c.segWait == nil {
 		c.segWait = timerWait
+	}
+
+	c.segJitter = flagruntime.RandomSpread
+	if c.jitter != nil {
+		c.segJitter = func(limit time.Duration) time.Duration { return time.Duration(c.jitter() * float64(limit)) }
 	}
 
 	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})
@@ -215,4 +225,21 @@ func resolverSettings(cfg *bootstrap.Config) *bootstrap.SegmentResolver {
 	}
 
 	return &cfg.Segments.Resolver
+}
+
+// SerializeJitter makes a source of jitter (a value in [0, 1)) safe to call from several goroutines: the manifest
+// reader and the poll of the dynamic segments both draw from [Deps.Jitter]. Nil stays nil.
+func SerializeJitter(source func() float64) func() float64 {
+	if source == nil {
+		return nil
+	}
+
+	var mu sync.Mutex
+
+	return func() float64 {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return source()
+	}
 }

@@ -22,6 +22,8 @@ type ConfigInfo struct {
 	// SegmentStores are the connections that can serve dynamic segments, with their state; left out when the file has
 	// none.
 	SegmentStores []SegmentStoreInfo `json:"segmentStores,omitempty"`
+	// SegmentBindings is what the flag sets share of the dynamic segments; left out when none is served.
+	SegmentBindings *SegmentBindingsInfo `json:"segmentBindings,omitempty"`
 	// Withdrawn lists the flag sets removed by the publisher.
 	Withdrawn []WithdrawnInfo `json:"withdrawn"`
 	// PendingRestart names the settings that changed and need a restart.

@@ -90,3 +90,12 @@ func RequireVersioner(segmentName, kind string, store any) error {
 	return fmt.Errorf("%w: segment %q: a version key needs a store that can tell versions, store %q",
 		ErrUnsupportedMode, segmentName, kind)
 }
+
+// IsStoreAnswered reports whether err, or an error that it wraps, says that the store answered with an error about one
+// set: the store itself works. An error says so with a method StoreAnswered() bool that returns true; the failure
+// classes of the stores that the relay serves for a key of the wrong type or a reply of the wrong shape do.
+func IsStoreAnswered(err error) bool {
+	var answered interface{ StoreAnswered() bool }
+
+	return errors.As(err, &answered) && answered.StoreAnswered()
+}
