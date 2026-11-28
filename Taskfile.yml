@@ -353,6 +353,11 @@ tasks:
     cmds:
       - 'SEMAPHORE_RELOAD_LOAD_DURATION=60s GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench -count=1 -timeout=10m -run TestReloadLoad -v ./internal/loadtest/relay'
 
+  test-segment-load:
+    desc: Load test of the dynamic segments against a real Valkey (8 sets of 1,000,000 members, both modes; needs docker, about 1 minute)
+    cmds:
+      - 'GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench,docker -count=1 -timeout=30m -run TestSegmentLoad -v ./internal/loadtest/segments'
+
   lint-install:
     internal: true
     cmds:

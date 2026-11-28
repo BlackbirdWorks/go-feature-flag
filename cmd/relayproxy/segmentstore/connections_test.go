@@ -258,6 +258,49 @@ func TestConnectionsRun(t *testing.T) {
 	assert.Equal(t, "closed", stateOf(conns, connFast))
 }
 
+// A connection that becomes needed after the loop started is dialled at once, not at the next tick: a retry interval
+// of an hour never delays the first dial (the first requests of a healthy store would answer STORE_ERROR).
+func TestConnectionsRunDialsAtOnceWhenBound(t *testing.T) {
+	t.Parallel()
+
+	handle := &fakeHandle{source: segment.NewMemorySource(map[string][]string{segAudience: {memberAlice}})}
+	conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{
+		RetryInterval: time.Hour,
+		Dialers: map[string]segmentstore.Dialer{
+			connCache: func(context.Context) (segmentstore.Handle, error) { return handle, nil },
+			connFast:  func(context.Context) (segmentstore.Handle, error) { return nil, errDial },
+		},
+	})
+
+	// a connection that fails shows that the first pass of the loop ran
+	_, err := conns.Bind(connFast, segment.MissingNotMember, []flagruntime.BoundDefinition{{Name: segAudience}})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		conns.Run(ctx)
+	}()
+
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	require.Eventually(t, func() bool { return stateOf(conns, connFast) == stateError }, waitFor, tick,
+		"the first pass ran, and the other connection was idle")
+	require.Equal(t, "idle", stateOf(conns, connCache))
+
+	_, err = conns.Bind(connCache, segment.MissingNotMember, []flagruntime.BoundDefinition{{Name: segAudience}})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool { return stateOf(conns, connCache) == stateConnected }, waitFor, tick,
+		"the bound connection is dialled without waiting for the retry interval")
+}
+
 // The real dialers of the kinds: go-redis connects on the first command, so a redis connection is up at once and its
 // lookups fail until the store is there; valkey-go connects when the client is created, so an unreachable valkey is
 // an error state, retried; a CA bundle that cannot be read is an error state too.

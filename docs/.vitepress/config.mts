@@ -194,6 +194,7 @@ export default withMermaid({
           { text: 'Targeting Rules', link: '/configure-flags/target-with-flags' },
           { text: 'Segments', link: '/configure-flags/segments' },
           { text: 'Segments - static', link: '/configure-flags/segments-static' },
+          { text: 'Inline lists or dynamic segments', link: '/configure-flags/segments-choosing' },
           {
             text: 'Segments - dynamic',
             link: '/configure-flags/segments-dynamic',

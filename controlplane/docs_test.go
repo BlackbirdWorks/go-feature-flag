@@ -128,7 +128,10 @@ func TestSegmentsDocsExamples(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, string(want), docBlock(t, string(raw), "segments"))
 
-	pages := []string{"../docs/configure-flags/segments-static.md", "../docs/configure-flags/segments-dynamic.md"}
+	pages := []string{
+		"../docs/configure-flags/segments-static.md", "../docs/configure-flags/segments-dynamic.md",
+		"../docs/configure-flags/segments-choosing.md",
+	}
 
 	for _, page := range pages {
 		data, readErr := os.ReadFile(page)
