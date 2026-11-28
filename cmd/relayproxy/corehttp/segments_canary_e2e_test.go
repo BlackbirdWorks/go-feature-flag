@@ -118,6 +118,14 @@ func TestE2E_NoMemberIDAndNoPasswordInAnyOutput(t *testing.T) {
 		}
 	}, eventually, poll, "the stored member is served")
 
+	// the first load of a snapshot is off the request path: wait until the set is held
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		got, err := tryEval(rig, "f-snap", canarySnap)
+		if assert.NoError(collect, err) {
+			assert.True(collect, isMember(got), "%+v", got)
+		}
+	}, eventually, poll, "the snapshot is loaded")
+
 	evaluate("hit", "f-lookup", byKey(canaryMember))
 	evaluate("cached", "f-lookup", byKey(canaryMember))
 	evaluate("miss", "f-lookup", byKey(canaryOther))
