@@ -1,7 +1,9 @@
 package relaycore_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +21,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentobs"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/connection"
@@ -267,6 +270,69 @@ func TestCollectorLifecycle(t *testing.T) {
 	second, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), deps)
 	require.NoError(t, err, "the first core unregistered its collector")
 	require.NoError(t, second.Shutdown(t.Context()))
+}
+
+// The series of the segment resolvers are registered by the core and removed at its shutdown; a registry that already
+// holds them is not a failure of the core, which says so in the log.
+func TestSegmentSeriesLifecycle(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
+	registry := prometheus.NewRegistry()
+
+	core, err := relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), &relaycore.Deps{
+		Secrets: opts, Registerer: registry,
+	})
+	require.NoError(t, err)
+
+	require.Error(t, registry.Register(segmentobs.New(segmentobs.Options{})), "the core holds the series")
+	require.NoError(t, core.Shutdown(t.Context()))
+	require.NoError(t, registry.Register(segmentobs.New(segmentobs.Options{})), "the core removed them")
+
+	var logs bytes.Buffer
+
+	core, err = relaycore.New(t.Context(), parse(t, fileDoc(dir, ""), opts), &relaycore.Deps{
+		Secrets: opts, Registerer: registry, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	})
+	require.NoError(t, err, "series that are already registered do not fail the core")
+	require.NoError(t, core.Shutdown(t.Context()))
+
+	assert.Contains(t, logs.String(), "the segment series are not registered")
+}
+
+// An applied generation whose flags use a segment name that no segments object defines writes one WARN line with the
+// flag set and the name, and nothing else of the flag.
+func TestUnresolvedSegmentsAreWarned(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	opts := secretOptions(map[string]string{hookEnv: deadURL})
+	deps, harness := newDeps(t, opts)
+
+	var logs syncBuffer
+
+	deps.Logger = slog.New(slog.NewJSONHandler(&logs, nil))
+
+	publication := twoSets(t, filePut(t, dir))
+	publication.flags[objA] = []byte(`
+` + flagName + `:
+  variations: {on: true, off: false}
+  targeting:
+    - {name: m, query: 'targetingKey in segment("ghost")', variation: on}
+  defaultRule: {name: default, variation: off}
+`)
+	publication.publish()
+
+	harness.start(t, parse(t, fileDoc(dir, ""), opts), deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
+
+	out := logs.String()
+
+	assert.Contains(t, out, "no segments object of their flag set defines")
+	assert.Contains(t, out, `"names":["one/ghost"]`)
+	assert.Contains(t, out, `"unresolved":1`)
 }
 
 func TestLifecycle(t *testing.T) {

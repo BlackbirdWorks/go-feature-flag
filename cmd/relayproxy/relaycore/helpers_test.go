@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"runtime/pprof"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -362,4 +363,24 @@ func (r *rig) awaitRun(t *testing.T) {
 	t.Helper()
 
 	require.NoError(t, awaitResult(t, r.runDone))
+}
+
+// syncBuffer is a log destination that several goroutines write.
+type syncBuffer struct {
+	buf bytes.Buffer
+	mu  sync.Mutex
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }
