@@ -56,7 +56,11 @@ func missingHolder(t *testing.T) *snapshot.Holder {
 func missingUnknownHolder(t *testing.T) *snapshot.Holder {
 	t.Helper()
 
-	holder, err := snapshot.New(segAlpha, segment.NewMemorySource(nil), snapshot.Options{Missing: segment.MissingUnknown})
+	holder, err := snapshot.New(
+		segAlpha,
+		segment.NewMemorySource(nil),
+		snapshot.Options{Missing: segment.MissingUnknown},
+	)
 	require.NoError(t, err)
 	require.Error(t, holder.Refresh(context.Background()))
 
