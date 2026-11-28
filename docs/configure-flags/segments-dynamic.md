@@ -213,7 +213,7 @@ segments:
 
 ## Security
 
-- **Read-only ACL.** The relay only reads. The lines below are tested against a real store (`TestE2E_ReadOnlyACLIsSufficientAndMinimal`): with the line the relay serves the set and the `keys` layout, both modes and the existence check; without any one command the feature that needs it answers `STORE_ERROR` and the relay stays ready. The user cannot write.
+- **Read-only ACL.** The relay only reads. The lines below are tested against a real store (`TestE2E_ReadOnlyACLIsSufficientAndMinimal`): with the line the relay serves the set and the `keys` layout, both modes and the existence check; without any one command (`hello` excepted, see below) the feature that needs it answers `STORE_ERROR` for a value that is in no set and the relay stays ready: a value that is in the set is a member whatever the existence check says (`SMISMEMBER` answered). The user cannot write.
 
   `valkey` (replace `<password>`; the relay reads it from a `fromEnv` or `fromFile` reference):
 
@@ -229,7 +229,7 @@ segments:
 
   | Command | Needed for |
   |---|---|
-  | `hello` | `valkey` only: the client opens its connection with it |
+  | `hello` | `valkey` only: the client opens its connection with it. Without it the client falls back to an `AUTH` handshake and everything works (tested), so it is optional, and it is in the line for the normal path |
   | `smismember` | the `set` layout (every lookup of a set) |
   | `exists` | the `keys` layout, and `missingKey: unknown` |
   | `sscan`, `get` | the `snapshot` mode: the members, and the version key |
