@@ -1,8 +1,10 @@
 package controlplane_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -234,6 +236,15 @@ func TestConformanceForwardCompatible(t *testing.T) {
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			t.Parallel()
 
+			degraded, degradedErr := os.ReadFile(file + ".degraded")
+			if degradedErr == nil {
+				checkDegradedVector(t, file, degraded)
+
+				return
+			}
+
+			require.ErrorIs(t, degradedErr, os.ErrNotExist)
+
 			side, err := os.ReadFile(file + ".unknown")
 			require.NoError(t, err)
 
@@ -241,6 +252,41 @@ func TestConformanceForwardCompatible(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, strings.Fields(string(side)), unknown)
 		})
+	}
+}
+
+func checkDegradedVector(t *testing.T, file string, sidecar []byte) {
+	t.Helper()
+
+	var wantLines []string
+
+	for line := range strings.SplitSeq(string(sidecar), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed != "" {
+			wantLines = append(wantLines, trimmed)
+		}
+	}
+
+	require.NotEmpty(t, wantLines)
+
+	unknown, err := check(t, file)
+	assert.Empty(t, unknown)
+
+	valErr, ok := errors.AsType[*controlplane.ValidationError](err)
+	require.True(t, ok, "expected *ValidationError, got %v", err)
+	require.Len(t, valErr.Problems, len(wantLines))
+
+	for i, line := range wantLines {
+		fields := strings.Fields(line)
+		require.Len(t, fields, 4)
+
+		prob := valErr.Problems[i]
+		assert.Equal(t, controlplane.EntryKind(fields[0]), prob.Kind)
+		assert.Equal(t, fields[1], prob.Name)
+		assert.Equal(t, controlplane.Code(fields[2]), prob.Code)
+		assert.Equal(t, fields[3], prob.Path)
+		assert.Equal(t, controlplane.EntryObject, prob.Kind)
+		assert.Equal(t, controlplane.CodeUnsupportedVersion, prob.Code)
 	}
 }
 
@@ -255,13 +301,13 @@ func TestConformanceVectorsAreAllExercised(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		dir     string
-		sidecar string
-		min     int
+		dir      string
+		sidecars []string
+		min      int
 	}{
-		{"valid", "", 15},
-		{"invalid", ".error", 20},
-		{"forward-compatible", ".unknown", 3},
+		{"valid", nil, 15},
+		{"invalid", []string{".error"}, 20},
+		{"forward-compatible", []string{".unknown", ".degraded"}, 3},
 	}
 
 	for _, tt := range tests {
@@ -287,22 +333,9 @@ func TestConformanceVectorsAreAllExercised(t *testing.T) {
 
 					assert.Regexp(t, `^(manifest|flagset|segments|flags)-`, name, "a vector needs a type prefix")
 					assert.Contains(t, string(readme), name, "the README must describe every vector")
-
-					if tt.sidecar != "" {
-						assert.True(t, names[name+tt.sidecar], "%s has no %s sidecar", name, tt.sidecar)
-
-						side, sideErr := os.ReadFile(filepath.Join(vectors, tt.dir, name+tt.sidecar))
-						require.NoError(t, sideErr)
-						assert.NotEmpty(
-							t,
-							strings.TrimSpace(string(side)),
-							"%s has an empty %s sidecar",
-							name,
-							tt.sidecar,
-						)
-					}
-				case tt.sidecar != "" && ext == tt.sidecar:
-					assert.True(t, names[strings.TrimSuffix(name, tt.sidecar)], "%s has no vector", name)
+					assertVectorSidecars(t, tt.dir, name, tt.sidecars, names)
+				case slices.Contains(tt.sidecars, ext):
+					assert.True(t, names[strings.TrimSuffix(name, ext)], "%s has no vector", name)
 				default:
 					assert.Fail(t, "not a vector and not a sidecar", name)
 				}
@@ -312,4 +345,28 @@ func TestConformanceVectorsAreAllExercised(t *testing.T) {
 			assert.GreaterOrEqual(t, loaded, tt.min)
 		})
 	}
+}
+
+func assertVectorSidecars(t *testing.T, dir, name string, sidecars []string, names map[string]bool) {
+	t.Helper()
+
+	if len(sidecars) == 0 {
+		return
+	}
+
+	matches := 0
+
+	for _, sideExt := range sidecars {
+		if !names[name+sideExt] {
+			continue
+		}
+
+		matches++
+
+		side, sideErr := os.ReadFile(filepath.Join(vectors, dir, name+sideExt))
+		require.NoError(t, sideErr)
+		assert.NotEmpty(t, strings.TrimSpace(string(side)), "%s has an empty %s sidecar", name, sideExt)
+	}
+
+	assert.Equal(t, 1, matches, "%s must have one sidecar of %v", name, sidecars)
 }

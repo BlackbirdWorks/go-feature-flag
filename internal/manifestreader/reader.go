@@ -93,9 +93,18 @@ type held struct {
 
 // identity is what a name is at one generation: a change of it at an equal generation is a conflict.
 type identity struct {
-	sum    string
-	kind   string
-	format string
+	sum     string
+	kind    string
+	format  string
+	version int
+}
+
+func effectiveVersion(version int) int {
+	if version == 0 {
+		return controlplane.ObjectVersion1
+	}
+
+	return version
 }
 
 // good is the last verified content of a name.
@@ -450,43 +459,25 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 
 	unknown := len(info.UnknownFields)
 
-	if err != nil {
-		r.reject(ctx, OutcomeInvalid, manifestReason(err), unknown)
-
-		return false
-	}
-
-	if r.cfg.Channel != "" && manifest.Channel != r.cfg.Channel {
-		r.reject(ctx, OutcomeChannelMismatch, "channel", unknown)
-
-		return false
-	}
-
-	if !r.withinTotal(manifest.Objects) {
-		r.reject(ctx, OutcomeInvalid, ReasonTotalTooLarge, unknown)
-
+	if !r.validateAccepted(ctx, manifest, err, unknown) {
 		return false
 	}
 
 	ident := make(map[string]identity, len(manifest.Objects))
 	for i := range manifest.Objects {
 		entry := &manifest.Objects[i]
-		ident[entry.Name] = identity{sum: entry.Checksum.Value, kind: entry.Kind, format: entry.Format}
+		ident[entry.Name] = identity{
+			sum:     entry.Checksum.Value,
+			kind:    entry.Kind,
+			format:  entry.Format,
+			version: effectiveVersion(entry.Version),
+		}
 	}
 
 	genChanged := r.held == nil || manifest.Generation != r.held.generation
 
-	if r.held != nil {
-		switch {
-		case manifest.Generation < r.held.generation:
-			r.reject(ctx, OutcomeLowerGeneration, "generation", unknown)
-
-			return false
-		case !genChanged && (manifest.Channel != r.held.channel || !maps.Equal(r.held.ident, ident)):
-			r.reject(ctx, OutcomeConflict, "generation", unknown)
-
-			return false
-		}
+	if !r.checkGeneration(ctx, manifest, ident, genChanged, unknown) {
+		return false
 	}
 
 	r.spread = r.held != nil
@@ -531,16 +522,82 @@ func (r *Reader) restoreStale(restoring bool) {
 	}
 }
 
+func (r *Reader) validateAccepted(ctx context.Context, manifest *controlplane.Manifest, err error, unknown int) bool {
+	if err != nil && !onlyUnsupportedObjectVersions(err) {
+		r.reject(ctx, OutcomeInvalid, manifestReason(err), unknown)
+
+		return false
+	}
+
+	if r.cfg.Channel != "" && manifest.Channel != r.cfg.Channel {
+		r.reject(ctx, OutcomeChannelMismatch, "channel", unknown)
+
+		return false
+	}
+
+	if !r.withinTotal(manifest.Objects) {
+		r.reject(ctx, OutcomeInvalid, ReasonTotalTooLarge, unknown)
+
+		return false
+	}
+
+	return true
+}
+
+func (r *Reader) checkGeneration(
+	ctx context.Context,
+	manifest *controlplane.Manifest,
+	ident map[string]identity,
+	genChanged bool,
+	unknown int,
+) bool {
+	if r.held == nil {
+		return true
+	}
+
+	switch {
+	case manifest.Generation < r.held.generation:
+		r.reject(ctx, OutcomeLowerGeneration, "generation", unknown)
+
+		return false
+	case !genChanged && (manifest.Channel != r.held.channel || !maps.Equal(r.held.ident, ident)):
+		r.reject(ctx, OutcomeConflict, "generation", unknown)
+
+		return false
+	}
+
+	return true
+}
+
+func isUnsupportedObjectVersion(prob *controlplane.FieldError) bool {
+	return prob.Kind == controlplane.EntryObject && prob.Code == controlplane.CodeUnsupportedVersion
+}
+
+func onlyUnsupportedObjectVersions(err error) bool {
+	valErr, ok := errors.AsType[*controlplane.ValidationError](err)
+	if !ok || len(valErr.Problems) == 0 {
+		return false
+	}
+
+	for i := range valErr.Problems {
+		if !isUnsupportedObjectVersion(&valErr.Problems[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // withinTotal reports whether the distinct objects of the manifest fit in MaxTotalBytes. A checksum listed with
 // several sizes counts with the largest, so the answer does not depend on the order of the entries. An entry
-// that lists a size outside [1, MaxObjectBytes] is never requested and counts for nothing. Each size is compared
-// with the budget that is left, so the sum cannot overflow.
+// that fails local checks or lists a size outside [1, MaxObjectBytes] is never requested and counts for nothing.
+// Each size is compared with the budget that is left, so the sum cannot overflow.
 func (r *Reader) withinTotal(objects []controlplane.ManifestObject) bool {
 	largest := make(map[string]int64, len(objects))
 
 	for i := range objects {
 		size := objects[i].Size
-		if size < 1 || size > r.cfg.MaxObjectBytes {
+		if objects[i].Version > controlplane.ObjectVersion1 || size < 1 || size > r.cfg.MaxObjectBytes {
 			continue
 		}
 
@@ -564,8 +621,12 @@ func (r *Reader) withinTotal(objects []controlplane.ManifestObject) bool {
 // may name fields and objects.
 func manifestReason(err error) string {
 	valErr, ok := errors.AsType[*controlplane.ValidationError](err)
-	if ok && len(valErr.Problems) > 0 {
-		return string(valErr.Problems[0].Code)
+	if ok {
+		for i := range valErr.Problems {
+			if !isUnsupportedObjectVersion(&valErr.Problems[i]) {
+				return string(valErr.Problems[i].Code)
+			}
+		}
 	}
 
 	switch {
@@ -665,6 +726,8 @@ func (r *Reader) noteRoutes(groups []*group) {
 // costs no request, now or in any later round.
 func (r *Reader) localFailure(entry *controlplane.ManifestObject) string {
 	switch {
+	case entry.Version > controlplane.ObjectVersion1:
+		return ReasonUnsupportedVersion
 	case !ValidKey(entry.Key):
 		return ReasonInvalidKey
 	case entry.Size < 1:
