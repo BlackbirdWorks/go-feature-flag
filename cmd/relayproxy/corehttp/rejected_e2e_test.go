@@ -98,7 +98,7 @@ func TestNewConfigCollector_RejectedFlags(t *testing.T) {
 	t.Parallel()
 
 	logs := &lockedBuffer{}
-	rig := newV2With(t, v2Options{cold: true, logger: newTestLogger(logs)})
+	rig := newV2With(t, &v2Options{cold: true, logger: newTestLogger(logs)})
 
 	step := func(flags map[string]string) {
 		t.Helper()
@@ -193,7 +193,7 @@ func TestNew_AdminKeyCollision(t *testing.T) {
 	const second = "second-admin"
 
 	logs := &lockedBuffer{}
-	rig := newV2With(t, v2Options{cold: true, logger: newTestLogger(logs)})
+	rig := newV2With(t, &v2Options{cold: true, logger: newTestLogger(logs)})
 
 	rig.sets = []controlplane.FlagSet{
 		{Name: setName, Sources: []string{flagsObject}, APIKeys: []string{adminKey, tenantKey}},
