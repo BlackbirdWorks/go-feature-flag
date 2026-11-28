@@ -581,3 +581,110 @@ func TestRunRefreshAnswersWhatIsServed(t *testing.T) {
 		assert.InDelta(t, value, got, 0, "the evaluation after the refresh serves the new generation")
 	}
 }
+
+const (
+	rotatedKey   = "66666666-6666-4666-8666-666666666666"
+	otherSetName = "other-set"
+	otherSetKey  = "77777777-7777-4777-8777-777777777777"
+	otherFlags   = "flags-other-set"
+)
+
+// keyedSets are the flag sets with keys: the tenant with the given keys, and another flag set with its own key.
+func keyedSets(tenantKeys ...string) []controlplane.FlagSet {
+	return []controlplane.FlagSet{
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: tenantKeys},
+		{Name: otherSetName, Sources: []string{otherFlags}, APIKeys: []string{otherSetKey}},
+	}
+}
+
+// An open stream has the rights of a new request. A rotation with an overlap window (the old and the new key both
+// valid) disconnects nobody; when the old key goes, the streams opened with it end at once and get none of the later
+// changes, and the streams of the other key of the flag set and of the other flag set are not touched; a flag set that
+// is withdrawn ends its streams.
+func TestRunClosesTheStreamsOfARevokedKey(t *testing.T) {
+	t.Parallel()
+
+	// the changes of the generations 1 and 2 are held back by the hook until the clients are registered: every client
+	// gets its first change, and the counts below are exact
+	held := make(chan struct{})
+	rig := startRelay(t, &rigOptions{
+		extra: "auth:\n  adminKeys: [" + adminKey + "]\n",
+		broadcast: func(change flagruntime.Change) {
+			if change.Generation <= 2 {
+				<-held
+			}
+		},
+	})
+	t.Cleanup(func() {
+		select {
+		case <-held:
+		default:
+			close(held)
+		}
+	})
+
+	rig.awaitGeneration(1)
+
+	rel := <-rig.started
+
+	// generation 2: the other flag set exists
+	rig.store.publishDocs(keyedSets(tenantKey), map[string]string{flagsObject: flagYAML(1), otherFlags: flagYAML(10)})
+	rig.poll()
+
+	oldWS, oldSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
+	otherWS, otherSSE := dialWebsocket(t, rig.url, otherSetKey), dialSSE(t, rig.url, otherSetKey)
+
+	require.Eventually(t, func() bool {
+		return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
+	}, waitBound, time.Millisecond, "the four clients are registered")
+
+	close(held)
+
+	oldWS.awaitEvent(t, `"v":1`)
+	oldSSE.awaitEvent(t, "refetchEvaluation")
+	otherWS.awaitEvent(t, `"v":10`)
+	otherSSE.awaitEvent(t, "refetchEvaluation")
+
+	// generation 3: the new key is added, the old one is still valid, and the flag changes: nobody is disconnected
+	rig.store.publishDocs(
+		keyedSets(tenantKey, rotatedKey), map[string]string{flagsObject: flagYAML(2), otherFlags: flagYAML(10)},
+	)
+	rig.pollNext(3)
+
+	oldWS.awaitEvent(t, `"v":2`)
+	oldSSE.awaitEvent(t, "refetchEvaluation")
+
+	assert.Equal(t, corehttp.ClientCounts{Websocket: 2, SSE: 2}, rel.streams.Connected(), "the overlap closes nobody")
+
+	// generation 4: the old key goes and the flag changes: the streams of the old key end before the change
+	rig.store.publishDocs(
+		keyedSets(rotatedKey), map[string]string{flagsObject: flagYAML(3), otherFlags: flagYAML(10)},
+	)
+	rig.pollNext(4)
+
+	oldWS.awaitClosed(t)
+	oldSSE.awaitClosed(t)
+
+	assert.Equal(t, int64(2), oldWS.received.Load(), "the websocket of the old key got the changes up to the overlap")
+	assert.Equal(t, int64(2), oldSSE.received.Load(), "the SSE stream of the old key got the changes up to the overlap")
+	assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
+
+	status, _ := rig.evaluate(tenantKey)
+	assert.Equal(t, http.StatusUnauthorized, status, "a new request with the old key is refused as well")
+
+	// the new key opens a stream, and the other flag set goes: generation 5 withdraws it
+	newWS := dialWebsocket(t, rig.url, rotatedKey)
+
+	rig.store.publishDocs(
+		keyedSets(rotatedKey)[:1], map[string]string{flagsObject: flagYAML(4)},
+	)
+	rig.pollNext(5)
+
+	otherWS.awaitClosed(t)
+	otherSSE.awaitClosed(t)
+	newWS.awaitEvent(t, `"v":4`)
+
+	assert.Equal(t, int64(1), otherWS.received.Load(), "the other flag set did not change after its first change")
+	assert.Equal(t, int64(1), otherSSE.received.Load())
+	assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 0}, rel.streams.Connected())
+}

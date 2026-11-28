@@ -47,6 +47,8 @@ type Streams struct {
 	ws   stream.WebsocketService
 	sse  stream.SSEService
 	lane [2]*lane
+	// reaper closes the websocket connections that Revalidate took out of the list, away from the swap.
+	reaper *reaper
 	// publicClosed is set by [Streams.Revalidate] while the runtime has no public flags: the changes of the public flag
 	// set that are still queued then are not sent, so that no client without a key gets one after its access ended.
 	publicClosed atomic.Bool
@@ -69,6 +71,7 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	}
 
 	out := &Streams{ws: cfg.Websocket, sse: cfg.SSE}
+	out.reaper = startReaper(cfg.Labels, cfg.Label+"/reaper")
 	out.lane[0] = startLane(cfg.Labels, cfg.Label+"/websocket", limit, func(change *flagruntime.Change) {
 		// a merged change that undid itself has nothing to tell: the diff is the websocket message
 		if !change.Diff.HasDiff() {
@@ -86,12 +89,16 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	return out
 }
 
-// Revalidate closes the streams of the clients without a key when the runtime has no public flags anymore. The
-// clients with a key are not touched. Set it as the AfterSwap hook of the core: it runs before the
-// changes of the swap are queued, so a closed client gets none of them.
-func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
+// Revalidate gives an open stream the rights of a new request. It closes the streams of the clients without a key
+// when the runtime has no public flags anymore, and the streams of the clients with a key that does not route to the
+// flag set of their stream anymore (the key was removed or rotated, the flag set was withdrawn or the key moved to
+// another flag set). A key that is still valid is not touched, so a rotation with an overlap disconnects nobody. Set
+// it as the AfterSwap hook of the core: it runs before the changes of the swap are queued, so a closed client gets
+// none of them. It never waits for a client: the clients are out of the lists when it returns, and the sockets are
+// closed by a worker of their own.
+func (s *Streams) Revalidate(current *flagruntime.Runtime) {
 	keep := ""
-	if rt.Public != nil {
+	if current.Public != nil {
 		keep = flagruntime.PublicName
 	}
 
@@ -107,6 +114,17 @@ func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
 
 	s.ws.DisconnectAnonymous(keep)
 	s.sse.DisconnectAnonymous(keep)
+
+	routes := func(yield func(string, string) bool) {
+		for key, set := range current.ByKey {
+			if !yield(key, set.Name) {
+				return
+			}
+		}
+	}
+
+	s.sse.DisconnectRevoked(routes)
+	s.reaper.offer(s.ws.DisconnectRevoked(routes))
 }
 
 // ClientCounts are the clients connected to each stream service.
@@ -150,9 +168,11 @@ func (s *Streams) Close(ctx context.Context) error {
 		l.close()
 	}
 
-	for _, l := range s.lane {
+	s.reaper.close()
+
+	for _, done := range []chan struct{}{s.lane[0].done, s.lane[1].done, s.reaper.done} {
 		select {
-		case <-l.done:
+		case <-done:
 		case <-ctx.Done():
 			return fmt.Errorf("%w: %w", ErrNotStopped, ctx.Err())
 		}

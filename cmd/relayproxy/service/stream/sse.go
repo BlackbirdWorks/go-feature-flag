@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/r3labs/sse/v2"
@@ -29,6 +30,15 @@ type SSEService interface {
 	// ServeHTTP handles incoming SSE client connections. The request must
 	// carry a "stream" query parameter set to the target flagset name.
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	// ServeKeyed is ServeHTTP for a client that authenticated with an API key: the service keeps an identifier of the
+	// key (never the key), so that [SSEService.DisconnectRevoked] can end the stream when the key does not route to the
+	// flag set anymore. The stream is still shared by every client of the flag set: a message is published once.
+	// stillValid is called once the client is registered: a key that was revoked while the request was being set up is
+	// then refused (a revalidation that ran before the registration could not see the client).
+	ServeKeyed(w http.ResponseWriter, r *http.Request, apiKey string, stillValid func() bool)
+	// DisconnectRevoked ends the streams of the clients whose key is not in routes anymore or routes to another flag
+	// set than the one of the stream. It cancels their requests and never waits for a client.
+	DisconnectRevoked(routes KeyRoutes)
 	// DisconnectAnonymous closes the streams of the clients without a key whose flag set is not keep; an empty keep
 	// closes all of them. A client with a key is never touched.
 	DisconnectAnonymous(keep string)
@@ -47,15 +57,14 @@ const AnonymousStreamPrefix = "anonymous:"
 
 // SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
 type SSEServiceImpl struct {
-	server *sse.Server
-	// activeStreams counts the connected clients per stream, used to send the heartbeats.
-	activeStreams map[string]int
-	// anonymous is the connected clients that have no API key.
-	anonymous map[*anonymousClient]struct{}
-	done      chan struct{}
-	closeOnce sync.Once
-	// heartbeats joins the heartbeat goroutine: Close returns after it ended.
+	server          *sse.Server
+	activeStreams   map[string]int
+	anonymous       map[*anonymousClient]struct{}
+	keyed           map[*keyedClient]struct{}
+	done            chan struct{}
 	heartbeats      sync.WaitGroup
+	hasher          keyHasher
+	closeOnce       sync.Once
 	muActiveStreams sync.Mutex
 }
 
@@ -69,6 +78,8 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 		server:        server,
 		activeStreams: map[string]int{},
 		anonymous:     map[*anonymousClient]struct{}{},
+		keyed:         map[*keyedClient]struct{}{},
+		hasher:        newKeyHasher(),
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
@@ -141,6 +152,96 @@ func (s *SSEServiceImpl) DisconnectAnonymous(keep string) {
 type anonymousClient struct {
 	cancel   context.CancelFunc
 	streamID string
+}
+
+// keyedClient is a connected client with an API key: the identifier of the key, the flag set of its stream, and the
+// way to end its request.
+type keyedClient struct {
+	cancel   context.CancelFunc
+	streamID string
+	keyID    uint64
+	// revoked is set before the request is cancelled: the library takes the cancel and a queued event in either order,
+	// so a revoked client gets nothing from the moment it is set.
+	revoked atomic.Bool
+}
+
+// revocableWriter drops what is written to a client whose key was revoked.
+type revocableWriter struct {
+	http.ResponseWriter
+
+	client *keyedClient
+}
+
+func (w *revocableWriter) Write(data []byte) (int, error) {
+	if w.client.revoked.Load() {
+		return 0, io.ErrClosedPipe
+	}
+
+	return w.ResponseWriter.Write(data) //nolint:wrapcheck // the writer of the response, errors are the client's
+}
+
+func (w *revocableWriter) Flush() {
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok && !w.client.revoked.Load() {
+		flusher.Flush()
+	}
+}
+
+// DisconnectRevoked ends the requests of the clients whose key does not route to their flag set anymore. The requests
+// are cancelled after the lock is released, and a cancel never waits for the client.
+func (s *SSEServiceImpl) DisconnectRevoked(routes KeyRoutes) {
+	s.muActiveStreams.Lock()
+	keyed := len(s.keyed) > 0
+	s.muActiveStreams.Unlock()
+
+	if !keyed {
+		return
+	}
+
+	live := s.hasher.liveIDs(routes)
+
+	s.muActiveStreams.Lock()
+
+	var revoked []context.CancelFunc
+
+	for client := range s.keyed {
+		if set, ok := live[client.keyID]; !ok || set != client.streamID {
+			client.revoked.Store(true)
+
+			revoked = append(revoked, client.cancel)
+
+			delete(s.keyed, client)
+		}
+	}
+
+	s.muActiveStreams.Unlock()
+
+	for _, cancel := range revoked {
+		cancel()
+	}
+}
+
+// ServeKeyed serves a client that authenticated with an API key.
+func (s *SSEServiceImpl) ServeKeyed(w http.ResponseWriter, r *http.Request, apiKey string, stillValid func() bool) {
+	ctx, cancel := context.WithCancel(r.Context())
+	client := &keyedClient{cancel: cancel, streamID: r.URL.Query().Get("stream"), keyID: s.hasher.id(apiKey)}
+
+	s.muActiveStreams.Lock()
+	s.keyed[client] = struct{}{}
+	s.muActiveStreams.Unlock()
+
+	defer func() {
+		s.muActiveStreams.Lock()
+		delete(s.keyed, client)
+		s.muActiveStreams.Unlock()
+
+		cancel()
+	}()
+
+	if !stillValid() {
+		return
+	}
+
+	s.ServeHTTP(&revocableWriter{ResponseWriter: w, client: client}, r.WithContext(ctx))
 }
 
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {

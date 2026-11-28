@@ -164,10 +164,18 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	if apiKey == "" {
 		f.websocketService.RegisterAnonymous(safeConn, flagsetName)
 	} else {
-		f.websocketService.Register(safeConn, flagsetName)
+		f.websocketService.RegisterKeyed(safeConn, flagsetName, apiKey)
 	}
 
 	defer f.websocketService.Deregister(safeConn)
+
+	if apiKey != "" {
+		// the key can be revoked between the check and the registration, after the revalidation of the last swap ran
+		current, nameErr := f.flagsetManager.FlagSetName(apiKey)
+		if nameErr != nil || current != flagsetName {
+			return nil
+		}
+	}
 
 	logger := logging.FromContext(r.Context())
 	logger.LogAttrs(
