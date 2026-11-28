@@ -376,3 +376,85 @@ func TestPersisterLookupsDoNotScaleWithTheObjects(t *testing.T) {
 		})
 	}
 }
+
+// The checksums that the runtime holds can be in the snapshots that wait: they are indexed once per write (one pass
+// over each waiting snapshot, on the first miss), however many objects look into them, and only when the snapshot being
+// written and the last written content do not have them.
+func TestPersisterIndexesTheWaitingSnapshotsOnce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// waiting is the sizes of the snapshots that wait, each holding the content the runtime holds
+		waiting []int
+		// own is the number of objects of the snapshot written, whose runtime content is in the waiting snapshots
+		own            int
+		wantVisits     uint64
+		wantStaleBytes int
+	}{
+		{name: "no waiting snapshot is read when nothing misses", own: 4, wantVisits: 4, wantStaleBytes: 4},
+		{name: "one waiting snapshot is indexed once", waiting: []int{6}, own: 4, wantVisits: 4 + 6, wantStaleBytes: 4},
+		{
+			name: "two waiting snapshots are indexed once each", waiting: []int{5, 3}, own: 4, wantVisits: 4 + 5 + 3,
+			wantStaleBytes: 4,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			persist := newPersister(func(manifestreader.Persist) {}, never)
+			objects := make(map[string]manifestreader.ObjectState, tt.own)
+			status := make(map[string]*flagruntime.ObjectStatus, tt.own)
+
+			for i := range tt.own {
+				name := fmt.Sprintf("obj-%d", i)
+				objects[name] = *objectOf(controlplane.KindFlags, fmt.Sprintf("listed-%d", i))
+
+				// the runtime holds earlier content of the object, found in a waiting snapshot only
+				held := fmt.Sprintf("held-%d", i)
+				status[name] = &flagruntime.ObjectStatus{
+					Name: name, Kind: controlplane.KindFlags, State: flagruntime.ObjectStale, Checksum: held,
+				}
+			}
+
+			if len(tt.waiting) == 0 {
+				for name := range objects {
+					status[name].Checksum = objects[name].Checksum.Value
+				}
+			}
+
+			for index, size := range tt.waiting {
+				other := make(map[string]manifestreader.ObjectState, size)
+
+				for i := range size {
+					// the first snapshot holds the content of the runtime for the objects that have one
+					sum := fmt.Sprintf("filler-%d-%d", index, i)
+					if index == 0 && i < tt.own {
+						sum = fmt.Sprintf("held-%d", i)
+					}
+
+					other[fmt.Sprintf("o-%d-%d", index, i)] = *objectOf(controlplane.KindFlags, sum)
+				}
+
+				persist.pending[uint64(index+10)] = manifestreader.Persist{
+					Snapshot: &manifestreader.Snapshot{Revision: uint64(index + 10), Objects: other},
+				}
+			}
+
+			served := persist.served(&manifestreader.Snapshot{Revision: 1, Objects: objects}, status)
+
+			stale := 0
+
+			for _, state := range served.Objects {
+				if state.State == manifestreader.StateStale && len(state.Bytes) > 0 {
+					stale++
+				}
+			}
+
+			assert.Equal(t, tt.wantVisits, persist.visits)
+			assert.Equal(t, tt.wantStaleBytes, stale, "the held content is found in the waiting snapshot")
+		})
+	}
+}
