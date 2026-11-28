@@ -250,7 +250,7 @@ unreachable serves it at once. The directory holds **what the relay serves**, an
 - An object the runtime holds from earlier content (its download failed, or its bytes could not be decoded) is written
   with the bytes the runtime holds, as a stale object, never with the latest bytes the reader fetched for its name. At
   restart it is stale with the same bytes.
-- The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. Objects whose checksum is already on disk are not written again, and an identical state is not written at all. The
+- The write happens after the swap, off the request path and off the engine: the relay never waits for the disk. Objects whose checksum is already on disk are not written again, and an identical state is not written at all. After a failed save the store does not trust its earlier writes: it may write an object again although its checksum file exists (an extra write, never a skipped one). The
   files are written to a temporary name and renamed, so a crash leaves the previous state readable, and a half
   written file is never loaded.
 - **What a restart does not restore**: a flag that fails validation keeps serving its earlier definition while the relay
