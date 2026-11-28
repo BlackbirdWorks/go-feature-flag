@@ -240,7 +240,7 @@ func TestE2E_ReaderRejectionsInInfoAndMetrics(t *testing.T) {
 		{
 			name:        "channel mismatch",
 			wantOutcome: manifestreader.OutcomeChannelMismatch,
-			wantReason:  "channel",
+			wantReason:  manifestreader.OutcomeChannelMismatch,
 			raw: []byte(
 				"apiVersion: semaphore/v1\nkind: Manifest\nchannel: wrong\ngeneration: 3\nobjects: []\n",
 			),
@@ -248,9 +248,17 @@ func TestE2E_ReaderRejectionsInInfoAndMetrics(t *testing.T) {
 		{
 			name:        "lower generation",
 			wantOutcome: manifestreader.OutcomeLowerGeneration,
-			wantReason:  "generation",
+			wantReason:  manifestreader.OutcomeLowerGeneration,
 			raw: []byte(
 				"apiVersion: semaphore/v1\nkind: Manifest\nchannel: stable\ngeneration: 1\nobjects: []\n",
+			),
+		},
+		{
+			name:        "generation conflict",
+			wantOutcome: manifestreader.OutcomeConflict,
+			wantReason:  manifestreader.OutcomeConflict,
+			raw: []byte(
+				"apiVersion: semaphore/v1\nkind: Manifest\nchannel: stable\ngeneration: 2\nobjects: []\n",
 			),
 		},
 	}
@@ -282,7 +290,7 @@ func TestE2E_ReaderRejectionsInInfoAndMetrics(t *testing.T) {
 semaphore_config_reader_rejections_total{reason="channel-mismatch"} 1
 semaphore_config_reader_rejections_total{reason="decode"} 0
 semaphore_config_reader_rejections_total{reason="duplicate-name"} 0
-semaphore_config_reader_rejections_total{reason="generation-conflict"} 0
+semaphore_config_reader_rejections_total{reason="generation-conflict"} 1
 semaphore_config_reader_rejections_total{reason="invalid"} 0
 semaphore_config_reader_rejections_total{reason="invalid-checksum"} 0
 semaphore_config_reader_rejections_total{reason="invalid-name"} 0

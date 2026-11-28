@@ -127,7 +127,10 @@ func readerInfo(manifest *manifestreader.ManifestStatus) *model.ReaderInfo {
 		return nil
 	}
 
-	out := &model.ReaderInfo{Outcome: manifest.Outcome, Reason: manifest.Reason}
+	out := &model.ReaderInfo{
+		Outcome: manifest.Outcome,
+		Reason:  manifestreader.RejectionReason(manifest.Outcome, manifest.Reason),
+	}
 	if !manifest.At.IsZero() {
 		at := manifest.At
 		out.At = &at

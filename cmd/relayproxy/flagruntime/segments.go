@@ -61,17 +61,17 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return prev
 	}
 
-	doc, info, err := parseSegments(obj.Bytes)
+	doc, info, reason := parseSegments(obj.Bytes)
 
 	st.emit(name, KindSegments, sum)
 
-	if err != nil {
+	if reason != "" {
 		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
 			return prev
 		}
 
 		next := keepSeg(name, prev)
-		next.state, next.reason, next.attempted = ObjectInvalid, err.Error(), sum
+		next.state, next.reason, next.attempted = ObjectInvalid, reason, sum
 		next.status = segStatus(next)
 
 		st.built.SegmentRejections = append(st.built.SegmentRejections,
@@ -108,19 +108,19 @@ func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocumen
 	return check
 }
 
-// parseSegments decodes and validates a segments document.
-func parseSegments(body []byte) (*controlplane.SegmentsDocument, controlplane.DecodeInfo, error) {
+// parseSegments decodes and validates a segments document and returns the error message as a status reason.
+func parseSegments(body []byte) (*controlplane.SegmentsDocument, controlplane.DecodeInfo, string) {
 	doc, info, err := controlplane.UnmarshalSegments(body)
 	if err != nil {
-		return nil, info, err //nolint:wrapcheck // the decoder error is the reason of the status
+		return nil, info, err.Error()
 	}
 
 	err = controlplane.ValidateSegments(doc)
 	if err != nil {
-		return nil, info, err //nolint:wrapcheck // the validation error is the reason of the status
+		return nil, info, err.Error()
 	}
 
-	return doc, info, nil
+	return doc, info, ""
 }
 
 func keepSeg(name string, prev *segState) *segState {

@@ -443,7 +443,7 @@ func (r *Reader) reject(ctx context.Context, outcome, reason string) {
 	r.manifest.At = r.now().UTC()
 	r.manifest.Outcome = outcome
 	r.manifest.Reason = reason
-	r.rejectCounts[rejectionMetricReason(outcome, reason)]++
+	r.rejectCounts[RejectionReason(outcome, reason)]++
 
 	r.log.LogAttrs(ctx, slog.LevelWarn, "manifest reader: manifest rejected, previous one kept",
 		slog.String("outcome", outcome), slog.String("reason", reason),
@@ -458,13 +458,18 @@ func capPaths(paths []string) []string {
 	return slices.Clone(paths[:min(len(paths), MaxUnknownFieldPaths)])
 }
 
-func rejectionMetricReason(outcome, reason string) string {
+// RejectionReason maps a manifest outcome and raw reason to the single closed rejection-reason vocabulary
+// ([RejectionReasons]) shared by /info (config.reader.reason) and semaphore_config_reader_rejections_total.
+// It returns "" for non-rejection outcomes.
+func RejectionReason(outcome, reason string) string {
 	switch outcome {
+	case "", OutcomeNone, OutcomeAccepted:
+		return ""
 	case OutcomeChannelMismatch, OutcomeLowerGeneration, OutcomeConflict:
 		return outcome
+	default:
+		return reason
 	}
-
-	return reason
 }
 
 // accept decodes, validates and applies the manifest of a 200 answer. It reports whether the manifest was

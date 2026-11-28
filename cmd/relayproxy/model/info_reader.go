@@ -9,7 +9,7 @@ type ReaderInfo struct {
 	At *time.Time `json:"at,omitempty"`
 	// Outcome is the closed outcome of the last read manifest.
 	Outcome string `json:"outcome"`
-	// Reason is the closed reason when Outcome is not accepted; empty otherwise.
+	// Reason uses the same closed rejection-reason set as semaphore_config_reader_rejections_total; empty when accepted.
 	Reason string `json:"reason,omitempty"`
 }
 

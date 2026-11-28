@@ -266,3 +266,52 @@ func TestReader_AccumulatesMultipleRejectionReasonsSorted(t *testing.T) {
 	}
 	assert.Equal(t, want, got)
 }
+
+func TestRejectionReason_MapsClosedVocabulary(t *testing.T) {
+	t.Parallel()
+
+	const ignoredReason = "ignored"
+
+	tests := []struct {
+		name    string
+		outcome string
+		reason  string
+		want    string
+	}{
+		{name: "empty outcome", outcome: "", reason: ignoredReason, want: ""},
+		{name: "none outcome", outcome: manifestreader.OutcomeNone, reason: ignoredReason, want: ""},
+		{name: "accepted outcome", outcome: manifestreader.OutcomeAccepted, reason: ignoredReason, want: ""},
+		{
+			name:    "channel mismatch",
+			outcome: manifestreader.OutcomeChannelMismatch,
+			reason:  "channel",
+			want:    manifestreader.OutcomeChannelMismatch,
+		},
+		{
+			name:    "lower generation",
+			outcome: manifestreader.OutcomeLowerGeneration,
+			reason:  "generation",
+			want:    manifestreader.OutcomeLowerGeneration,
+		},
+		{
+			name:    "generation conflict",
+			outcome: manifestreader.OutcomeConflict,
+			reason:  "generation",
+			want:    manifestreader.OutcomeConflict,
+		},
+		{
+			name:    "invalid preserves closed code",
+			outcome: manifestreader.OutcomeInvalid,
+			reason:  string(controlplane.CodeUnsupportedVersion),
+			want:    string(controlplane.CodeUnsupportedVersion),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, manifestreader.RejectionReason(tt.outcome, tt.reason))
+		})
+	}
+}
