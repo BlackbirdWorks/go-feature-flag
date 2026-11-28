@@ -108,7 +108,7 @@ func (a *Adapter) FlagSetName(apiKey string) (string, error) {
 // IsDefaultFlagSet is false: a core always routes the keys to flag sets.
 func (*Adapter) IsDefaultFlagSet() bool { return false }
 
-// AuthenticationEnabled is true: a request needs a key, or else the bootstrap file names an anonymous flag set.
+// AuthenticationEnabled is true: a request needs a key, or else the generation has public flags.
 func (*Adapter) AuthenticationEnabled() bool { return true }
 
 // KeyExists reports whether the key is a flag set key or an admin key.

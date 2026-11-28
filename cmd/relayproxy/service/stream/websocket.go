@@ -19,7 +19,7 @@ type WebsocketConnector interface {
 type WebsocketService interface {
 	// Register is adding the connection to the list of open connection of the flagset.
 	Register(c WebsocketConnector, flagsetName string)
-	// RegisterAnonymous is Register for a connection that has no API key: the flag set is the anonymous flag set of
+	// RegisterAnonymous is Register for a connection that has no API key: the flag set is the public flag set of
 	// the relay, and [WebsocketService.DisconnectAnonymous] closes the connection when it is not anymore.
 	RegisterAnonymous(c WebsocketConnector, flagsetName string)
 	// DisconnectAnonymous closes the connections without a key whose flag set is not keep; an empty keep closes all

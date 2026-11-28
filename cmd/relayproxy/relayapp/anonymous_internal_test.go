@@ -33,16 +33,6 @@ const (
 
 func jsonHeader() http.Header { return http.Header{headerContentType: {mimeJSON}} }
 
-// applyReload hands the file that is on disk to the relay and waits for the round that applies it.
-func (r *relayRig) applyReload(t *testing.T) {
-	t.Helper()
-
-	before := r.snapshot
-	r.reload <- struct{}{}
-
-	r.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
-}
-
 // pollNext is poll for a relay that already polled: the reader waits for its tick, the first round signal was taken.
 func (r *relayRig) pollNext(gen uint64) {
 	r.store.t.Helper()
@@ -112,7 +102,11 @@ const (
 
 // publicSets are the flag sets of the tests: the tenant, with its key, and flag sets without keys.
 func publicSets(open ...string) []controlplane.FlagSet {
-	sets := []controlplane.FlagSet{{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}}}
+	sets := make([]controlplane.FlagSet, 0, 1+len(open))
+	sets = append(
+		sets,
+		controlplane.FlagSet{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+	)
 
 	for _, name := range open {
 		sets = append(sets, controlplane.FlagSet{Name: name, Sources: []string{map[string]string{
@@ -139,9 +133,9 @@ func TestRunServesThePublicFlags(t *testing.T) {
 	// generation 2 publishes a flag set without keys
 	rig.store.publishDocs(
 		publicSets(openSet),
-		map[string]string{flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100)},
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(100)},
 	)
-	rig.poll(2)
+	rig.poll()
 
 	status, value := rig.evaluate("")
 	assert.Equal(t, http.StatusOK, status, "a request without a key is served")
@@ -169,7 +163,7 @@ func TestRunServesThePublicFlags(t *testing.T) {
 	// generation 3 changes the public flags: no restart, no reload of the file
 	rig.store.publishDocs(
 		publicSets(openSet),
-		map[string]string{flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 101)},
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(101)},
 	)
 	rig.pollNext(3)
 
@@ -179,9 +173,9 @@ func TestRunServesThePublicFlags(t *testing.T) {
 
 	// generation 4 gives the flag set a key: nothing is public any more
 	rig.store.publishDocs([]controlplane.FlagSet{
-		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
 		{Name: openSet, Sources: []string{openObject}, APIKeys: []string{"55555555-5555-4555-8555-555555555555"}},
-	}, map[string]string{flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 101)})
+	}, map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(101)})
 	rig.pollNext(4)
 
 	status, _ = rig.evaluate("")
@@ -199,9 +193,9 @@ func TestRunRejectsAFlagKeyInTwoPublicFlagSets(t *testing.T) {
 
 	rig.store.publishDocs(
 		publicSets(openSet),
-		map[string]string{flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100)},
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(100)},
 	)
-	rig.poll(2)
+	rig.poll()
 
 	status, value := rig.evaluate("")
 	require.Equal(t, http.StatusOK, status)
@@ -209,7 +203,7 @@ func TestRunRejectsAFlagKeyInTwoPublicFlagSets(t *testing.T) {
 
 	// generation 3: a second public flag set defines the flag f too
 	rig.store.publishDocs(publicSets(openSet, "other"), map[string]string{
-		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 101), otherObject: flagYAML(flagKey, 5),
+		flagsObject: flagYAML(1), openObject: flagYAML(101), otherObject: flagYAML(5),
 	})
 
 	rig.pollRejected(t, 3, flagruntime.CodeBuildFailed)
@@ -333,9 +327,9 @@ func TestRunAppliesTheStreamAndValidateSettings(t *testing.T) {
 
 	// a flag set without keys is public: a client without a key is served
 	rig.store.publishDocs(publicSets(openSet), map[string]string{
-		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100),
+		flagsObject: flagYAML(1), openObject: flagYAML(100),
 	})
-	rig.poll(2)
+	rig.poll()
 
 	status, body := doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody,
 		http.Header{headerAPIKey: {tenantKey}, headerContentType: {mimeJSON}})
@@ -508,9 +502,9 @@ func TestRunClosesThePublicStreamsWhenTheFlagsAreWithdrawn(t *testing.T) {
 	rel := <-rig.started
 
 	rig.store.publishDocs(publicSets(openSet), map[string]string{
-		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100),
+		flagsObject: flagYAML(1), openObject: flagYAML(100),
 	})
-	rig.poll(2)
+	rig.poll()
 
 	keylessWS, keylessSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
 	keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
@@ -529,7 +523,7 @@ func TestRunClosesThePublicStreamsWhenTheFlagsAreWithdrawn(t *testing.T) {
 
 	// generation 3: the public flags change, nothing else does
 	rig.store.publishDocs(publicSets(openSet), map[string]string{
-		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 101),
+		flagsObject: flagYAML(1), openObject: flagYAML(101),
 	})
 	rig.pollNext(3)
 
@@ -538,9 +532,9 @@ func TestRunClosesThePublicStreamsWhenTheFlagsAreWithdrawn(t *testing.T) {
 
 	// generation 4: the public flag set gets a key, and the flag set of the key changes
 	rig.store.publishDocs([]controlplane.FlagSet{
-		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
 		{Name: openSet, Sources: []string{openObject}, APIKeys: []string{"55555555-5555-4555-8555-555555555555"}},
-	}, map[string]string{flagsObject: flagYAML(flagKey, 2), openObject: flagYAML(flagKey, 101)})
+	}, map[string]string{flagsObject: flagYAML(2), openObject: flagYAML(101)})
 	rig.pollNext(4)
 
 	keylessWS.awaitClosed(t)

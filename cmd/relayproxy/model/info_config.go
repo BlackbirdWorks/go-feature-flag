@@ -9,8 +9,6 @@ type ConfigInfo struct {
 	LastRejected *ReloadInfo `json:"lastRejected,omitempty"`
 	// Reloads counts the rounds by outcome: applied, rejected, ignored.
 	Reloads map[string]uint64 `json:"reloads"`
-	// Public says which flag sets serve the requests without an API key: the flag sets published without a key.
-	Public PublicInfo `json:"public"`
 	// Staleness says how long ago the held configuration was last confirmed by the control plane.
 	Staleness StalenessInfo `json:"staleness"`
 	// LastReload is the most recent round of any outcome.
@@ -25,6 +23,8 @@ type ConfigInfo struct {
 	Withdrawn []WithdrawnInfo `json:"withdrawn"`
 	// PendingRestart names the settings that changed and need a restart.
 	PendingRestart []string `json:"pendingRestart"`
+	// Public says which flag sets serve the requests without an API key: the flag sets published without a key.
+	Public PublicInfo `json:"public"`
 	// Generation is the applied manifest generation, Snapshot the local swap counter.
 	Generation uint64 `json:"generation"`
 	Snapshot   uint64 `json:"snapshot"`

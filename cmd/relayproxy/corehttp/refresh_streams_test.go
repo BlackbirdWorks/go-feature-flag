@@ -124,8 +124,8 @@ func TestStreams_Revalidate(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
 		runtime       *flagruntime.Runtime
+		name          string
 		wantWebsocket int
 	}{
 		{name: "no public flags", runtime: publicRuntime(false), wantWebsocket: 1},
@@ -137,7 +137,9 @@ func TestStreams_Revalidate(t *testing.T) {
 			t.Parallel()
 
 			websockets, sse := stream.NewWebsocketService(), stream.NewSSEService()
-			streams := corehttp.NewStreamsWith(&corehttp.StreamsConfig{Websocket: websockets, SSE: sse, Label: t.Name()})
+			streams := corehttp.NewStreamsWith(
+				&corehttp.StreamsConfig{Websocket: websockets, SSE: sse, Label: t.Name()},
+			)
 
 			t.Cleanup(func() { _ = streams.Close(context.Background()) })
 

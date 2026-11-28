@@ -41,6 +41,7 @@ const (
 	channelName   = "stable"
 	setsName      = "sets"
 	flagsObject   = "flags-a"
+	tenantSet     = "tenant"
 	tenantKey     = "11111111-1111-4111-8111-111111111111"
 	adminKey      = "22222222-2222-4222-8222-222222222222"
 	otherAdminKey = "44444444-4444-4444-8444-444444444444"
@@ -112,13 +113,13 @@ func (s *store) publish(value int) {
 	s.t.Helper()
 
 	s.publishDocs([]controlplane.FlagSet{
-		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
-	}, map[string]string{flagsObject: flagYAML(flagKey, value)})
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+	}, map[string]string{flagsObject: flagYAML(value)})
 }
 
-// flagYAML is a flags document of one flag valued value.
-func flagYAML(key string, value int) string {
-	return fmt.Sprintf("%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", key, value)
+// flagYAML is a flags document of the flag f valued value.
+func flagYAML(value int) string {
+	return fmt.Sprintf("%s:\n  variations:\n    v: %d\n  defaultRule:\n    variation: v\n", flagKey, value)
 }
 
 // publishDocs writes the flag sets and the flags objects (by name), then the manifest of the next generation.
@@ -386,8 +387,8 @@ func (r *relayRig) awaitGeneration(gen uint64) {
 	r.awaitRound(func(res flagruntime.RoundResult) bool { return res.Generation == gen })
 }
 
-// poll lets the reader poll once and waits for the generation to be live.
-func (r *relayRig) poll(gen uint64) {
+// poll lets the reader poll once and waits for the generation that was last published to be live.
+func (r *relayRig) poll() {
 	r.store.t.Helper()
 
 	select {
@@ -408,7 +409,7 @@ func (r *relayRig) poll(gen uint64) {
 		require.FailNow(r.store.t, "the reader did not end its next round")
 	}
 
-	r.awaitGeneration(gen)
+	r.awaitGeneration(r.store.gen)
 }
 
 func get(t *testing.T, url string, headers http.Header) (int, string) {
@@ -474,7 +475,7 @@ func TestRunServesAFileStore(t *testing.T) {
 
 	// an object change is live after one poll, without a restart
 	rig.store.publish(2)
-	rig.poll(2)
+	rig.poll()
 
 	status, value = rig.evaluate(tenantKey)
 	assert.Equal(t, http.StatusOK, status)

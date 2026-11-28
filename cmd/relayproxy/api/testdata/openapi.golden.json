@@ -140,7 +140,6 @@
         },
         "required": [
           "reloads",
-          "public",
           "staleness",
           "lastReload",
           "lastApplied",
@@ -148,6 +147,7 @@
           "objects",
           "withdrawn",
           "pendingRestart",
+          "public",
           "generation",
           "snapshot"
         ],

@@ -65,7 +65,7 @@ func TestConfigInfo(t *testing.T) {
 	}
 
 	want := model.ConfigInfo{
-		Public: model.PublicInfo{Sets: []string{}, Flags: 0, Present: false},
+		Public:       model.PublicInfo{Sets: []string{}, Flags: 0, Present: false},
 		LastReload:   model.ReloadInfo{At: &now, Outcome: outIgnore, Code: "unchanged", Generation: 4},
 		LastApplied:  model.ReloadInfo{At: &synced, Outcome: outApply, Code: outApply, Generation: 4},
 		LastRejected: &model.ReloadInfo{At: &now, Outcome: outReject, Code: "vetoed", Generation: 5},
