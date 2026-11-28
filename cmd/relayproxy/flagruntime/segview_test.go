@@ -353,7 +353,11 @@ func TestRunSegmentVersions(t *testing.T) {
 		defer close(done)
 
 		flagruntime.RunSegmentVersions(ctx, holder, &flagruntime.SegmentPoll{
-			Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second, OnError: func(error) { failures.Add(1) },
+			Wait:    tick.wait,
+			OnPass:  tick.onPass,
+			OnIdle:  tick.onIdle,
+			Tick:    time.Second,
+			OnError: func(error) { failures.Add(1) },
 		})
 	}()
 

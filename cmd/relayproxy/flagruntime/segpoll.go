@@ -31,6 +31,9 @@ type SegmentPoll struct {
 	// OnPass (optional) is called with true when the loop starts the pass of a connection and with false when the pass
 	// ends: for a test or a metric, never on the request path.
 	OnPass func(connection string, running bool)
+	// OnIdle (optional) is called after a pass ended and its connection is free to start another: for a test or a
+	// metric, never on the request path.
+	OnIdle func(connection string)
 	// OnConnection (optional) is called when the store of a connection starts failing (down) or works again, never
 	// for each evaluation or poll. It is the only place that commits that state and runs on the loop, in order, from the
 	// current bindings: like Logger it must return promptly.
@@ -84,6 +87,8 @@ func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) 
 		}
 
 		now = now.Add(poll.Tick)
+		run.clock.Store(now.UnixNano())
+
 		bindings := holder.Load().liveBindings()
 		due := map[string][]*segBinding{}
 		byConn := map[string][]*segBinding{}
@@ -99,11 +104,7 @@ func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) 
 			}
 		}
 
-		for b := range known {
-			if _, still := live[b]; !still {
-				b.idle()
-			}
-		}
+		retire(known, live)
 
 		known = live
 
@@ -118,7 +119,8 @@ func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) 
 	}
 }
 
-// passState is the pass of one connection: whether it runs, and since when (the time of the loop).
+// passState is the pass of one connection: whether it runs, and since when (the time of the loop) its current operation
+// started.
 type passState struct {
 	since   atomic.Int64
 	running atomic.Bool
@@ -132,6 +134,7 @@ type passRunner struct {
 	hung    map[string]bool       // only the loop touches hung and down: it is the one place that commits the state
 	down    map[string]bool
 	passes  sync.WaitGroup
+	clock   atomic.Int64 // the time of the loop, for the passes
 }
 
 func (r *passRunner) busy(connection string) bool {
@@ -204,6 +207,7 @@ func (r *passRunner) start(
 	}
 
 	state.since.Store(now.UnixNano())
+	state.warned = false // each pass reports a hang once
 	state.running.Store(true)
 
 	if r.poll.OnPass != nil {
@@ -218,12 +222,21 @@ func (r *passRunner) start(
 			}
 
 			state.running.Store(false)
+
+			if r.poll.OnIdle != nil {
+				r.poll.OnIdle(connection)
+			}
 		}()
 
 		errs := make([]error, 0, len(list))
 
+		env := &pollEnv{
+			now:      func() time.Time { return time.Unix(0, r.clock.Load()) },
+			progress: func() { state.since.Store(r.clock.Load()) },
+		}
+
 		for _, b := range list {
-			errs = append(errs, b.poll(ctx, now)...)
+			errs = append(errs, b.poll(ctx, now, env)...)
 		}
 
 		r.reportErrors(ctx, all, errs)
@@ -357,8 +370,8 @@ func (r *Runtime) SegmentBindings() SegmentBindingsStatus {
 			byConn[b.connection] = conn
 		}
 
-		for _, h := range b.holders {
-			status := h.Status()
+		for _, held := range b.holders {
+			status := held.Status()
 			conn.Members += status.Members
 
 			switch {
@@ -366,7 +379,7 @@ func (r *Runtime) SegmentBindings() SegmentBindingsStatus {
 				conn.Missing++
 			case !status.Loaded:
 				conn.NeverLoaded++
-			case status.LastError != snapshot.ClassNone:
+			case status.LastError != snapshot.ClassNone || held.Stale():
 				conn.Stale++
 			default:
 				conn.Loaded++
@@ -392,9 +405,33 @@ func (v *SegmentView) RefreshVersions(ctx context.Context, now time.Time) error 
 
 	for _, group := range v.groups {
 		if group.bind.due(now, nil) {
-			errs = append(errs, group.bind.poll(ctx, now)...)
+			errs = append(errs, group.bind.poll(ctx, now, &pollEnv{now: func() time.Time { return now }})...)
 		}
 	}
 
 	return errors.Join(errs...)
+}
+
+// retire marks the holders of the bindings that the runtime stopped using, unless a binding that it still uses took the
+// holder over (a new generation of an object takes over the holders of its unchanged definitions).
+func retire(known, live map[*segBinding]struct{}) {
+	var kept map[*snapshot.Holder]struct{}
+
+	for b := range known {
+		if _, still := live[b]; still {
+			continue
+		}
+
+		if kept == nil {
+			kept = map[*snapshot.Holder]struct{}{}
+
+			for current := range live {
+				for _, holder := range current.holders {
+					kept[holder] = struct{}{}
+				}
+			}
+		}
+
+		b.idle(kept)
+	}
 }

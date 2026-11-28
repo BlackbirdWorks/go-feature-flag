@@ -338,3 +338,38 @@ func lookupAndSnapshot() map[string]valkeysegment.SegmentOptions {
 
 	return segs
 }
+
+// A key that holds another kind of value is the answer of the store about this set: its class is the one of the set. An
+// error of the store that is not about the set (a store that loads) stays a read failure.
+func TestASnapshotErrorIsTheClassOfTheSetOnlyForAWrongType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		reply     string
+		wantClass snapshot.Class
+	}{
+		{
+			name:      "wrong type",
+			reply:     "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n",
+			wantClass: snapshot.ClassSet,
+		},
+		{name: "loading", reply: "-LOADING Valkey is loading the dataset in memory\r\n", wantClass: snapshot.ClassRead},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, prov := snapServer(t, "")
+			srv.seed(snapAlpha, []string{"a"})
+			srv.answerOnly(nameSScan, tt.reply)
+
+			holder, err := snapshot.New(snapAlpha, prov, snapshot.Options{})
+			require.NoError(t, err)
+
+			require.Error(t, holder.Refresh(context.Background()))
+			assert.Equal(t, tt.wantClass, holder.Status().LastError)
+		})
+	}
+}

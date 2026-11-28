@@ -592,3 +592,45 @@ func TestSnapshotsThatFillTheCapLeaveTheScriptDetection(t *testing.T) {
 	assert.Equal(t, 1, scripts, "the read-only script is probed once, whatever the snapshot probes take")
 	assert.Equal(t, 8, scans)
 }
+
+// A key that holds another kind of value is the answer of the store about this set: its class is the one of the set. An
+// error of the store that is not about the set (a store that loads) stays a read failure.
+func TestASnapshotErrorIsTheClassOfTheSetOnlyForAWrongType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		message   string
+		wantClass snapshot.Class
+	}{
+		{
+			name:      "wrong type",
+			message:   msgWrongType + " Operation against a key holding the wrong kind of value",
+			wantClass: snapshot.ClassSet,
+		},
+		{name: "loading", message: "LOADING Redis is loading the dataset in memory", wantClass: snapshot.ClassRead},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, segs := snapStore(0)
+			require.NoError(t, seeder(store)(snapAlpha, []string{"a"}))
+
+			store.reply = func(args []any) *fakeReply {
+				if name, _ := args[0].(string); name == "SSCAN" {
+					return &fakeReply{err: serverError{msg: tt.message}}
+				}
+
+				return nil
+			}
+
+			holder, err := snapshot.New(snapAlpha, snapProvider(t, store, segs, ""), snapshot.Options{})
+			require.NoError(t, err)
+
+			require.Error(t, holder.Refresh(context.Background()))
+			assert.Equal(t, tt.wantClass, holder.Status().LastError)
+		})
+	}
+}

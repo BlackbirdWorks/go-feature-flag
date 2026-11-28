@@ -105,6 +105,21 @@ func overdueHolder(t *testing.T) *snapshot.Holder {
 	return holder
 }
 
+func missingNotMemberThenFails(t *testing.T) *snapshot.Holder {
+	t.Helper()
+
+	src := segment.NewMemorySource(nil)
+
+	holder, err := snapshot.New(segAlpha, src, snapshot.Options{})
+	require.NoError(t, err)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	src.Fail(segment.OpVersion, errAnswerStore)
+	require.Error(t, holder.Refresh(context.Background()))
+
+	return holder
+}
+
 func TestHolderAnswer(t *testing.T) {
 	t.Parallel()
 
@@ -134,6 +149,10 @@ func TestHolderAnswer(t *testing.T) {
 		{
 			name: "stale after an error", setup: staleHolder, id: answerMember,
 			wantState: segment.Member, wantStatus: segment.StatusStale,
+		},
+		{
+			name: "missing under notMember, then the store fails", setup: missingNotMemberThenFails, id: answerMember,
+			wantState: segment.NotMember, wantStatus: segment.StatusStale,
 		},
 		{
 			name: "overdue", setup: overdueHolder, id: answerMember,

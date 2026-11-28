@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"strconv"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 
@@ -86,6 +87,11 @@ func (p *Provider) run(ctx context.Context, client Client, args ...any) (*redis.
 
 	if err != nil && !errors.Is(err, redis.Nil) {
 		p.recordError(ctx, callCtx, err)
+
+		if isWrongType(err) {
+			// the store answered about this set: the key does not hold a set. A consumer tells that from a store that fails.
+			return cmd, fmt.Errorf("%w: redis segment: %w", ErrServer, err)
+		}
 
 		return cmd, fmt.Errorf("redis segment: %w", err)
 	}
@@ -298,4 +304,14 @@ func scanPage(cmd *redis.Cmd) (string, []string, error) {
 	}
 
 	return cursor, members, nil
+}
+
+// isWrongType reports whether the store answered that the key holds another kind of value: an error about one set, not
+// of the store (a loading store or a cluster that is down answers other errors).
+func isWrongType(err error) bool {
+	if _, ok := errors.AsType[redis.Error](err); !ok {
+		return false
+	}
+
+	return strings.HasPrefix(err.Error(), "WRONGTYPE")
 }

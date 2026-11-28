@@ -77,6 +77,9 @@ type snap struct {
 	missing  bool // the store answered that the segment does not exist: no set is held
 }
 
+// failing reports whether the last refresh failed: an error that is not the answer "the segment is missing".
+func (s *snap) failing() bool { return s.lastErr != ClassNone && s.lastErr != ClassMissing }
+
 // Holder keeps the member set of one segment. Reads are lock-free; Refresh is driven by the caller (it starts no
 // goroutine and no timer) and calls are serialised.
 type Holder struct {
@@ -150,7 +153,7 @@ func (h *Holder) Answer(id string) (segment.State, segment.Status) {
 		state = segment.Member
 	}
 
-	if (!cur.missing && cur.lastErr != ClassNone) || h.overdue.Load() {
+	if cur.failing() || h.overdue.Load() {
 		return state, segment.StatusStale
 	}
 
@@ -193,7 +196,7 @@ func (h *Holder) Contains(ctx context.Context, lookups []segment.Lookup) error {
 func (h *Holder) Stale() bool {
 	cur := h.cur.Load()
 
-	return cur != nil && cur.set != nil && ((!cur.missing && cur.lastErr != ClassNone) || h.overdue.Load())
+	return cur != nil && cur.set != nil && (cur.failing() || h.overdue.Load())
 }
 
 // Status returns the state of the holder.

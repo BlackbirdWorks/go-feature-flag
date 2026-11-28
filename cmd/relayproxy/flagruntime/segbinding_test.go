@@ -143,18 +143,19 @@ func newTicker() *ticker {
 }
 
 func (k *ticker) onPass(connection string, running bool) {
-	if running {
-		k.started.Add(1)
-
-		k.mu.Lock()
-		k.starts[connection]++
-		k.mu.Unlock()
-
+	if !running {
 		return
 	}
 
-	k.ends <- connection
+	k.started.Add(1)
+
+	k.mu.Lock()
+	k.starts[connection]++
+	k.mu.Unlock()
 }
+
+// onIdle is told after the connection is free: the passes that a tick started have then ended for good.
+func (k *ticker) onIdle(connection string) { k.ends <- connection }
 
 func (k *ticker) wait(ctx context.Context, _ time.Duration) error {
 	select {
@@ -231,18 +232,20 @@ func (k *ticker) passes(connection string) int {
 	return k.starts[connection]
 }
 
-// awaitEnd waits for the end of a pass of the connection.
-func (k *ticker) awaitEnd(t *testing.T, connection string) {
+// awaitEnd waits for the end of a pass of the connection of the audiences.
+func (k *ticker) awaitEnd(t *testing.T) {
 	t.Helper()
 
 	for {
 		select {
 		case got := <-k.ends:
-			if got == connection {
+			if got == connAudiences {
+				k.started.Add(-1) // this pass is joined
+
 				return
 			}
 		case <-time.After(5 * time.Second):
-			require.Fail(t, "the pass did not end", connection)
+			require.Fail(t, "the pass did not end")
 		}
 	}
 }
@@ -258,6 +261,14 @@ func (l *logLines) Write(p []byte) (int, error) {
 	defer l.mu.Unlock()
 
 	return l.buf.Write(p)
+}
+
+// all0 returns the messages without a test helper, for an assertion that nothing was logged.
+func (l *logLines) all0() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return strings.Fields(strings.TrimSpace(l.buf.String()))
 }
 
 // all returns the messages of the lines, in order.
@@ -321,7 +332,7 @@ func startSnapshotRig(t *testing.T, doc string) *snapshotRig {
 
 	loops.Go(func() {
 		flagruntime.RunSegmentVersions(ctx, rig.holder, &flagruntime.SegmentPoll{
-			Wait: rig.tick.wait, OnPass: rig.tick.onPass, Tick: time.Second,
+			Wait: rig.tick.wait, OnPass: rig.tick.onPass, OnIdle: rig.tick.onIdle, Tick: time.Second,
 			Logger:       slog.New(slog.NewJSONHandler(rig.logs, nil)),
 			OnError:      func(error) { rig.reports <- reportError },
 			OnConnection: func(name string, down bool) { rig.reports <- fmt.Sprintf("%s down=%t", name, down) },
@@ -552,6 +563,25 @@ func (g *gateSource) hangVersions() func() {
 	return func() { close(release) }
 }
 
+// drainAsks forgets the asks that were signalled so far.
+func (g *gateSource) drainAsks() {
+	for {
+		select {
+		case <-g.entered:
+		default:
+			return
+		}
+	}
+}
+
+// unhang makes the version reads work again; the ones that wait are released by the function that hangVersions gave.
+func (g *gateSource) unhang() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.hang = nil
+}
+
 // awaitBlocked waits until the pull of the set entered its gate.
 func (g *gateSource) awaitBlocked(t *testing.T, name string) {
 	t.Helper()
@@ -569,17 +599,17 @@ func (g *gateSource) awaitBlocked(t *testing.T, name string) {
 }
 
 // awaitAsk waits until the source was asked for the version of the set.
-func (g *gateSource) awaitAsk(t *testing.T, name string) {
+func (g *gateSource) awaitAsk(t *testing.T) {
 	t.Helper()
 
 	for {
 		select {
 		case got := <-g.entered:
-			if got == name {
+			if got == audienceSegmentName {
 				return
 			}
 		case <-time.After(5 * time.Second):
-			require.Fail(t, "the source was not asked", name)
+			require.Fail(t, "the source was not asked")
 		}
 	}
 }
@@ -683,7 +713,7 @@ func TestSegmentPollPasses(t *testing.T) {
 	)
 
 	rig := startPoll(t, binder, doc, &flagruntime.SegmentPoll{
-		Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second,
+		Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second,
 		Jitter: func(limit time.Duration) time.Duration {
 			spreads.Add(1)
 
@@ -698,13 +728,13 @@ func TestSegmentPollPasses(t *testing.T) {
 
 	// the second tick starts both passes: the hung store holds its own, the other connection is read
 	tick.step(t, 1)
-	tick.awaitEnd(t, connAudiences)
+	tick.awaitEnd(t)
 	assert.Equal(t, 1, good.Calls(segment.OpVersion))
 
 	// the interval of the good connection passes (five seconds) while the other pass still runs: it is read again, the
 	// hung one is not started twice
 	tick.step(t, 5)
-	tick.awaitEnd(t, connAudiences)
+	tick.awaitEnd(t)
 	assert.Equal(t, 2, good.Calls(segment.OpVersion))
 	assert.Equal(t, 1, tick.passes(connOther), "the pass that still runs is not started twice")
 	assert.Equal(t, 2, tick.passes(connAudiences))
@@ -727,7 +757,7 @@ func TestSegmentPullDeadlines(t *testing.T) {
 	t.Parallel()
 
 	source := newGateSource(segment.NewMemorySource(map[string][]string{
-		audienceSegmentName: {memberAlice}, "second": {memberAlice},
+		audienceSegmentName: {memberAlice}, segTwo: {memberAlice},
 	}), audienceSegmentName)
 	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
 	doc := audienceDoc(connAudiences, "") + "  - name: second\n    connection: audiences\n"
@@ -737,7 +767,7 @@ func TestSegmentPullDeadlines(t *testing.T) {
 		t,
 		binder,
 		doc,
-		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second},
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second},
 		0,
 	)
 
@@ -746,16 +776,16 @@ func TestSegmentPullDeadlines(t *testing.T) {
 	source.awaitBlocked(t, audienceSegmentName)
 	tick.step(t, 11)
 	assert.Equal(t, 1, source.asked(audienceSegmentName))
-	assert.Zero(t, source.asked("second"))
+	assert.Zero(t, source.asked(segTwo))
 
 	source.open(audienceSegmentName)
-	tick.awaitEnd(t, connAudiences)
+	tick.awaitEnd(t)
 
 	assert.Equal(t, flagruntime.SegmentBindingsStatus{
 		Live: 1, Connections: []flagruntime.ConnectionSnapshots{{Connection: connAudiences, Loaded: 2, Members: 2}},
 	}, rig.holder.Load().SegmentBindings())
 
-	assert.True(t, source.firstDeadline("second").After(source.firstDeadline(audienceSegmentName)),
+	assert.True(t, source.firstDeadline(segTwo).After(source.firstDeadline(audienceSegmentName)),
 		"the second set has a deadline of its own, started after the first")
 }
 
@@ -958,6 +988,7 @@ func TestMissingSegmentWithUnknownPolicyIsHealthy(t *testing.T) {
 }
 
 const (
+	thirdName  = "third"
 	freshName  = "fresh"
 	interval10 = "10s"
 	manyNames  = 50
@@ -1169,7 +1200,7 @@ const threeDoc = "  - name: second\n    connection: audiences\n  - name: third\n
 
 func threeSets() map[string][]string {
 	return map[string][]string{
-		audienceSegmentName: {memberAlice}, "second": {memberAlice}, "third": {memberAlice},
+		audienceSegmentName: {memberAlice}, segTwo: {memberAlice}, thirdName: {memberAlice},
 	}
 }
 
@@ -1181,8 +1212,18 @@ func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
 	source := newGateSource(segment.NewMemorySource(threeSets()), audienceSegmentName) // its gate is never opened
 	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
 	tick := newTicker()
-	rig := startPoll(t, binder, audienceDoc(connAudiences, "")+threeDoc,
-		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second}, 50*time.Millisecond)
+	rig := startPoll(
+		t,
+		binder,
+		audienceDoc(connAudiences, "")+threeDoc,
+		&flagruntime.SegmentPoll{
+			Wait:   tick.wait,
+			OnPass: tick.onPass,
+			OnIdle: tick.onIdle,
+			Tick:   time.Second,
+		},
+		50*time.Millisecond,
+	)
 
 	tick.joined(t, 1)
 
@@ -1196,7 +1237,7 @@ func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
 	// the next poll (a second later, as one set is not loaded) tries the first one again and reaches the others again
 	tick.joined(t, 2)
 	assert.Equal(t, 2, source.asked(audienceSegmentName))
-	assert.Equal(t, 2, source.asked("third"))
+	assert.Equal(t, 2, source.asked(thirdName))
 	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
 }
 
@@ -1211,7 +1252,11 @@ func TestSegmentPassThatHangsIsReported(t *testing.T) {
 	reports := make(chan string, 16)
 	tick := newTicker()
 	rig := startPoll(t, binder, audienceDoc(connAudiences, ""), &flagruntime.SegmentPoll{
-		Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second, JoinTimeout: 50 * time.Millisecond,
+		Wait:         tick.wait,
+		OnPass:       tick.onPass,
+		OnIdle:       tick.onIdle,
+		Tick:         time.Second,
+		JoinTimeout:  50 * time.Millisecond,
 		Logger:       slog.New(slog.NewJSONHandler(logs, nil)),
 		OnConnection: func(name string, down bool) { reports <- fmt.Sprintf("%s down=%t", name, down) },
 	}, 0)
@@ -1219,7 +1264,7 @@ func TestSegmentPassThatHangsIsReported(t *testing.T) {
 	catalog := func() *segment.Catalog { return rig.holder.Load().FlagSets["a"].Segments.Catalog }
 
 	tick.tick(t, 1)
-	source.awaitAsk(t, audienceSegmentName)
+	source.awaitAsk(t)
 
 	_, status, _ := catalog().Answer(audienceSegmentName, memberAlice)
 	assert.Equal(t, segment.StatusHealthy, status)
@@ -1234,11 +1279,14 @@ func TestSegmentPassThatHangsIsReported(t *testing.T) {
 	// the poll that is due five seconds later hangs; more than twice the deadline of a refresh (one minute) later the
 	// pass is hung
 	tick.step(t, 5)
-	source.awaitAsk(t, audienceSegmentName)
+	source.awaitAsk(t)
 	tick.step(t, 125)
 
 	_, status, _ = catalog().Answer(audienceSegmentName, memberAlice)
 	assert.Equal(t, segment.StatusStale, status, "a set that nothing refreshes goes stale")
+	assert.Equal(t, flagruntime.SegmentBindingsStatus{
+		Live: 1, Connections: []flagruntime.ConnectionSnapshots{{Connection: connAudiences, Stale: 1, Members: 1}},
+	}, rig.holder.Load().SegmentBindings(), "/info and the metric count what the requests are told")
 	assert.Equal(t, []string{connAudiences + " down=true"}, drainLines(reports))
 
 	rig.stop() // returns after the join timeout, with the pass still stuck
@@ -1287,7 +1335,7 @@ func TestSingleBrokenSetDoesNotFlipTheConnection(t *testing.T) {
 	}{
 		{
 			name:      "a key of the wrong type",
-			setup:     func(s *gateSource) { s.failMembers("second", wrongType) },
+			setup:     func(s *gateSource) { s.failMembers(segTwo, wrongType) },
 			wantLines: []string{failed},
 			wantConnStates: flagruntime.ConnectionSnapshots{
 				Connection:  connAudiences,
@@ -1304,7 +1352,7 @@ func TestSingleBrokenSetDoesNotFlipTheConnection(t *testing.T) {
 		},
 		{
 			name:      "one set cannot be read for a transport failure",
-			setup:     func(s *gateSource) { s.failVersion("second", errStoreDown) },
+			setup:     func(s *gateSource) { s.failVersion(segTwo, errStoreDown) },
 			wantLines: []string{failed},
 			wantConnStates: flagruntime.ConnectionSnapshots{
 				Connection:  connAudiences,
@@ -1339,7 +1387,7 @@ func TestSingleBrokenSetDoesNotFlipTheConnection(t *testing.T) {
 			tick := newTicker()
 			doc := cmp.Or(tt.doc, audienceDoc(connAudiences, "")+threeDoc)
 			rig := startPoll(t, binder, doc, &flagruntime.SegmentPoll{
-				Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second,
+				Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second,
 				Logger:       slog.New(slog.NewJSONHandler(logs, nil)),
 				OnConnection: func(name string, down bool) { reports <- fmt.Sprintf("%s down=%t", name, down) },
 			}, 0)
@@ -1360,26 +1408,26 @@ func TestSingleBrokenSetDoesNotFlipTheConnection(t *testing.T) {
 func TestHeldSetsAreNotRevived(t *testing.T) {
 	t.Parallel()
 
-	moved := audienceDoc(connAudiences, "") + "    key: moved\n"
+	snap := audienceDoc(connAudiences, "")
+	moved := snap + "    key: moved\n"
 
 	tests := []struct {
-		name     string
-		docs     []string
-		wantCold bool
+		name       string
+		docs       []string
+		wantState  segment.State
+		wantStatus segment.Status
 	}{
 		{
-			name: "same identity again",
-			docs: []string{audienceDoc(connAudiences, ""), audienceDoc(connAudiences, "") + "\n"},
+			name: "same identity again", docs: []string{snap, snap + "\n"},
+			wantState: segment.Member, wantStatus: segment.StatusHealthy,
 		},
 		{
-			name:     "other identity and back",
-			docs:     []string{audienceDoc(connAudiences, ""), moved, audienceDoc(connAudiences, "")},
-			wantCold: true,
+			name: "other identity and back", docs: []string{snap, moved, snap},
+			wantState: segment.Unknown, wantStatus: segment.StatusStoreError,
 		},
 		{
-			name:     "lookup and back",
-			docs:     []string{audienceDoc(connAudiences, ""), lookupDoc, audienceDoc(connAudiences, "")},
-			wantCold: true,
+			name: "lookup and back", docs: []string{snap, lookupDoc, snap},
+			wantState: segment.Unknown, wantStatus: segment.StatusStoreError,
 		},
 	}
 
@@ -1403,10 +1451,11 @@ func TestHeldSetsAreNotRevived(t *testing.T) {
 			}
 
 			// what a request sees first in the last generation, before any refresh of it
-			_, status, ok := last.Runtime.FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
+			state, status, ok := last.Runtime.FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
 
 			assert.True(t, ok)
-			assert.Equal(t, tt.wantCold, status == segment.StatusStoreError)
+			assert.Equal(t, tt.wantState, state)
+			assert.Equal(t, tt.wantStatus, status)
 		})
 	}
 }
@@ -1418,8 +1467,9 @@ func TestUnreferencedBindingGoesStale(t *testing.T) {
 
 	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
 	tick := newTicker()
-	rig := startPoll(t, &memBinder{source: source}, audienceDoc(connAudiences, ""),
-		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second}, 0)
+	slow := audienceDoc(connAudiences, "") + "    version: {key: v, interval: 30s}\n"
+	rig := startPoll(t, &memBinder{source: source}, slow,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second}, 0)
 
 	answer := func() segment.Status {
 		_, status, _ := rig.holder.Load().FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
@@ -1430,9 +1480,9 @@ func TestUnreferencedBindingGoesStale(t *testing.T) {
 	tick.tick(t, 2)
 	assert.Equal(t, segment.StatusHealthy, answer())
 
-	rig.submit(t, plainContent(t, 2))
+	rig.submit(t, plainContent(t, 2, slow))
 	tick.tick(t, 1) // the loop sees that nothing uses the binding any more
-	rig.submit(t, revisionContent(t, 3, audienceDoc(connAudiences, "")))
+	rig.submit(t, revisionContent(t, 3, slow))
 
 	assert.Equal(t, segment.StatusStale, answer(), "used again before any refresh")
 
@@ -1441,12 +1491,12 @@ func TestUnreferencedBindingGoesStale(t *testing.T) {
 }
 
 // plainContent is viewContent with a flag set that names no segments object.
-func plainContent(tb testing.TB, gen uint64) *flagruntime.Content {
+func plainContent(tb testing.TB, gen uint64, doc string) *flagruntime.Content {
 	tb.Helper()
 
 	return content(gen, objs{
 		"f1":      obj(flagruntime.KindFlags, []byte(viewFlagsYAML)),
-		segObject: segObj(audienceDoc(connAudiences, "")),
+		segObject: segObj(doc),
 		setsName:  setsObj(tb, controlplane.FlagSet{Name: "a", Sources: src("f1"), APIKeys: []string{keyA}}),
 	})
 }
@@ -1527,7 +1577,7 @@ func TestLookupVersionBudgetIsItsOwnInterval(t *testing.T) {
 		t,
 		binder,
 		doc,
-		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second},
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second},
 		3*time.Second,
 	)
 
@@ -1558,27 +1608,33 @@ func TestPassEndIsToldBeforeTheConnectionIsFree(t *testing.T) {
 	source.Fail(segment.OpVersion, errStoreDown) // never loaded: a pass on every tick
 
 	var (
-		once    sync.Once
+		held    sync.Once
+		freed   sync.Once
 		reached = make(chan struct{})
 		release = make(chan struct{})
 		tick    = newTicker()
 	)
 
+	// idempotent, and deferred before the ticker advances: a failure cannot leave the hook waiting
+	open := func() { freed.Do(func() { close(release) }) }
+
+	defer open()
+
+	t.Cleanup(open)
+
 	record := func(connection string, running bool) {
 		tick.onPass(connection, running)
 
 		if !running {
-			once.Do(func() {
+			held.Do(func() {
 				close(reached)
 				<-release
 			})
 		}
 	}
 
-	t.Cleanup(func() { once.Do(func() {}) })
-
 	startPoll(t, &memBinder{source: source}, audienceDoc(connAudiences, ""),
-		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: record, Tick: time.Second}, 0)
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: record, OnIdle: tick.onIdle, Tick: time.Second}, 0)
 
 	tick.step(t, 1)
 
@@ -1591,5 +1647,204 @@ func TestPassEndIsToldBeforeTheConnectionIsFree(t *testing.T) {
 	tick.step(t, 3)
 	assert.Equal(t, 1, tick.passes(connAudiences), "the connection is busy until its end was told")
 
-	close(release)
+	open()
+}
+
+// A reload that changes only a static segment hands the holders of the unchanged definitions to the new binding: the
+// old binding retires, and the sets stay healthy, the first evaluation after the swap and after several ticks.
+func TestCarriedHoldersStayHealthyAfterAStaticReload(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+	tick := newTicker()
+	first := audienceDoc(connAudiences, "") + "    version: {key: v, interval: 30s}\n"
+	rig := startPoll(t, &memBinder{source: source}, first,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second}, 0)
+
+	answer := func() (segment.State, segment.Status) {
+		state, status, _ := rig.holder.Load().FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
+
+		return state, status
+	}
+
+	tick.tick(t, 2)
+
+	changed := strings.Replace(first, "members: [alice]", "members: [alice, bob]", 1)
+	require.NotEqual(t, first, changed)
+
+	rig.submit(t, revisionContent(t, 5, changed))
+
+	state, status := answer()
+	assert.Equal(t, segment.Member, state)
+	assert.Equal(t, segment.StatusHealthy, status, "the first evaluation after the swap")
+
+	tick.tick(t, 4)
+
+	state, status = answer()
+	assert.Equal(t, segment.Member, state)
+	assert.Equal(t, segment.StatusHealthy, status, "after several ticks: the old binding retired, the holder did not")
+}
+
+// The binding wakes at the earliest pending deadline of its lookups and its snapshot sets: a two second lookup and a
+// three second snapshot are read at ticks 1, 3, 5 and 1, 4, 7.
+func TestBindingWakesAtTheEarliestDeadline(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(
+		segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}, "snap": {memberAlice}}),
+	)
+	doc := segHeader + "  - name: audience\n    connection: audiences\n    mode: lookup\n" +
+		"    version: {key: v, interval: 2s}\n" +
+		"  - name: snap\n    connection: audiences\n    version: {key: w, interval: 3s}\n"
+	tick := newTicker()
+
+	startPoll(t, &gateBinder{source: source}, doc,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second}, 0)
+
+	snapReads := make([]int, 0, 7)
+
+	for range 7 {
+		tick.joined(t, 1)
+
+		snapReads = append(snapReads, source.asked("snap"))
+	}
+
+	assert.Equal(t, []int{1, 1, 1, 2, 2, 2, 3}, snapReads)
+}
+
+// The freshness of a set comes from its own refresh, not from the start of the pass: the sets that load after a slow
+// first one are not stale at the next tick.
+func TestFreshnessIsMeasuredFromTheHoldersOwnRefresh(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(threeSets()), audienceSegmentName)
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	tick := newTicker()
+	rig := startPoll(t, binder, audienceDoc(connAudiences, "")+threeDoc,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second}, 0)
+
+	tick.step(t, 1)
+	source.awaitBlocked(t, audienceSegmentName)
+	tick.step(t, 20) // the first set takes twenty seconds, longer than three intervals
+	source.open(audienceSegmentName)
+	tick.awaitEnd(t)
+
+	// the next pass is held in its first call, so that nothing refreshes the sets again before they are asked
+	release := source.hangVersions()
+	t.Cleanup(release)
+
+	source.drainAsks()
+	tick.step(t, 1)
+	source.awaitAsk(t)
+
+	catalog := rig.holder.Load().FlagSets["a"].Segments.Catalog
+
+	for _, name := range []string{audienceSegmentName, segTwo, thirdName} {
+		state, status, ok := catalog.Answer(name, memberAlice)
+
+		assert.True(t, ok, name)
+		assert.Equal(t, segment.Member, state, name)
+		assert.Equal(t, segment.StatusHealthy, status, name)
+	}
+}
+
+// A pass of serial operations is hung only when one operation stops making progress: three pulls of forty five seconds,
+// each within its own deadline, are not a hung connection.
+func TestSerialPullsWithinTheirDeadlinesAreNotHung(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(threeSets()), audienceSegmentName, segTwo, thirdName)
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	logs := &logLines{}
+	reports := make(chan string, 16)
+	tick := newTicker()
+
+	startPoll(t, binder, audienceDoc(connAudiences, "")+threeDoc, &flagruntime.SegmentPoll{
+		Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second,
+		Logger:       slog.New(slog.NewJSONHandler(logs, nil)),
+		OnConnection: func(name string, down bool) { reports <- fmt.Sprintf("%s down=%t", name, down) },
+	}, 0)
+
+	tick.step(t, 1)
+
+	for _, name := range []string{audienceSegmentName, segTwo, thirdName} {
+		source.awaitBlocked(t, name)
+		tick.step(t, 45)
+		source.open(name)
+	}
+
+	tick.awaitEnd(t)
+	tick.joined(t, 1)
+
+	assert.Empty(t, logs.all0(), "no hung pass and no store down")
+	assert.Empty(t, drainLines(reports))
+}
+
+// A second hang is reported too, even when the pass that replaces the first starts as soon as the first ended.
+func TestEachHungPassIsReported(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}}))
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	logs := &logLines{}
+	tick := newTicker()
+
+	startPoll(t, binder, audienceDoc(connAudiences, ""), &flagruntime.SegmentPoll{
+		Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second,
+		Logger: slog.New(slog.NewJSONHandler(logs, nil)),
+	}, 0)
+
+	tick.joined(t, 1)
+	source.awaitAsk(t)
+
+	for range 2 {
+		release := source.hangVersions()
+
+		tick.step(t, 6)
+		source.awaitAsk(t)
+		tick.step(t, 125)
+
+		source.unhang()
+		release()
+		tick.awaitEnd(t)
+	}
+
+	var hung int
+
+	for _, line := range logs.all(t) {
+		if strings.HasPrefix(line, "a segment pass is hung") {
+			hung++
+		}
+	}
+
+	assert.Equal(t, 2, hung)
+}
+
+// The old binding of a reload that changed a static segment retires while the new binding has not refreshed yet: the
+// sets that the new binding took over answer healthy in that time, because a live binding still serves them.
+func TestRetiringBindingLeavesTheTakenOverHoldersAlone(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}}))
+	binder := &twoBinder{sources: map[string]segment.SnapshotSource{connAudiences: source}}
+	first := audienceDoc(connAudiences, "") + "    version: {key: v, interval: 30s}\n"
+	tick := newTicker()
+	rig := startPoll(t, binder, first,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, OnIdle: tick.onIdle, Tick: time.Second}, 0)
+
+	tick.tick(t, 2)
+
+	release := source.hangVersions() // the first pass of the new binding is held
+	t.Cleanup(release)
+
+	source.drainAsks()
+	rig.submit(t, revisionContent(t, 5, strings.Replace(first, "members: [alice]", "members: [alice, bob]", 1)))
+	tick.step(t, 1) // the old binding retires, the new one starts its pass
+	source.awaitAsk(t)
+
+	state, status, ok := rig.holder.Load().FlagSets["a"].Segments.Catalog.Answer(audienceSegmentName, memberAlice)
+
+	assert.True(t, ok)
+	assert.Equal(t, segment.Member, state)
+	assert.Equal(t, segment.StatusHealthy, status)
 }

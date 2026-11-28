@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"strconv"
+	"strings"
 
 	"github.com/valkey-io/valkey-go"
 
@@ -68,6 +69,11 @@ func (p *Provider) run(ctx context.Context, build func(valkey.Builder) valkey.Co
 	if err != nil && !errors.Is(err, valkey.Nil) {
 		res := result{ctx: ctx, callCtx: callCtx}
 		p.record(res.classify(err))
+
+		if isWrongType(err) {
+			// the store answered about this set: the key does not hold a set. A consumer tells that from a store that fails.
+			return results[0], fmt.Errorf("%w: valkey segment: %w", ErrServer, err)
+		}
 
 		return results[0], fmt.Errorf("valkey segment: %w", err)
 	}
@@ -254,4 +260,12 @@ func scanPage(res valkey.ValkeyResult) (uint64, []string, error) {
 	}
 
 	return cursor, members, nil
+}
+
+// isWrongType reports whether the store answered that the key holds another kind of value: an error about one set, not
+// of the store (a loading store or a cluster that is down answers other errors).
+func isWrongType(err error) bool {
+	verr, ok := valkey.IsValkeyErr(err)
+
+	return ok && strings.HasPrefix(verr.Error(), "WRONGTYPE")
 }

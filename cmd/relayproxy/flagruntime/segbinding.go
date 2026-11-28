@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -453,14 +454,29 @@ func (f *holderError) Unwrap() error { return f.err }
 // overdueAfter is how many intervals a held set may go without a refresh that worked before it answers STALE.
 const overdueAfter = 3
 
-// poll reads the version keys and refreshes the holders, then schedules the next poll. Each holder has a deadline of
-// its own ([DefaultPullTimeout]): a slow set cannot starve the next one, and a pull may take longer than the interval.
-// The failures are the ones that are new: a holder that fails the same way as at the last poll is not reported again.
-// Only the end of ctx stops the poll before the last holder.
-func (b *segBinding) poll(ctx context.Context, now time.Time) []error {
+// pollEnv is what a poll needs of the loop: the time of the loop, read when an operation ends, and a call before each
+// operation that tells the pass is alive.
+type pollEnv struct {
+	now      func() time.Time
+	progress func()
+}
+
+func (e *pollEnv) alive() {
+	if e.progress != nil {
+		e.progress()
+	}
+}
+
+// poll reads the version keys and refreshes the holders, then schedules the next poll at the earliest deadline of what
+// it serves. Each holder has a deadline of its own ([DefaultPullTimeout]): a slow set cannot starve the next one, and
+// a pull may take longer than the interval. The failures are the ones that are new: a holder that fails the same way
+// as at the last poll is not reported again. Only the end of ctx stops the poll before the last holder.
+func (b *segBinding) poll(ctx context.Context, now time.Time, env *pollEnv) []error {
 	var errs []error
 
 	if b.versioned && b.res != nil && now.UnixNano() >= b.lookupNext.Load() {
+		env.alive()
+
 		call, cancel := context.WithTimeout(ctx, b.lookupInterval)
 		err := b.res.RefreshVersions(call, b.versioner)
 
@@ -473,27 +489,39 @@ func (b *segBinding) poll(ctx context.Context, now time.Time) []error {
 		}
 	}
 
-	if now.UnixNano() >= b.snapNext.Load() || !b.loaded() {
-		errs = append(errs, b.refreshHolders(ctx, now)...)
+	if len(b.holders) > 0 && (now.UnixNano() >= b.snapNext.Load() || !b.loaded()) {
+		errs = append(errs, b.refreshHolders(ctx, env)...)
 		b.snapNext.Store(now.Add(b.snapInterval).UnixNano())
 	}
 
-	wait := b.interval()
-	if !b.loaded() {
-		wait = min(wait, firstPollSpread)
+	// wake at the earliest pending deadline of the lookups and of the snapshot sets, and sooner for a set not loaded yet
+	next := int64(math.MaxInt64)
+	if b.versioned && b.res != nil {
+		next = min(next, b.lookupNext.Load())
 	}
 
-	b.next.Store(now.Add(wait).UnixNano())
+	if len(b.holders) > 0 {
+		next = min(next, b.snapNext.Load())
+
+		if !b.loaded() {
+			next = min(next, now.Add(firstPollSpread).UnixNano())
+		}
+	}
+
+	b.next.Store(next)
 
 	return errs
 }
 
 // refreshHolders refreshes every holder, each under a deadline of its own.
-func (b *segBinding) refreshHolders(ctx context.Context, now time.Time) []error {
+func (b *segBinding) refreshHolders(ctx context.Context, env *pollEnv) []error {
 	var errs []error
 
 	for _, name := range b.snapshots {
 		holder := b.holders[name]
+
+		env.alive()
+
 		call, cancel := context.WithTimeout(ctx, b.pullTimeout)
 		err := holder.Refresh(call)
 
@@ -502,7 +530,7 @@ func (b *segBinding) refreshHolders(ctx context.Context, now time.Time) []error 
 		class := holder.Status().LastError
 		worked := err == nil || class == snapshot.ClassMissing
 
-		b.refreshed(name, holder, worked, now)
+		b.refreshed(name, holder, worked, env.now()) // fresh from this holder's own refresh, not from the pass start
 
 		if err != nil && class != snapshot.ClassMissing && class != b.lastClass[name] {
 			errs = append(errs, &holderError{name: name, class: class, err: err})
@@ -558,12 +586,18 @@ func (b *segBinding) checkOverdue(now time.Time) {
 
 // idle is called when no flag set of the served runtime uses the binding any more: nothing refreshes its sets, so they
 // answer STALE if the binding is used again before a refresh worked.
-func (b *segBinding) idle() {
+func (b *segBinding) idle(live map[*snapshot.Holder]struct{}) {
 	for _, holder := range b.holders {
-		holder.SetOverdue(true)
+		// a holder that a live binding took over is still refreshed there: only the others are retired
+		if _, kept := live[holder]; !kept {
+			holder.SetOverdue(true)
+		}
 	}
 
-	b.next.Store(0) // due at once when it is used again
+	// refreshed at once when it is used again, whatever its intervals said
+	b.next.Store(0)
+	b.lookupNext.Store(0)
+	b.snapNext.Store(0)
 }
 
 // lookupFailing reports whether the lookups of the binding fail: the store failed the last call or a breaker is open.
