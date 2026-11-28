@@ -1,0 +1,7 @@
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: churned
+    connection: audiences
+    cache:
+      ttl: 30s

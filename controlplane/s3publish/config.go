@@ -47,7 +47,7 @@ type Config struct {
 type Object struct {
 	// Name is the logical name (^[a-z][a-z0-9-]{0,62}$), unique in the manifest.
 	Name string
-	// Kind is controlplane.KindFlags or controlplane.KindFlagSets.
+	// Kind is controlplane.KindFlags, controlplane.KindFlagSets or controlplane.KindSegments.
 	Kind string
 	// Format is controlplane.FormatYAML or controlplane.FormatJSON.
 	Format string

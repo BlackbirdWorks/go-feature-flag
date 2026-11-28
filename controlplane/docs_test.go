@@ -115,3 +115,43 @@ func TestDocsExamplesAreWhatTheCodeProduces(t *testing.T) {
 		assert.Equal(t, int64(len(body)), object.Size)
 	}
 }
+
+// TestSegmentsDocsExamples: the segments document of the format page is what MarshalSegments writes, and the YAML
+// examples of the segment pages (marked <!-- segments-doc -->) decode and validate.
+func TestSegmentsDocsExamples(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(docsPage)
+	require.NoError(t, err)
+
+	want, err := controlplane.MarshalSegments(wantSegmentsV1())
+	require.NoError(t, err)
+	assert.Equal(t, string(want), docBlock(t, string(raw), "segments"))
+
+	pages := []string{"../docs/configure-flags/segments-static.md", "../docs/configure-flags/segments-dynamic.md"}
+
+	for _, page := range pages {
+		data, readErr := os.ReadFile(page)
+		require.NoError(t, readErr)
+
+		examples := strings.Count(string(data), "<!-- segments-doc -->")
+		require.Positive(t, examples, page)
+
+		rest := string(data)
+
+		for range examples {
+			_, after, _ := strings.Cut(rest, "<!-- segments-doc -->\n")
+			rest = after
+
+			_, body, found := strings.Cut(after, "```yaml\n")
+			require.True(t, found)
+
+			block, _, _ := strings.Cut(body, "```")
+
+			doc, info, decodeErr := controlplane.UnmarshalSegments([]byte(block))
+			require.NoError(t, decodeErr, page)
+			assert.Empty(t, info.UnknownFields)
+			require.NoError(t, controlplane.ValidateSegments(doc), page)
+		}
+	}
+}

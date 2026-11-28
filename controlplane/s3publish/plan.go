@@ -224,6 +224,18 @@ func validateContent(
 		}
 
 		return info, doc, nil
+	case controlplane.KindSegments:
+		doc, info, err := controlplane.UnmarshalSegments(body)
+		if err != nil {
+			return info, nil, fmt.Errorf("decode segments: %w", err)
+		}
+
+		err = controlplane.ValidateSegments(doc)
+		if err != nil {
+			return info, nil, fmt.Errorf("validate segments: %w", err)
+		}
+
+		return info, nil, nil
 	}
 
 	return controlplane.DecodeInfo{}, nil, fmt.Errorf("%w: kind %q", controlplane.ErrInvalid, entry.Kind)

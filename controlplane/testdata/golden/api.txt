@@ -6,9 +6,13 @@ const (
 
 	DocumentKindFlagSet	= "FlagSet"
 
+	DocumentKindSegments	= "Segments"
+
 	KindFlags	= "flags"
 
 	KindFlagSets	= "flagSets"
+
+	KindSegments	= "segments"
 
 	FormatYAML	= "yaml"
 
@@ -55,7 +59,39 @@ const (
 
 	EntryFlagSet	EntryKind	= "flagSet"
 
+	EntrySegment	EntryKind	= "segment"
+
 	EntryFlag	EntryKind	= "flag"
+)
+const (
+	MaxSegmentMembers	= 100_000
+
+	MaxSegmentMemberBytes	= 4 << 20
+
+	MaxSegmentMemberLen	= 4096
+
+	MaxSegmentNameLen	= 64
+
+	MaxSegmentKeyLen	= 512
+
+	MinVersionInterval	= 100 * "time".Millisecond
+
+	MaxSegmentDuration	= 24 * "time".Hour
+
+	MaxCacheEntries	= 10_000_000
+)
+const (
+	SegmentModeSnapshot	= "snapshot"
+
+	SegmentModeLookup	= "lookup"
+
+	SegmentLayoutSet	= "set"
+
+	SegmentLayoutKeys	= "keys"
+
+	SegmentMissingNotMember	= "notMember"
+
+	SegmentMissingUnknown	= "unknown"
 )
 const DefaultMaxObjects = 20000
 const NoIndex = -1
@@ -77,14 +113,18 @@ func MarshalFlags(f Flags) ([]byte, error)
 func MarshalFlagsJSON(f Flags) ([]byte, error)
 func MarshalManifest(m *Manifest) ([]byte, error)
 func MarshalManifestJSON(m *Manifest) ([]byte, error)
+func MarshalSegments(d *SegmentsDocument) ([]byte, error)
+func MarshalSegmentsJSON(d *SegmentsDocument) ([]byte, error)
 func ObjectKey(sum Checksum, ext string) (string, error)
 func UnmarshalFlagSet(data []byte) (*FlagSetDocument, DecodeInfo, error)
 func UnmarshalFlags(data []byte, format string) (Flags, DecodeInfo, error)
 func UnmarshalManifest(data []byte) (*Manifest, DecodeInfo, error)
+func UnmarshalSegments(data []byte) (*SegmentsDocument, DecodeInfo, error)
 func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error
 func ValidateFlagSetDocuments(docs []*FlagSetDocument, manifest *Manifest) error
 func ValidateFlags(flags Flags) error
 func ValidateManifest(manifest *Manifest, opts ...ValidateOption) error
+func ValidateSegments(doc *SegmentsDocument) error
 func VerifyChecksum(data []byte, want Checksum) error
 func WithMaxObjects(limit int) ValidateOption
 type Checksum struct {
@@ -143,6 +183,8 @@ type FlagSet struct {
 	Name	string	`json:"name" yaml:"name"`
 
 	Sources	[]string	`json:"sources" yaml:"sources"`
+
+	SegmentSources	[]string	`json:"segmentSources,omitempty" yaml:"segmentSources,omitempty"`
 
 	APIKeys	[]string	`json:"apiKeys,omitempty" yaml:"apiKeys,omitempty"`
 }
@@ -220,6 +262,46 @@ type ScheduledStep struct {
 	DefaultRule	*Rule			`json:"defaultRule,omitempty"     yaml:"defaultRule,omitempty"`
 	Experimentation	*Experimentation	`json:"experimentation,omitempty" yaml:"experimentation,omitempty"`
 	Metadata	map[string]any		`json:"metadata,omitempty"        yaml:"metadata,omitempty"`
+}
+type SegmentCache struct {
+	MaxEntries	int	`json:"maxEntries,omitempty" yaml:"maxEntries,omitempty"`
+
+	TTL	string	`json:"ttl,omitempty" yaml:"ttl,omitempty"`
+}
+type SegmentDefinition struct {
+	Name	string	`json:"name" yaml:"name"`
+
+	Connection	string	`json:"connection,omitempty" yaml:"connection,omitempty"`
+
+	Members	[]string	`json:"members,omitempty" yaml:"members,omitempty"`
+
+	Mode	string	`json:"mode,omitempty" yaml:"mode,omitempty"`
+
+	Key	string	`json:"key,omitempty" yaml:"key,omitempty"`
+
+	Layout	string	`json:"layout,omitempty" yaml:"layout,omitempty"`
+
+	MissingKey	string	`json:"missingKey,omitempty" yaml:"missingKey,omitempty"`
+
+	OnError	string	`json:"onError,omitempty" yaml:"onError,omitempty"`
+
+	Version	*SegmentVersion	`json:"version,omitempty" yaml:"version,omitempty"`
+
+	Cache	*SegmentCache	`json:"cache,omitempty" yaml:"cache,omitempty"`
+}
+type SegmentVersion struct {
+	Value	string	`json:"value,omitempty" yaml:"value,omitempty"`
+
+	Key	string	`json:"key,omitempty" yaml:"key,omitempty"`
+
+	Interval	string	`json:"interval,omitempty" yaml:"interval,omitempty"`
+}
+type SegmentsDocument struct {
+	APIVersion	string	`json:"apiVersion" yaml:"apiVersion"`
+
+	Kind	string	`json:"kind" yaml:"kind"`
+
+	Segments	[]SegmentDefinition	`json:"segments" yaml:"segments"`
 }
 type UnsupportedVersionError struct {
 	Got	string

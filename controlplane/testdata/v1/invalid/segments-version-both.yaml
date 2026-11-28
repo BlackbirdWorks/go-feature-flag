@@ -1,0 +1,8 @@
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: churned
+    connection: audiences
+    version:
+      value: v1
+      key: churned:version
