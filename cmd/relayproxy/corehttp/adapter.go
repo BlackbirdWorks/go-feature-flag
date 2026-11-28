@@ -232,20 +232,24 @@ var (
 )
 
 // RawVariation evaluates one flag.
-func (v *view) RawVariation(flagKey string, evalCtx ffcontext.Context, defaultValue any) (model.RawVarResult, error) {
-	res, err := v.adapter.eval.RawVariation(v.set, flagKey, evalCtx, defaultValue)
+func (v *view) RawVariation(
+	ctx context.Context, flagKey string, evalCtx ffcontext.Context, defaultValue any,
+) (model.RawVarResult, error) {
+	res, err := v.adapter.eval.RawVariation(ctx, v.set, flagKey, evalCtx, defaultValue)
 
 	return res, err //nolint:wrapcheck // the error of the evaluation
 }
 
 // GetFlagStates evaluates the listed flags.
-func (v *view) GetFlagStates(evalCtx ffcontext.Context, flagsToEvaluate []string) flagstate.AllFlags {
-	return v.adapter.eval.GetFlagStates(v.set, evalCtx, flagsToEvaluate)
+func (v *view) GetFlagStates(
+	ctx context.Context, evalCtx ffcontext.Context, flagsToEvaluate []string,
+) flagstate.AllFlags {
+	return v.adapter.eval.GetFlagStates(ctx, v.set, evalCtx, flagsToEvaluate)
 }
 
 // AllFlagsState evaluates every flag.
-func (v *view) AllFlagsState(evalCtx ffcontext.Context) flagstate.AllFlags {
-	return v.adapter.eval.AllFlagsState(v.set, evalCtx)
+func (v *view) AllFlagsState(ctx context.Context, evalCtx ffcontext.Context) flagstate.AllFlags {
+	return v.adapter.eval.AllFlagsState(ctx, v.set, evalCtx)
 }
 
 // FlagSegments returns the segments that the rules of a flag use and whether one is dynamic.

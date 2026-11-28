@@ -103,7 +103,7 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 	// we set a nil value to the default value to avoid the default value to be used.
 	var defaultValue any
 
-	flagValue, _ := flagset.RawVariation(flagKey, evalCtx, defaultValue)
+	flagValue, _ := flagset.RawVariation(r.Context(), flagKey, evalCtx, defaultValue)
 	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
 	} else {
@@ -199,9 +199,9 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 	var allFlagsResp flagstate.AllFlags
 	if len(evalCtx.ExtractGOFFProtectedFields().FlagList) > 0 {
 		// if we have a list of flags to evaluate in the evaluation context, we evaluate only those flags.
-		allFlagsResp = flagset.GetFlagStates(evalCtx, evalCtx.ExtractGOFFProtectedFields().FlagList)
+		allFlagsResp = flagset.GetFlagStates(r.Context(), evalCtx, evalCtx.ExtractGOFFProtectedFields().FlagList)
 	} else {
-		allFlagsResp = flagset.AllFlagsState(evalCtx)
+		allFlagsResp = flagset.AllFlagsState(r.Context(), evalCtx)
 	}
 
 	flagNames := make([]string, 0, len(allFlagsResp.GetFlags()))

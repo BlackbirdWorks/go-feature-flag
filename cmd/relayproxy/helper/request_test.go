@@ -60,7 +60,7 @@ func TestAPIKey(t *testing.T) {
 func TestFlagSet(t *testing.T) {
 	t.Parallel()
 
-	flagset := &ffclient.GoFeatureFlag{}
+	flagset := mock.Engine{GoFeatureFlag: &ffclient.GoFeatureFlag{}}
 
 	tests := []struct {
 		manager     *mock.Resolver

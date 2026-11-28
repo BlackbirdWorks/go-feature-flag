@@ -70,7 +70,7 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 		return fmt.Errorf("getting the flag set of the flag evaluation: %w", httpErr)
 	}
 
-	flagValue, _ := flagset.RawVariation(flagKey, evaluationCtx, reqBody.DefaultValue)
+	flagValue, _ := flagset.RawVariation(r.Context(), flagKey, evaluationCtx, reqBody.DefaultValue)
 	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
 		h.metrics.IncFlagNotFoundEvaluation()
 	} else {

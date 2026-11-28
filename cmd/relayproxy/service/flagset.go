@@ -13,16 +13,21 @@ import (
 )
 
 // FlagSet is what the HTTP handlers use of one flag set: the evaluation, the flag configuration, the collection of
-// events and the refresh. The config v2 core satisfies it (corehttp.Adapter), and so does the engine client
-// (`*ffclient.GoFeatureFlag`) that the tests of the handlers serve.
+// events and the refresh. The config v2 core satisfies it (corehttp.Adapter). The evaluations take the context of the
+// request: the lookups of the dynamic segments end with it.
 // A value that an evaluation returns is shared: the handlers only read it, and never change it.
 type FlagSet interface {
 	// RawVariation evaluates one flag without a type.
-	RawVariation(flagKey string, evalCtx ffcontext.Context, defaultValue any) (model.RawVarResult, error)
+	RawVariation(
+		ctx context.Context,
+		flagKey string,
+		evalCtx ffcontext.Context,
+		defaultValue any,
+	) (model.RawVarResult, error)
 	// GetFlagStates evaluates the listed flags.
-	GetFlagStates(evalCtx ffcontext.Context, flagsToEvaluate []string) flagstate.AllFlags
+	GetFlagStates(ctx context.Context, evalCtx ffcontext.Context, flagsToEvaluate []string) flagstate.AllFlags
 	// AllFlagsState evaluates every flag.
-	AllFlagsState(evalCtx ffcontext.Context) flagstate.AllFlags
+	AllFlagsState(ctx context.Context, evalCtx ffcontext.Context) flagstate.AllFlags
 	// GetFlagsFromCache returns the flags of the flag set.
 	GetFlagsFromCache() (map[string]flagdef.Flag, error)
 	// GetFlagsFromCacheWithContext is GetFlagsFromCache with the context of the request.

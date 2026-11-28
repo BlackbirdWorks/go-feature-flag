@@ -61,7 +61,7 @@ func segmentRig(t *testing.T) (*flagruntime.Builder, *flagruntime.Evaluator, obj
 func evalBeta(t *testing.T, eval *flagruntime.Evaluator, set *flagruntime.FlagSet, key string) (bool, segment.Status) {
 	t.Helper()
 
-	got, err := eval.BoolVariationDetails(set, betaFlagName, ffcontext.NewEvaluationContext(key), false)
+	got, err := eval.BoolVariationDetails(t.Context(), set, betaFlagName, ffcontext.NewEvaluationContext(key), false)
 	require.NoError(t, err)
 
 	return got.Value, got.SegmentStatus
@@ -106,7 +106,13 @@ func TestAFlagSetHasTheCatalogOfItsSegmentSources(t *testing.T) {
 		})
 	}
 
-	got, err := eval.BoolVariationDetails(setA, "staff-flag", ffcontext.NewEvaluationContext(memberAlice), false)
+	got, err := eval.BoolVariationDetails(
+		t.Context(),
+		setA,
+		"staff-flag",
+		ffcontext.NewEvaluationContext(memberAlice),
+		false,
+	)
 	require.NoError(t, err)
 	assert.False(t, got.Value, "a dynamic segment with no provider answers by the default")
 	assert.Equal(t, segment.StatusNotConfigured, got.SegmentStatus)
@@ -342,13 +348,19 @@ func TestThePublicFlagSetEvaluatesEachFlagAgainstTheCatalogOfItsOwnFlagSet(t *te
 
 			for flag, byKey := range tt.wantByFlag {
 				for key, want := range byKey {
-					got, err := eval.BoolVariationDetails(public, flag, ffcontext.NewEvaluationContext(key), false)
+					got, err := eval.BoolVariationDetails(
+						t.Context(),
+						public,
+						flag,
+						ffcontext.NewEvaluationContext(key),
+						false,
+					)
 					require.NoError(t, err)
 					assert.Equal(t, want, got.Value, "%s for %s", flag, key)
 				}
 			}
 
-			states := eval.AllFlagsState(public, ffcontext.NewEvaluationContext(memberBob))
+			states := eval.AllFlagsState(t.Context(), public, ffcontext.NewEvaluationContext(memberBob))
 			for flag, byKey := range tt.wantByFlag {
 				assert.Equal(t, byKey[memberBob], states.GetFlags()[flag].Value, "all flags: %s", flag)
 			}

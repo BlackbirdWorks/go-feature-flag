@@ -29,7 +29,7 @@ func BenchmarkDynamicSegments(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, err := eval.BoolVariationDetails(set, flag, evalCtx, false)
+				_, err := eval.BoolVariationDetails(b.Context(), set, flag, evalCtx, false)
 				require.NoError(b, err)
 			}
 		})
@@ -39,7 +39,7 @@ func BenchmarkDynamicSegments(b *testing.B) {
 		b.ReportAllocs()
 
 		for b.Loop() {
-			_ = eval.AllFlagsState(set, evalCtx)
+			_ = eval.AllFlagsState(b.Context(), set, evalCtx)
 		}
 	})
 }

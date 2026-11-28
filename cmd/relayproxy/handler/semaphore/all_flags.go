@@ -62,11 +62,12 @@ func (h *AllFlags) Handler(w http.ResponseWriter, r *http.Request) error {
 	if len(evaluationCtx.ExtractGOFFProtectedFields().FlagList) > 0 {
 		// if we have a list of flags to evaluate in the evaluation context, we evaluate only those flags.
 		allFlags = flagset.GetFlagStates(
+			r.Context(),
 			evaluationCtx,
 			evaluationCtx.ExtractGOFFProtectedFields().FlagList,
 		)
 	} else {
-		allFlags = flagset.AllFlagsState(evaluationCtx)
+		allFlags = flagset.AllFlagsState(r.Context(), evaluationCtx)
 	}
 
 	flagNames := make([]string, 0, len(allFlags.GetFlags()))

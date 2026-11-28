@@ -1,6 +1,7 @@
 package corehttp_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,7 @@ func (h hotPath) evaluate(tb testing.TB) {
 	require.NoError(tb, err)
 
 	evalCtx := ffcontext.NewEvaluationContext("user-1")
-	_, err = flagSet.RawVariation("untracked-flag", evalCtx, nil)
+	_, err = flagSet.RawVariation(context.Background(), "untracked-flag", evalCtx, nil)
 	require.NoError(tb, err)
 }
 

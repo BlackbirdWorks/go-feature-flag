@@ -123,16 +123,16 @@ func attributeID(attrs map[string]any, path []string) (string, bool) {
 
 // provider asks the view for everything in one batch, bounded by the resolver, and returns the provider of the
 // evaluation. A lookup the batch could not answer is Unknown: the status of the evaluation says STORE_ERROR.
-func (b *batch) provider() *prefetched {
+func (b *batch) provider(ctx context.Context) *prefetched {
 	if len(b.lookups) == 0 {
 		return &prefetched{view: b.view}
 	}
 
 	// an error leaves the lookups Unknown, and so STORE_ERROR
 	if b.view.traced {
-		b.tracedLookups()
+		b.tracedLookups(ctx)
 	} else {
-		_ = b.view.Contains(context.Background(), b.lookups)
+		_ = b.view.Contains(ctx, b.lookups)
 	}
 
 	answers := make(map[lookupKey]segment.State, len(b.lookups))
@@ -144,7 +144,12 @@ func (b *batch) provider() *prefetched {
 }
 
 // prefetchFlag returns the provider of the evaluation of one flag; nil for a flag that uses no served dynamic segment.
-func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, enrich map[string]any, key string) *prefetched {
+func (f *FlagSet) prefetchFlag(
+	ctx context.Context,
+	evalCtx ffcontext.Context,
+	enrich map[string]any,
+	key string,
+) *prefetched {
 	if f == nil || f.Segments == nil || f.Segments.View == nil {
 		return nil
 	}
@@ -157,12 +162,17 @@ func (f *FlagSet) prefetchFlag(evalCtx ffcontext.Context, enrich map[string]any,
 	b := batch{view: f.Segments.View, evalCtx: evalCtx, enrich: enrich}
 	b.add(terms)
 
-	return b.provider()
+	return b.provider(ctx)
 }
 
 // prefetchFlags is prefetchFlag for the flags of an evaluation of many: one batch for all of them. No keys means
 // every flag of the set.
-func (f *FlagSet) prefetchFlags(evalCtx ffcontext.Context, enrich map[string]any, keys []string) *prefetched {
+func (f *FlagSet) prefetchFlags(
+	ctx context.Context,
+	evalCtx ffcontext.Context,
+	enrich map[string]any,
+	keys []string,
+) *prefetched {
 	if f == nil || f.Segments == nil || f.Segments.View == nil || len(f.dynTerms) == 0 {
 		return nil
 	}
@@ -179,7 +189,7 @@ func (f *FlagSet) prefetchFlags(evalCtx ffcontext.Context, enrich map[string]any
 		}
 	}
 
-	return b.provider()
+	return b.provider(ctx)
 }
 
 // usesServed reports whether the flag uses a segment that the view serves: only such a flag gets the prefetched
@@ -190,10 +200,9 @@ func (f *FlagSet) usesServed(key string) bool {
 	return ok
 }
 
-// tracedLookups is the batch of the lookups inside its span. The evaluator is not given the context of the request, so
-// the span is a root span.
-func (b *batch) tracedLookups() {
-	ctx, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(context.Background(), spanName)
+// tracedLookups is the batch of the lookups inside its span, a child of the span of the request that ctx carries.
+func (b *batch) tracedLookups(ctx context.Context) {
+	ctx, span := otel.GetTracerProvider().Tracer(configfile.OtelTracerName).Start(ctx, spanName)
 	defer span.End()
 
 	err := b.view.Contains(ctx, b.lookups)

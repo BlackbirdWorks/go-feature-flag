@@ -94,7 +94,7 @@ func TestStartWithStore_ServesTheSegmentsOfTheDocument(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, evalErr := set.RawVariation("seg-flag", ffcontext.NewEvaluationContext(tt.key), nil)
+			got, evalErr := set.RawVariation(t.Context(), "seg-flag", ffcontext.NewEvaluationContext(tt.key), nil)
 			require.NoError(t, evalErr)
 			assert.Equal(t, tt.want, got.Value)
 		})
