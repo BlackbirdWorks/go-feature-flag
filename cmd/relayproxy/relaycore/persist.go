@@ -1,6 +1,7 @@
 package relaycore
 
 import (
+	"maps"
 	"sync"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
@@ -30,7 +31,9 @@ type persister struct {
 	held map[string]content
 	// applied is the content decision that waits for its snapshot, nil when there is none.
 	applied *appliedRound
-	mu      sync.Mutex
+	// visits counts the objects the indexes visited: a test asserts that it grows with the objects, not with their square.
+	visits uint64
+	mu     sync.Mutex
 }
 
 // appliedRound is a round that stored content: its revision and what the runtime holds per object.
@@ -130,12 +133,14 @@ func (p *persister) flush() {
 
 // served returns the snapshot as the runtime holds it: per object the bytes of the held checksum. An object the
 // runtime holds as listed is ok; one it holds from earlier content (stale, missing or undecodable now) is stale with
-// those bytes; one it holds nothing of is missing.
+// those bytes; one it holds nothing of is missing. The cost is linear in the objects of the manifest: the snapshot is
+// indexed by kind and checksum once, and every object is a lookup.
 func (p *persister) served(
 	snap *manifestreader.Snapshot, objects map[string]*flagruntime.ObjectStatus,
 ) *manifestreader.Snapshot {
 	out := make(map[string]manifestreader.ObjectState, len(snap.Objects))
 	now := make(map[string]content, len(snap.Objects))
+	finder := &finder{p: p, own: p.index(snap)}
 
 	for name, listed := range snap.Objects {
 		state := manifestreader.ObjectState{
@@ -145,7 +150,7 @@ func (p *persister) served(
 
 		status := objects[name]
 		if status != nil && status.Checksum != "" {
-			found, ok := p.bytesOf(snap, listed.Kind, status.Checksum)
+			found, ok := finder.find(listed.Kind, status.Checksum)
 			if ok {
 				state.Bytes, state.Format = found.bytes, found.format
 				state.Checksum = found.sum
@@ -171,31 +176,53 @@ func (p *persister) served(
 	return &kept
 }
 
-// bytesOf finds the bytes of a kind and checksum: in the snapshot being written, in the other snapshots that wait, then
-// in what was written last.
-func (p *persister) bytesOf(snap *manifestreader.Snapshot, kind, sum string) (content, bool) {
-	if found, ok := findIn(snap, kind, sum); ok {
+// index lists the bytes of a snapshot by kind and checksum.
+func (p *persister) index(snap *manifestreader.Snapshot) map[string]content {
+	out := make(map[string]content, len(snap.Objects))
+
+	for _, obj := range snap.Objects {
+		p.visits++
+
+		if obj.Bytes != nil && (obj.State == manifestreader.StateOK || obj.State == manifestreader.StateStale) {
+			out[contentKey(obj.Kind, obj.Checksum.Value)] = content{
+				kind: obj.Kind, format: obj.Format, sum: obj.Checksum, bytes: obj.Bytes,
+			}
+		}
+	}
+
+	return out
+}
+
+// finder looks the bytes of a kind and checksum up: in the snapshot being written, in what was written last, and
+// only when both miss in the other snapshots that wait (indexed once, on the first miss).
+type finder struct {
+	p      *persister
+	own    map[string]content
+	others map[string]content
+	built  bool
+}
+
+func (f *finder) find(kind, sum string) (content, bool) {
+	key := contentKey(kind, sum)
+
+	if found, ok := f.own[key]; ok {
 		return found, true
 	}
 
-	for _, other := range p.pending {
-		if found, ok := findIn(other.Snapshot, kind, sum); ok {
-			return found, true
+	if found, ok := f.p.held[key]; ok {
+		return found, true
+	}
+
+	if !f.built {
+		f.built = true
+		f.others = map[string]content{}
+
+		for _, other := range f.p.pending {
+			maps.Copy(f.others, f.p.index(other.Snapshot))
 		}
 	}
 
-	found, ok := p.held[contentKey(kind, sum)]
+	found, ok := f.others[key]
 
 	return found, ok
-}
-
-func findIn(snap *manifestreader.Snapshot, kind, sum string) (content, bool) {
-	for _, obj := range snap.Objects {
-		if obj.Kind == kind && obj.Checksum.Value == sum && obj.Bytes != nil &&
-			(obj.State == manifestreader.StateOK || obj.State == manifestreader.StateStale) {
-			return content{kind: obj.Kind, format: obj.Format, sum: obj.Checksum, bytes: obj.Bytes}, true
-		}
-	}
-
-	return content{}, false
 }

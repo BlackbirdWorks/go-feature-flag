@@ -1,6 +1,7 @@
 package relaycore
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -345,4 +346,33 @@ func seq(from, to uint64) []uint64 {
 	}
 
 	return out
+}
+
+// The work of a write grows with the objects of the manifest, not with their square: every object is a lookup in an
+// index made once.
+func TestPersisterLookupsDoNotScaleWithTheObjects(t *testing.T) {
+	t.Parallel()
+
+	for _, size := range []int{50, 500, 5000} {
+		t.Run(fmt.Sprintf("%d objects", size), func(t *testing.T) {
+			t.Parallel()
+
+			objects := make(map[string]manifestreader.ObjectState, size)
+			status := make(map[string]*flagruntime.ObjectStatus, size)
+
+			for i := range size {
+				name, sum := fmt.Sprintf("obj-%d", i), fmt.Sprintf("sum-%d", i)
+				objects[name] = *objectOf(controlplane.KindFlags, sum)
+				status[name] = &flagruntime.ObjectStatus{
+					Name: name, Kind: controlplane.KindFlags, State: flagruntime.ObjectOK, Checksum: sum,
+				}
+			}
+
+			persist := newPersister(func(manifestreader.Persist) {}, never)
+			served := persist.served(&manifestreader.Snapshot{Objects: objects}, status)
+
+			assert.Len(t, served.Objects, size)
+			assert.Equal(t, uint64(size), persist.visits, "one visit per object of the snapshot, none per lookup")
+		})
+	}
 }

@@ -264,3 +264,44 @@ func TestRunRestartLosesTheFlagsServedFromAnEarlierVersion(t *testing.T) {
 	status, _ = second.evaluate(tenantKey)
 	assert.Equal(t, http.StatusNotFound, status, "the restart has the object, and the flag in it is rejected")
 }
+
+// The write of the state directory is off the path of the swap: with the disk held in the middle of a write, the next
+// generation is applied and served all the same.
+func TestRunAppliesGenerationsWhileTheStateWriteIsHeld(t *testing.T) {
+	t.Parallel()
+
+	held := &heldFS{
+		FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{}),
+		closed: make(chan struct{}),
+	}
+	rig := startRelay(t, &rigOptions{
+		stateFS: held, flags: []string{"--state-dir=" + filepath.Join(t.TempDir(), "state")},
+	})
+
+	// registered after the rig: it runs first, the held write ends and the writer is joined before the directory goes
+	t.Cleanup(func() {
+		close(held.release)
+
+		select {
+		case <-held.closed:
+		case <-time.After(waitBound):
+			assert.Fail(t, "the state writer was not joined")
+		}
+	})
+
+	rig.awaitGeneration(1)
+
+	select {
+	case <-held.entered:
+	case <-time.After(waitBound):
+		require.FailNow(t, "no state write started", rig.stderr.String())
+	}
+
+	// the disk does not answer: the next generations are still applied, and served
+	rig.store.publish(5)
+	rig.poll()
+
+	status, value := rig.evaluate(tenantKey)
+	assert.Equal(t, http.StatusOK, status)
+	assert.InDelta(t, 5, value, 0, "the generation published while the write is held is served")
+}

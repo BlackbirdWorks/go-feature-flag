@@ -82,13 +82,23 @@ func configInfo(status *relaycore.Status, now time.Time) model.ConfigInfo {
 		failures[failure.Name] = failure
 	}
 
+	referenced := map[string]struct{}{}
+
 	for _, set := range current.FlagSets {
 		info.FlagSets = append(info.FlagSets, flagSetInfo(set))
+
+		for _, source := range set.Sources {
+			referenced[source] = struct{}{}
+		}
 	}
 
 	for _, obj := range current.Objects {
 		info.Objects = append(info.Objects, objectInfo(obj, failures))
-		info.State.KeptFlags += keptFlags(obj)
+
+		// only the objects that a flag set serves from count: a restart loses nothing of the others
+		if _, used := referenced[obj.Name]; used {
+			info.State.KeptFlags += keptFlags(obj)
+		}
 	}
 
 	for _, w := range current.Withdrawn {
