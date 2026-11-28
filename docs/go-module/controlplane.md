@@ -343,7 +343,8 @@ A reader that wants a last-known-good per entry uses the `FieldError` fields, no
 - An object that has a problem is one with a `FieldError` of kind `object` and its `Index`; the other objects are good.
   The same holds for flag sets (`flagSet`) and flags (`flag`, by `Name`).
 - An object with a newer content `version` is an entry problem (`unsupported-version`) in the list of the package. The
-  relay reader rejects a manifest that has any problem, so it rejects such a manifest whole.
+  relay reader keeps the manifest, degrades only that entry (`stale` or `missing`, reason `unsupported-version`), and
+  updates the other objects while dependent flag sets keep their last-known-good content.
 - Of two objects or flag sets with one name, the first in document order keeps the name and the later one has the
   problem. Of an API key held by two flag sets, the first flag set keeps the key and the later one has the problem
   (`duplicate-key`); the key itself is never printed.
@@ -398,5 +399,5 @@ A reader that wants a last-known-good per entry uses the `FieldError` fields, no
 ## Conformance vectors
 
 `controlplane/testdata/v1/` holds documents any implementation can run against (`valid/`, `invalid/` with the expected
-error, `forward-compatible/` with the expected unknown fields). See its `README.md`. A test checks that the examples on
+error, `forward-compatible/` with `.unknown` or `.degraded` expectations). See its `README.md`. A test checks that the examples on
 this page are exactly what the code produces and that they validate.

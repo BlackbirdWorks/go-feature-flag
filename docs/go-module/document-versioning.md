@@ -24,9 +24,11 @@ A flag object has no header: its format (`yaml`, `json`, `toml`) and its content
   manifest the relay keeps the held one and logs the outcome `invalid`. The reason is `wrong-kind` for another `kind`
   (a flag-set document in the place of the manifest) and `unsupported-version` for an `apiVersion` that the reader does
   not support.
-- An object whose `version` is higher than the reader supports is a validation problem with the code
-  `unsupported-version`. The relay validates the manifest as a whole, so it rejects the whole manifest (outcome
-  `invalid`) and keeps serving the held one. A publisher that writes a newer content `version` upgrades the relays first.
+- An object whose `version` is higher than the reader supports is an entry-level validation problem with the code
+  `unsupported-version` (`Kind: EntryObject`). The manifest still applies: the other objects update as usual, and only
+  that entry degrades to `stale` (keeping its last-known-good content) or `missing` (when never loaded) with reason
+  `unsupported-version`; the flag sets that depend on it become `degraded` with `source-degraded` while keeping their
+  last-known-good definitions. Once the object returns to `version: 1` (or the relay is upgraded), it recovers.
 
 ## Compatibility matrix
 
@@ -34,17 +36,18 @@ A flag object has no header: its format (`yaml`, `json`, `toml`) and its content
 |---|---|---|
 | a new optional field | works, the field is ignored | works |
 | a new field that changes behaviour | works, the behaviour is the old one | works |
-| a newer content `version` of one object | the manifest is rejected whole (`unsupported-version`), the relay keeps serving the held one | works |
+| a newer content `version` of one object | only that object degrades (`unsupported-version`) keeping last-known-good; other objects update | works |
 | a newer `apiVersion` | the manifest is rejected whole, the relay keeps serving the held one | works |
 | the current format | works | works |
 
 ## Vectors
 
-`controlplane/testdata/v1/forward-compatible/` holds documents with fields that this version does not know. They
-decode and validate. Each file has a sidecar `<file>.unknown` that lists the unknown paths the decoder must report,
-one per line:
+`controlplane/testdata/v1/forward-compatible/` holds forward-compatible documents: extra fields that this version
+does not know (each with a `<file>.unknown` sidecar listing expected unknown paths) or an object entry with a newer
+content `version` (with a `<file>.degraded` sidecar listing `<kind> <name> <code> <path>`):
 
 - `manifest-extra-fields.yaml` and `manifest-extra-fields.json`
+- `manifest-object-unsupported-version.yaml`
 - `flagset-extra-fields.yaml`
 - `flags-extra-fields.yaml`
 - `segments-extra-fields.yaml`
