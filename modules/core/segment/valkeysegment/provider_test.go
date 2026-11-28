@@ -51,9 +51,19 @@ func loaded(tb testing.TB) *stubServer {
 	return srv
 }
 
+// baseOptions are the options of the tests that script the two-command form (EXISTS, then SMISMEMBER): the atomic
+// check is off. atomicOptions are the defaults.
 func baseOptions(counters *valkeysegment.Counters) *valkeysegment.Options {
-	opts := &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown,
-		Timeout: callTimeout,
+	opts := atomicOptions(counters)
+	opts.Atomic = new(false)
+
+	return opts
+}
+
+func atomicOptions(counters *valkeysegment.Counters) *valkeysegment.Options {
+	opts := &valkeysegment.Options{
+		MissingKey: valkeysegment.MissingUnknown,
+		Timeout:    callTimeout,
 		Segments: map[string]valkeysegment.SegmentOptions{
 			segBeta:  {Key: keyBeta},
 			segGhost: {Key: "seg:{ghost}"},
@@ -374,7 +384,7 @@ func TestContainsFailures(t *testing.T) {
 		},
 		{
 			name:        "a list of the wrong length",
-			arrange:     func(s *stubServer) { s.answer("*1\r\n:1\r\n") },
+			arrange:     func(s *stubServer) { s.answer(replyOneIn) },
 			lookups:     []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, idCarol)},
 			wantStates:  []segment.State{segment.Unknown, segment.Unknown},
 			wantClass:   valkeysegment.ClassProtocol,
@@ -990,7 +1000,7 @@ func TestContainsTrustsNothingOfABatchWithAWrongShape(t *testing.T) {
 		},
 		{
 			name:       "a good SMISMEMBER next to a bad EXISTS keeps neither",
-			replies:    []string{replyOne, "*1\r\n:1\r\n", ":7\r\n"},
+			replies:    []string{replyOne, replyOneIn, ":7\r\n"},
 			lookups:    []segment.Lookup{lk(segBeta, idAlice), lk(segFlags, idAlice)},
 			wantStates: []segment.State{segment.Unknown, segment.Unknown},
 			wantFailed: 2,
@@ -1027,7 +1037,7 @@ func TestAKeyThatAppearsBetweenTheCheckAndTheLookupIsNeverANonMember(t *testing.
 	}{
 		{
 			name:       "created after the key check, the member is a member",
-			replies:    []string{":0\r\n", "*1\r\n:1\r\n"},
+			replies:    []string{":0\r\n", replyOneIn},
 			wantStates: []segment.State{segment.Member},
 		},
 		{

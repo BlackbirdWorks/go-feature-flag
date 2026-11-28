@@ -112,3 +112,43 @@ func BenchmarkContains(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkContainsAtomic compares the atomic existence check (MULTI, EXISTS, SMISMEMBER, EXEC: four commands for a
+// set) with the plain pair (EXISTS, SMISMEMBER) on one Valkey node, with MissingKey unknown.
+func BenchmarkContainsAtomic(b *testing.B) {
+	srv := startServerImage(b, valkeyImage)
+	opt := srv.defaultOption()
+	client := seed(b, opt)
+
+	load(b, client, keyBeta, "id0", "id2", "id4")
+
+	for _, mode := range []struct {
+		name    string
+		disable bool
+	}{{name: "atomic"}, {name: "plain", disable: true}} {
+		prov := e2eProvider(b, opt, &valkeysegment.Options{
+			MissingKey: valkeysegment.MissingUnknown, Timeout: e2eTimeout, Atomic: new(!mode.disable),
+			Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: keyBeta}},
+		})
+
+		for _, size := range []int{1, 10, 100} {
+			b.Run(mode.name+"/ids="+strconv.Itoa(size), func(b *testing.B) {
+				lookups := make([]segment.Lookup, size)
+				for i := range lookups {
+					lookups[i] = lk(segBeta, "id"+strconv.Itoa(i))
+				}
+
+				ctx := context.Background()
+
+				require.NoError(b, prov.Contains(ctx, lookups)) // warm the connection
+
+				b.ReportAllocs()
+				b.ResetTimer()
+
+				for range b.N {
+					require.NoError(b, prov.Contains(ctx, lookups))
+				}
+			})
+		}
+	}
+}

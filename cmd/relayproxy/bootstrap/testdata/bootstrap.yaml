@@ -63,6 +63,7 @@ connections:
     pipelining: auto
     blockingPipeline: 64
     retry: false
+    atomic: true
     keyPrefix: "acme:segment:"
     lookupTimeout: 150ms
   segments-redis:
