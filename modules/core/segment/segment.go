@@ -185,6 +185,39 @@ func (d *Definition) Resolve(state State) State {
 type Catalog struct {
 	defs   map[string]Definition
 	static map[string]*MemberSet
+	live   map[string]Live
+}
+
+// Live answers the membership of one segment from memory that something else keeps current (a snapshot of a store,
+// refreshed off the request path). Answer must not allocate, must not block and must be safe for concurrent use. The
+// status says how far the answer can be trusted: StatusStale for a set that is older than it should be,
+// StatusStoreError with Unknown for a set that was never loaded.
+type Live interface {
+	Answer(id string) (State, Status)
+}
+
+// NewCatalogWithLive is [NewCatalogWithSets] with live segments: the catalog answers them from their [Live] source,
+// as it answers a static segment from its members, and no provider is asked. A live name that has no definition, or
+// that is also a static set, is an error.
+func NewCatalogWithLive(sets map[string]*MemberSet, live map[string]Live, defs ...Definition) (*Catalog, error) {
+	catalog, err := NewCatalogWithSets(sets, defs...)
+	if err != nil {
+		return nil, err
+	}
+
+	for name := range live {
+		_, defined := catalog.defs[name]
+		_, static := sets[name]
+
+		if !defined || static {
+			return nil, fmt.Errorf("%w: %q: live members of a segment that is not defined or is static",
+				ErrInvalidDefinition, name)
+		}
+	}
+
+	catalog.live = live
+
+	return catalog, nil
 }
 
 // NewCatalogWithSets is [NewCatalog] with the members of the static segments: the segment name of a set is answered
@@ -258,6 +291,30 @@ func (c *Catalog) Member(name, id string) (State, bool) {
 	}
 
 	return NotMember, true
+}
+
+// Answer is [Catalog.Member] for the static and the live segments, with the status of the answer. ok is false when the
+// segment is neither: the provider decides. It does not allocate and is safe for concurrent use.
+func (c *Catalog) Answer(name, id string) (State, Status, bool) {
+	if c == nil {
+		return Unknown, StatusNone, false
+	}
+
+	if set, ok := c.static[name]; ok {
+		if set.Contains(id) {
+			return Member, StatusHealthy, true
+		}
+
+		return NotMember, StatusHealthy, true
+	}
+
+	if src, ok := c.live[name]; ok {
+		state, status := src.Answer(id)
+
+		return state, status, true
+	}
+
+	return Unknown, StatusNone, false
 }
 
 // ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does; a segment

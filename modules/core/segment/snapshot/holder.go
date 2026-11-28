@@ -87,6 +87,7 @@ type Holder struct {
 var (
 	_ segment.Provider      = (*Holder)(nil)
 	_ segment.StaleReporter = (*Holder)(nil)
+	_ segment.Live          = (*Holder)(nil)
 )
 
 // New returns a holder of the segment name, empty until the first successful Refresh.
@@ -119,6 +120,28 @@ func (h *Holder) Lookup(id string) segment.State {
 	}
 
 	return segment.NotMember
+}
+
+// Answer implements [segment.Live]: the membership from the held set with the status of the answer, and no store call.
+// A set that was never loaded answers Unknown with a store error; a set older than it should be (the last refresh
+// failed, or the set is over the guard) answers with a stale status; a segment that is missing is an answer, healthy.
+// It does not allocate and does not lock.
+func (h *Holder) Answer(id string) (segment.State, segment.Status) {
+	cur := h.cur.Load()
+	if cur == nil || cur.set == nil {
+		return segment.Unknown, segment.StatusStoreError
+	}
+
+	state := segment.NotMember
+	if cur.set.Contains(id) {
+		state = segment.Member
+	}
+
+	if !cur.missing && cur.lastErr != ClassNone {
+		return state, segment.StatusStale
+	}
+
+	return state, segment.StatusHealthy
 }
 
 // Contains implements [segment.Provider] for the lookups of this segment; others are left alone. It does not allocate.

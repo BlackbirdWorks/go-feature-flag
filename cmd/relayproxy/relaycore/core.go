@@ -225,6 +225,8 @@ type Core struct {
 	segs *segmentstore.Connections
 	// segWait is the timer of the watcher of the version keys.
 	segWait flagruntime.Wait
+	// segJitter spreads the first poll of each binding of the dynamic segments.
+	segJitter func(time.Duration) time.Duration
 	// readerMetrics is the collector of the reader of the manifest, registered when there is a registry.
 	readerMetrics *metric.ManifestReader
 	collector     prometheus.Collector

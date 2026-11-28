@@ -43,6 +43,11 @@ func TestSegmentViewPollInterval(t *testing.T) {
 			at:   []time.Duration{0, 4 * time.Second, 6 * time.Second}, wantCalls: 4,
 		},
 		{
+			name: "a minute and ten minutes",
+			doc:  lookupDoc + "    version: {key: v1, interval: 1m}\n" + sprintOther(", interval: 10m"),
+			at:   []time.Duration{0, 6 * time.Second, 11 * time.Second}, wantCalls: 2,
+		},
+		{
 			name: "a minute and ten seconds",
 			doc:  lookupDoc + "    version: {key: v1, interval: 1m}\n" + sprintOther(", interval: 10s"),
 			at:   []time.Duration{0, 6 * time.Second, 11 * time.Second}, wantCalls: 4,
@@ -155,8 +160,8 @@ func TestPrefetchReadsTheEnrichedAttributes(t *testing.T) {
 	}
 }
 
-// The snapshot mode is refused whether or not the connections of the bootstrap file are known.
-func TestSnapshotIsRefusedWithoutKnownConnections(t *testing.T) {
+// The snapshot mode is served like the lookup mode when the connections of the bootstrap file are not known.
+func TestSnapshotIsServedWithoutKnownConnections(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -165,7 +170,7 @@ func TestSnapshotIsRefusedWithoutKnownConnections(t *testing.T) {
 		wantRejections int
 		wantServed     bool
 	}{
-		{name: "snapshot", doc: audienceDoc(connAudiences, ""), wantRejections: 1},
+		{name: "snapshot", doc: audienceDoc(connAudiences, ""), wantServed: true},
 		{name: "lookup", doc: audienceDoc(connAudiences, "lookup"), wantServed: true},
 	}
 

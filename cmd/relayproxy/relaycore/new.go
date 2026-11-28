@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
@@ -148,6 +149,11 @@ func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Ho
 	c.segWait = deps.SegmentWait
 	if c.segWait == nil {
 		c.segWait = timerWait
+	}
+
+	c.segJitter = flagruntime.RandomSpread
+	if deps.Jitter != nil {
+		c.segJitter = func(limit time.Duration) time.Duration { return time.Duration(deps.Jitter() * float64(limit)) }
 	}
 
 	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})

@@ -477,3 +477,22 @@ func object(name, kind string) controlplane.ManifestObject {
 		Size: 10,
 	}
 }
+
+// The member keys of the keys layout are <prefix><name>:<id>: no name holds the separator, so the keys of two segments
+// cannot collide.
+func TestValidateSegmentsNamesHoldNoKeySeparator(t *testing.T) {
+	t.Parallel()
+
+	doc := &controlplane.SegmentsDocument{
+		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindSegments,
+		Segments: []controlplane.SegmentDefinition{{
+			Name: "a:b", Connection: "audiences", Mode: segLookup, Layout: segKeys,
+		}},
+	}
+
+	err := controlplane.ValidateSegments(doc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "segments[0].name")
+	assert.Contains(t, err.Error(), "is not 1 to 64 characters")
+}

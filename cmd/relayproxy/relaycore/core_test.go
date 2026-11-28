@@ -604,7 +604,8 @@ func TestSegmentsSectionIsServedLazily(t *testing.T) {
 		"  segstore: {type: valkey, addresses: [\"127.0.0.1:1\"]}\n" + controlDoc(connName, "") +
 		"segments: {resolver: {callTimeout: 2s}}\n"
 
-	core, err := relaycore.New(t.Context(), parse(t, doc, opts), &relaycore.Deps{Secrets: opts})
+	core, err := relaycore.New(t.Context(), parse(t, doc, opts),
+		&relaycore.Deps{Secrets: opts, Jitter: func() float64 { return 0 }})
 	require.NoError(t, err)
 
 	assert.Equal(t, []segmentstore.ConnectionState{{Name: "segstore", Kind: "valkey", State: "idle"}},

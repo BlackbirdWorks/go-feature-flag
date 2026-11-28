@@ -231,7 +231,7 @@ func (q *queryContext) lookup(
 	q.segmentStatus = q.segmentStatus.Worse(status)
 }
 
-// answerStatic answers from the catalog the terms of pending that are static segments. It returns the health of
+// answerStatic answers from the catalog the terms of pending that are static or live segments. It returns the health of
 // those answers, the number of terms that are left for the provider and the bits of those terms.
 func (q *queryContext) answerStatic(
 	terms []parser.SegmentTerm,
@@ -249,15 +249,21 @@ func (q *queryContext) answerStatic(
 			continue
 		}
 
-		state, ok := q.catalog.Member(terms[i].Name, ids[i])
+		state, answer, ok := q.catalog.Answer(terms[i].Name, ids[i])
 		if !ok {
 			asked++
 
 			continue
 		}
 
-		states[i] = parser.SegmentState(state)
-		status = status.Worse(segment.StatusHealthy)
+		if state == segment.Unknown {
+			// a live segment that has no answer yet: the failure policy of the segment decides, as for a store error
+			states[i] = q.failure(terms[i].Name, parser.SegmentUnknown)
+		} else {
+			states[i] = parser.SegmentState(state)
+		}
+
+		status = status.Worse(answer)
 		pending &^= 1 << i
 	}
 

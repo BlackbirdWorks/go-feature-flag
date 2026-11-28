@@ -46,7 +46,7 @@ func (b *memBinder) Bind(
 		return nil, errNoConnection
 	}
 
-	return &flagruntime.Binding{Provider: b.source, Versioner: b.source}, nil
+	return &flagruntime.Binding{Provider: b.source, Versioner: b.source, Source: b.source}, nil
 }
 
 const (
@@ -245,30 +245,6 @@ func TestDynamicSegmentsAreFetchedInOneBatch(t *testing.T) {
 	}
 }
 
-// A relay that serves dynamic segments does not serve the snapshot mode yet: such a definition is rejected alone,
-// with a reason that says what to do, and answers not a member with NOT_CONFIGURED.
-func TestSnapshotDefinitionIsRejectedWhileServing(t *testing.T) {
-	t.Parallel()
-
-	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
-	built := buildAndCommit(t, viewBuilder(t, &memBinder{source: source}),
-		viewContent(t, audienceDoc(connAudiences, "")))
-
-	require.Len(t, built.SegmentRejections, 1)
-	assert.Equal(t, 1, built.SegmentRejections[0].Definitions)
-	assert.Contains(t, built.SegmentRejections[0].Reason, flagruntime.ErrSnapshotNotServed.Error())
-
-	set := built.Runtime.FlagSets["a"]
-	assert.Nil(t, set.Segments.View)
-
-	eval := flagruntime.NewEvaluator(newService(t), nil)
-	got, err := eval.BoolVariationDetails(set, "audience-flag", ffcontext.NewEvaluationContext(memberAlice), false)
-
-	require.NoError(t, err)
-	assert.False(t, got.Value)
-	assert.Equal(t, segment.StatusNotConfigured, got.SegmentStatus)
-}
-
 // The view is part of the generation: a build that leaves the flag set unchanged carries the same view, a definition
 // that changes gets a new one, and a binder that fails leaves the segment unserved with a problem on the flag set.
 func TestSegmentViewFollowsTheFlagSet(t *testing.T) {
@@ -388,7 +364,9 @@ func TestRunSegmentVersions(t *testing.T) {
 	go func() {
 		defer close(done)
 
-		flagruntime.RunSegmentVersions(ctx, holder, wait, time.Second, func(error) { failures.Add(1) })
+		flagruntime.RunSegmentVersions(ctx, holder, &flagruntime.SegmentPoll{
+			Wait: wait, Tick: time.Second, OnError: func(error) { failures.Add(1) },
+		})
 	}()
 
 	bounded := func(what string, ch <-chan struct{}) {

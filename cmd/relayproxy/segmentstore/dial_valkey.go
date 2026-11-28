@@ -85,7 +85,7 @@ func (h *valkeyHandle) Bind(
 		return nil, fmt.Errorf("valkey provider: %w", err)
 	}
 
-	return &flagruntime.Binding{Provider: prov, Versioner: prov}, nil
+	return &flagruntime.Binding{Provider: prov, Versioner: prov, Source: prov}, nil
 }
 
 // Close implements [Handle].

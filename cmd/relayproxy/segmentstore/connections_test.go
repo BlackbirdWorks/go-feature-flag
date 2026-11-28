@@ -63,6 +63,7 @@ type fakeHandle struct {
 	closed      atomic.Bool
 	binds       atomic.Int32
 	noVersioner bool
+	noSource    bool
 }
 
 func (h *fakeHandle) Bind(segment.MissingKey, []flagruntime.BoundDefinition) (*flagruntime.Binding, error) {
@@ -76,7 +77,12 @@ func (h *fakeHandle) Bind(segment.MissingKey, []flagruntime.BoundDefinition) (*f
 		return &flagruntime.Binding{Provider: h.source}, nil
 	}
 
-	return &flagruntime.Binding{Provider: h.source, Versioner: h.source}, nil
+	var source segment.SnapshotSource
+	if !h.noSource {
+		source = h.source
+	}
+
+	return &flagruntime.Binding{Provider: h.source, Versioner: h.source, Source: source}, nil
 }
 
 func (h *fakeHandle) Close() error {
@@ -419,6 +425,37 @@ func TestConnectionsBindingEdges(t *testing.T) {
 			},
 		},
 		{
+			name: "members of a set", handle: &fakeHandle{},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				var got []string
+
+				for id, err := range binding.Source.Members(t.Context(), segAudience) {
+					require.NoError(t, err)
+
+					got = append(got, id)
+				}
+
+				assert.Equal(t, []string{memberAlice}, got)
+			},
+		},
+		{
+			name: "members of a store that cannot list them", handle: &fakeHandle{noSource: true},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				var errs []error
+
+				for _, err := range binding.Source.Members(t.Context(), segAudience) {
+					errs = append(errs, err)
+				}
+
+				require.Len(t, errs, 1)
+				require.ErrorIs(t, errs[0], segmentstore.ErrCannotServe)
+			},
+		},
+		{
 			name: "provider without health", handle: &fakeHandle{},
 			check: func(t *testing.T, binding *flagruntime.Binding) {
 				t.Helper()
@@ -565,4 +602,23 @@ func TestConnectionsDialInParallel(t *testing.T) {
 	case <-time.After(waitFor):
 		require.FailNow(t, "the loop did not stop")
 	}
+}
+
+// The members of a set cannot be read before the connection is up: the stream yields the error once and ends.
+func TestConnectionsMembersBeforeTheConnectionIsUp(t *testing.T) {
+	t.Parallel()
+
+	conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{})
+
+	binding, err := conns.Bind(connCache, segment.MissingNotMember, nil)
+	require.NoError(t, err)
+
+	var errs []error
+
+	for _, err := range binding.Source.Members(t.Context(), segAudience) {
+		errs = append(errs, err)
+	}
+
+	require.Len(t, errs, 1)
+	require.ErrorIs(t, errs[0], segmentstore.ErrNotConnected)
 }

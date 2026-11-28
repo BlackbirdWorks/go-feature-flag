@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync/atomic"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
@@ -16,10 +15,6 @@ import (
 
 // DefaultVersionInterval is how often the version key of a segment is polled when its definition gives no interval.
 const DefaultVersionInterval = 5 * time.Second
-
-// ErrSnapshotNotServed is the reason of a definition in the snapshot mode when the relay serves dynamic segments but
-// not that mode yet.
-var ErrSnapshotNotServed = errors.New("the snapshot mode is not served yet by this relay: use mode: lookup")
 
 // BoundDefinition is what a store needs to serve one dynamic segment.
 type BoundDefinition struct {
@@ -39,6 +34,9 @@ type Binding struct {
 	Provider segment.Provider
 	// Versioner reads the version keys of the definitions, nil when the store cannot.
 	Versioner segment.Versioner
+	// Source reads the version and the members of a set, for the definitions in the snapshot mode; nil when the store
+	// cannot, and then a snapshot definition is not served.
+	Source segment.SnapshotSource
 }
 
 // SegmentBinder gives a generation the providers of the process: one connection serves the definitions of any number
@@ -50,24 +48,20 @@ type SegmentBinder interface {
 	Bind(connection string, missing segment.MissingKey, defs []BoundDefinition) (*Binding, error)
 }
 
-// SegmentView is the dynamic segments of one generation of a flag set: the definitions bound to the providers of the
-// process, each connection behind a resolver (cache, coalescing, breaker) that belongs to this view. It is built off
-// to the side with the flag set, swapped in with it and carried over by pointer while the flag set is. It holds no
-// connection: dropping it releases the resolvers and nothing else.
+// SegmentView is the dynamic segments of one generation of a flag set: each served definition is bound to the binding
+// of its segments object (see [segBinding]), which every flag set and every generation that uses the object shares. The
+// view is built off to the side with the flag set, swapped in with it and carried over by pointer while the flag set
+// is. It holds no connection: dropping it releases what nothing else references.
 type SegmentView struct {
 	byName map[string]*viewGroup
 	groups []*viewGroup
 }
 
-// viewGroup is the segments of one connection that share a resolver.
+// viewGroup is the segments of one binding that the flag set serves.
 type viewGroup struct {
-	res        *resolver.Resolver
-	versioner  segment.Versioner
-	connection string
-	segments   []string
-	next       atomic.Int64 // unix nanoseconds of the next poll of the version keys
-	interval   time.Duration
-	versioned  bool
+	bind      *segBinding
+	lookups   []string
+	snapshots []string
 }
 
 // SegmentEnv is what a build needs to bind dynamic segments: the process-level binder, the resolver settings of the
@@ -146,59 +140,59 @@ func (e *SegmentEnv) tuning(cache *controlplane.SegmentCache) resolver.SegmentOp
 	return out
 }
 
-type groupKey struct {
-	connection string
-	missing    segment.MissingKey
-}
+// newSegmentView groups the served names of a flag set by binding. The names that have no binding are returned as
+// errors by name; they stay unserved. The live answers of the snapshot segments are returned for the catalog.
+func newSegmentView(bindings map[string]*segBinding) (*SegmentView, map[string]segment.Live) {
+	byBinding := map[*segBinding]*viewGroup{}
+	view := &SegmentView{byName: map[string]*viewGroup{}}
+	live := map[string]segment.Live{}
 
-// newSegmentView binds the served definitions of a flag set: lookup mode, a connection the binder knows. The
-// definitions that cannot be bound are returned as errors by name; they stay unserved.
-func newSegmentView(env *SegmentEnv, defs []*controlplane.SegmentDefinition) (*SegmentView, map[string]error) {
-	byGroup := map[groupKey][]*controlplane.SegmentDefinition{}
-
-	for _, def := range defs {
-		key := groupKey{def.Connection, segment.MissingKey(def.MissingKey).Effective()}
-		byGroup[key] = append(byGroup[key], def)
-	}
-
-	keys := make([]groupKey, 0, len(byGroup))
-	for key := range byGroup {
-		keys = append(keys, key)
-	}
-
-	slices.SortFunc(keys, func(a, b groupKey) int {
-		if a.connection != b.connection {
-			return compareStrings(a.connection, b.connection)
+	for name, b := range bindings {
+		group := byBinding[b]
+		if group == nil {
+			group = &viewGroup{bind: b}
+			byBinding[b] = group
+			view.groups = append(view.groups, group)
 		}
 
-		return compareStrings(string(a.missing), string(b.missing))
-	})
-
-	view := &SegmentView{byName: map[string]*viewGroup{}}
-	failed := map[string]error{}
-
-	for _, key := range keys {
-		group, err := env.bindGroup(key, byGroup[key])
-		if err != nil {
-			for _, def := range byGroup[key] {
-				failed[def.Name] = err
-			}
+		if holder, ok := b.holders[name]; ok {
+			group.snapshots = append(group.snapshots, name)
+			live[name] = holder
 
 			continue
 		}
 
-		view.groups = append(view.groups, group)
+		group.lookups = append(group.lookups, name)
+		view.byName[name] = group
+	}
 
-		for _, name := range group.segments {
-			view.byName[name] = group
+	slices.SortFunc(view.groups, func(a, b *viewGroup) int {
+		if a.bind.connection != b.bind.connection {
+			return compareStrings(a.bind.connection, b.bind.connection)
 		}
+
+		return compareStrings(a.first(), b.first())
+	})
+
+	for _, group := range view.groups {
+		slices.Sort(group.lookups)
+		slices.Sort(group.snapshots)
 	}
 
 	if len(view.groups) == 0 {
-		return nil, failed
+		return nil, nil
 	}
 
-	return view, failed
+	return view, live
+}
+
+func (g *viewGroup) first() string {
+	names := slices.Concat(g.lookups, g.snapshots)
+	if len(names) == 0 {
+		return ""
+	}
+
+	return slices.Min(names)
 }
 
 func compareStrings(a, b string) int {
@@ -210,66 +204,6 @@ func compareStrings(a, b string) int {
 	}
 
 	return 0
-}
-
-func (e *SegmentEnv) bindGroup(key groupKey, defs []*controlplane.SegmentDefinition) (*viewGroup, error) {
-	bound := make([]BoundDefinition, 0, len(defs))
-	segs := make(map[string]resolver.SegmentOptions, len(defs))
-	group := &viewGroup{connection: key.connection}
-
-	var values map[string]string
-
-	for _, def := range defs {
-		bound = append(bound, BoundDefinition{
-			Name: def.Name, Key: def.Key, Layout: segment.Layout(def.Layout), VersionKey: versionKey(def),
-		})
-
-		opts := e.tuning(def.Cache)
-		opts.Versioned = versionKey(def) != ""
-		segs[def.Name] = opts
-		group.segments = append(group.segments, def.Name)
-
-		if opts.Versioned {
-			group.versioned = true
-
-			interval := pollInterval(def)
-			if group.interval == 0 || interval < group.interval {
-				group.interval = interval
-			}
-		}
-
-		if def.Version != nil && def.Version.Value != "" {
-			if values == nil {
-				values = map[string]string{}
-			}
-
-			values[def.Name] = def.Version.Value
-		}
-	}
-
-	binding, err := e.Binder.Bind(key.connection, key.missing, bound)
-	if err != nil {
-		return nil, fmt.Errorf("bind the segments of connection %q: %w", key.connection, err)
-	}
-
-	opts := e.options()
-	opts.Segments = segs
-
-	res, err := resolver.New(binding.Provider, opts)
-	if err != nil {
-		return nil, fmt.Errorf("the resolver of connection %q: %w", key.connection, err)
-	}
-
-	for name, value := range values {
-		res.SetVersion(name, value)
-	}
-
-	group.res, group.versioner = res, binding.Versioner
-	group.versioned = group.versioned && binding.Versioner != nil
-
-	slices.Sort(group.segments)
-
-	return group, nil
 }
 
 // pollInterval is how often the version key of a definition is read: its own interval, and the default only for a
@@ -312,7 +246,7 @@ func (v *SegmentView) Contains(ctx context.Context, lookups []segment.Lookup) er
 	}
 
 	if len(v.groups) == 1 && v.serveAll(lookups) {
-		err := v.groups[0].res.Contains(ctx, lookups)
+		err := v.groups[0].bind.res.Contains(ctx, lookups)
 		if err != nil {
 			return fmt.Errorf("segment lookups: %w", err)
 		}
@@ -341,38 +275,13 @@ func (v *SegmentView) Contains(ctx context.Context, lookups []segment.Lookup) er
 			sub[n] = lookups[i]
 		}
 
-		err := group.res.Contains(ctx, sub)
+		err := group.bind.res.Contains(ctx, sub)
 		if err != nil {
 			errs = append(errs, err)
 		}
 
 		for n, i := range idx {
 			lookups[i].State = sub[n].State
-		}
-	}
-
-	return errors.Join(errs...)
-}
-
-// RefreshVersions polls the version keys that are due at now: one step of the watcher, off the request path. The
-// error joins the failures of the groups; a segment whose version cannot be read keeps its version.
-func (v *SegmentView) RefreshVersions(ctx context.Context, now time.Time) error {
-	if v == nil {
-		return nil
-	}
-
-	var errs []error
-
-	for _, group := range v.groups {
-		if !group.versioned || now.UnixNano() < group.next.Load() {
-			continue
-		}
-
-		group.next.Store(now.Add(group.interval).UnixNano())
-
-		err := group.res.RefreshVersions(ctx, group.versioner)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("connection %q: %w", group.connection, err))
 		}
 	}
 
@@ -389,14 +298,24 @@ func (v *SegmentView) Health() (int, int) {
 	var healthy, storeError int
 
 	for _, group := range v.groups {
-		status := group.res.Status()
-		failing := group.res.Health().Failure != ""
+		if res := group.bind.res; res != nil {
+			status := res.Status()
+			failing := res.Health().Failure != ""
 
-		for _, name := range group.segments {
-			if failing || status.Segments[name].Breaker == resolver.BreakerOpen {
-				storeError++
-			} else {
+			for _, name := range group.lookups {
+				if failing || status.Segments[name].Breaker == resolver.BreakerOpen {
+					storeError++
+				} else {
+					healthy++
+				}
+			}
+		}
+
+		for _, name := range group.snapshots {
+			if _, answer := group.bind.holders[name].Answer(""); answer == segment.StatusHealthy {
 				healthy++
+			} else {
+				storeError++
 			}
 		}
 	}
@@ -413,8 +332,8 @@ func (v *SegmentView) Connections() []string {
 	var names []string
 
 	for _, group := range v.groups {
-		if !slices.Contains(names, group.connection) {
-			names = append(names, group.connection)
+		if !slices.Contains(names, group.bind.connection) {
+			names = append(names, group.bind.connection)
 		}
 	}
 
@@ -437,30 +356,3 @@ func (v *SegmentView) serveAll(lookups []segment.Lookup) bool {
 // Wait is the clock seam of the watcher of the versions: it returns after d, or with the error of ctx when it ends
 // first. Production waits on a timer; a test drives the ticks.
 type Wait func(ctx context.Context, d time.Duration) error
-
-// RunSegmentVersions polls the version keys of the dynamic segments of the current runtime every tick, off the request
-// path, until ctx ends (or wait fails). A view is polled when its interval is due: the time of the loop is the sum of
-// the ticks it waited, so it needs no wall clock and a test that drives wait drives the polls. The loop is owned by
-// the run context of the relay.
-func RunSegmentVersions(ctx context.Context, holder *Holder, wait Wait, tick time.Duration, onError func(error)) {
-	now := time.Unix(0, 0)
-
-	for {
-		if wait(ctx, tick) != nil {
-			return
-		}
-
-		now = now.Add(tick)
-
-		for _, set := range holder.Load().FlagSets {
-			if set.Segments == nil || set.Segments.View == nil {
-				continue
-			}
-
-			err := set.Segments.View.RefreshVersions(ctx, now)
-			if err != nil && onError != nil {
-				onError(err)
-			}
-		}
-	}
-}

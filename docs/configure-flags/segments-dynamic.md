@@ -9,22 +9,25 @@ A dynamic segment is a segment of type `redis` or `valkey`: the members stay in 
 
 ## Modes
 
-> The relay serves the `lookup` mode. A definition in the `snapshot` mode (the default when `mode` is not written) is rejected alone while the relay serves dynamic segments, with the reason `the snapshot mode is not served yet by this relay: use mode: lookup`: it answers "not a member" and the evaluation reports `NOT_CONFIGURED`. The snapshot mode comes with the next step of [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). Write `mode: lookup` in every definition until then. The modes are interfaces and reference implementations in `modules/core/segment`.
+> The relay serves both modes. The modes are interfaces and reference implementations in `modules/core/segment`.
 
 A segment that lives in a store has a mode. A definition with no `mode` is a `snapshot` segment.
 
 | | `snapshot` (default) | `lookup` |
 |---|---|---|
 | Where the members live | in relay memory, one immutable set, pulled from the store like a retriever | in the store; the relay keeps a bounded LRU of answers |
-| Cost per evaluation | a hash lookup, no network, no allocation | a cache hit costs the same; a miss is one batched network call |
+| Cost per evaluation | a hash lookup, no store call, no allocation more than a static segment of the same size | a cache hit costs the same; a miss is one batched network call |
 | Memory | the whole set (guarded by a maximum of members and bytes) | the LRU only (the least of the two modes) |
 | Freshness | as of the last pull; the relay polls the version and pulls again only when it changed | as of the version of the cached entry; entries of another version are misses, and the time-to-live is the fallback |
 | Change detection | version token, compared for equality | the same version token, learned off the request path |
 | Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is not a member, or unknown with the `onError: unknown` opt-in |
 | Segment missing in the store (the store answered) | the old set is dropped and nobody is in the segment (not a member); it is served again when the segment comes back. With `missingKey: unknown` the lookups are unknown instead | not a member, or unknown with `missingKey: unknown` |
 
+- Snapshot refresh: a loop owned by the run context reads the version of each held set (every `version.interval`, 5s when it is not written; one read per segment) and pulls the members only when it changed, then swaps the new set in at once. The first load happens off the request path too: until it succeeds the segment answers not a member with `STORE_ERROR` (the relay is ready), and the loop retries every second. A set that is held and cannot be refreshed keeps answering with `STALE`.
+- Snapshot memory is bounded: a set of more than 10,000,000 distinct members (or more bytes than the segment package default) is refused; the last good set stays and the answers are `STALE`. The refusal is logged once, when the state changes, never for each poll.
 - A segment that does not exist in the store has no member: the default `missingKey` is `notMember`, for both modes. `missingKey: unknown` is an opt-in that sends the lookups to the failure policy (`onError`). Consequence: an expired or deleted set means "nobody is in the segment". Replace a segment atomically (build the new set under another key and rename it over the old one), not by deleting it and adding the members again. Last known good is for errors only, never for a segment that is gone.
 - The `keys` layout is lookup-only. A definition with the `keys` layout and the `snapshot` mode (the default) is invalid and `segment.Definition.Validate` rejects it, naming the segment, the layout and the mode: its members cannot be listed without scanning the whole keyspace.
+- The default member key of the `keys` layout is `<prefix><name>:<id>`. A segment name has only `a-z`, `0-9`, `_` and `-`, never the separator `:`, so the keys of two segments cannot collide; a `key` prefix that you write yourself is yours to keep apart.
 - The Redis and Valkey providers follow the same default (`MissingKey` is `notMember`); `unknown` is their opt-in. For the snapshot, a set with no member is reported as missing and the holder applies the policy.
 - Redis and Valkey version key (`versionKey` of a segment): the snapshot reads it with `GET` and pulls only when its value changed; a version key that does not exist in the store is the fixed token `absent`, which is only equal to itself, so the writer must set the key whenever it changes or deletes the set. A segment with no `versionKey` has no version: the snapshot pulls the whole set on every refresh, which costs a full read for each poll.
 - Snapshot reads go to the primary. The Redis provider reads the version key and every page of a scan from the primary of the slot of the key (`ClusterClient.MasterForKey`), whatever the read routing of the client (`RouteRandomly`, `RouteByLatency`, `ReadOnly`): a scan cursor belongs to one node. The Valkey provider never lets `SendToReplicas` send `SSCAN` or `GET` to a replica; do not use `ReplicaOnly` with a snapshot segment. This is proven by unit tests with a fake cluster; there is no replica in the docker tests.
@@ -132,7 +135,9 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 ## Lifecycle
 
 - The relay opens no store at the start. A connection is opened when a valid dynamic definition first uses it, by a loop that the run context of the relay owns (it dials again every second while the store is not reachable). One client serves every generation: a reload binds the definitions of the new generation to it, and never closes it.
-- Each generation has its own view of the segments: the definitions of its flag sets bound to the shared clients, each behind a resolver (cache, coalescing, circuit breaker). The view is built off to the side and swapped in with the runtime, in the same atomic swap. A flag set that a reload does not change keeps its view (and its cache); a flag set that changes gets a new one. A request keeps the view it loaded, so an evaluation is never cut by a swap.
+- One binding serves each segments object on each connection (with one reading of a missing key): one resolver (cache, coalescing, circuit breaker), one holder for each snapshot segment and one poll of the version keys, shared by every flag set and every generation that uses the object, however many there are. It is built when a flag set first uses it and kept while the checksum of the object does not change, so a reload that changes only flags keeps the caches warm; a changed object gets a new binding and the old one is dropped when no generation uses it. The view of a flag set only routes its segments to bindings. A request keeps the view it loaded, so an evaluation is never cut by a swap.
+- The first poll of a binding is spread by a random delay of up to a second, and the passes of the connections are independent and bounded by the interval, so a store that hangs delays no other connection.
+- The relay logs when a store starts failing and when it works again, once for each change and connection, never for each evaluation.
 - An outage writes no line for each evaluation: the evaluations answer `STORE_ERROR`, the loop logs a connection that cannot be dialled once, and the counters and the breaker metrics show the rest.
 - A store that cannot be reached at the start never stops the relay and never makes it unready. Its segments answer "not a member" with `STORE_ERROR` until it is back. The relay stops the clients at shutdown, with the shutdown timeout, after the loops ended.
 - A version `value` in the definition is the version of the cache of the generation. A version `key` is read by a watcher (a loop owned by the run context) every `version.interval` (5s when it is not written), never on the request path: a changed version makes the cached answers misses, and a request never waits for it.
@@ -143,12 +148,16 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 |---|---|---|---|
 | Healthy store | the members of the store | none | ready |
 | Never connected, or gone, and the answer is not cached | not a member (or what `onError` says) | `STORE_ERROR` | ready |
+| `snapshot`: never loaded | not a member (or what `onError` says) | `STORE_ERROR` | ready |
+| `snapshot`: loaded, then the store is gone or the set is over the limit | the last good set | `STALE` | ready |
+| `snapshot`: the store is back | the members of the store, after the next refresh | none | ready |
+| `snapshot`: the set was deleted | not a member | none | ready |
 | Gone, and the answer is cached (a member for the TTL, a non-member for the negative TTL) | the cached answer | none | ready |
 | Breaker open (consecutive failures) | not a member, the store is not called | `STORE_ERROR` | ready |
 | Store is back | the members of the store, after the breaker cooldown | none | ready |
-| Definition rejected (unknown connection, a kind that cannot serve the mode, the `snapshot` mode) | not a member | `NOT_CONFIGURED` | ready |
+| Definition rejected (unknown connection, a kind that cannot serve the mode) | not a member | `NOT_CONFIGURED` | ready |
 
-`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`). The metrics are in [probes](../relay-proxy/probes.md).
+`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`; a snapshot that is stale or never loaded counts as `storeError`), and `segmentBindings`: the number of live shared bindings (`live`) and, for each connection with snapshot segments, the held sets by state (`loaded`, `stale`, `missing`, `neverLoaded`) and `members`, all sets together. The metrics are in [probes](../relay-proxy/probes.md).
 
 <!-- full-example -->
 ```yaml
