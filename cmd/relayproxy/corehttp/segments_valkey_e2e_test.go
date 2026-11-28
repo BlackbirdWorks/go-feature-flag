@@ -160,10 +160,10 @@ func (s *valkeyStore) add(tb testing.TB, key, member string) {
 	require.NoError(tb, s.client.Do(tb.Context(), s.client.B().Sadd().Key(key).Member(member).Build()).Error())
 }
 
-func (s *valkeyStore) set(tb testing.TB, key, value string) {
+func (s *valkeyStore) setVersion(tb testing.TB, value string) {
 	tb.Helper()
 
-	require.NoError(tb, s.client.Do(tb.Context(), s.client.B().Set().Key(key).Value(value).Build()).Error())
+	require.NoError(tb, s.client.Do(tb.Context(), s.client.B().Set().Key("aud-version").Value(value).Build()).Error())
 }
 
 func valkeyRig(tb testing.TB, address string) *v2 {
@@ -176,15 +176,19 @@ func valkeyRig(tb testing.TB, address string) *v2 {
 	})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(valkeySegDoc)}
-	rig.sets = []controlplane.FlagSet{{
-		Name: setName, Sources: []string{flagsObject, dynFlagsObject}, SegmentSources: []string{segObjectName},
-		APIKeys: []string{tenantKey},
-	}}
+	rig.sets = valkeyRigSets()
 
 	rig.publish(tb)
 	rig.poll(tb)
 
 	return rig
+}
+
+func valkeyRigSets() []controlplane.FlagSet {
+	return []controlplane.FlagSet{{
+		Name: setName, Sources: []string{flagsObject, dynFlagsObject}, SegmentSources: []string{segObjectName},
+		APIKeys: []string{tenantKey},
+	}}
 }
 
 // tryEval is an evaluation that reports failures as errors, for the loops that wait.
@@ -279,7 +283,7 @@ func TestE2E_ValkeyDynamicSegmentLifecycle(t *testing.T) {
 
 	// bob was cached as not a member for 30s: only the version key can make him one before that
 	store.add(t, "aud", "bob")
-	store.set(t, "aud-version", "2")
+	store.setVersion(t, "2")
 
 	awaitEval(t, rig, "bob", isMember, "a version bump invalidates the cached answer")
 

@@ -62,9 +62,9 @@ var (
 	// ErrUnavailable is wrapped by a LookupError of ClassUnavailable.
 	ErrUnavailable = errors.New("redis segment: store unavailable")
 	// ErrServer is wrapped by a LookupError of ClassServer.
-	ErrServer = errors.New("redis segment: store returned an error")
+	ErrServer = answeredError("redis segment: store returned an error")
 	// ErrProtocol is wrapped by a LookupError of ClassProtocol.
-	ErrProtocol = errors.New("redis segment: unexpected reply")
+	ErrProtocol = answeredError("redis segment: unexpected reply")
 
 	// ErrInvalidOptions is wrapped by the errors of options that are not valid.
 	ErrInvalidOptions = errors.New("redis segment: invalid options")
@@ -125,3 +125,13 @@ func (e *LookupError) Unwrap() error {
 
 	return nil
 }
+
+// answeredError is the class of a failure in which the store answered with an error about one set: the store works (see
+// [segment.IsStoreAnswered]).
+type answeredError string
+
+// Error implements error.
+func (e answeredError) Error() string { return string(e) }
+
+// StoreAnswered implements the interface of [segment.IsStoreAnswered].
+func (answeredError) StoreAnswered() bool { return true }

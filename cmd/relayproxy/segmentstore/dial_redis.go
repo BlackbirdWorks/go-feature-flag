@@ -99,7 +99,7 @@ func (h *redisHandle) Bind(
 		return nil, fmt.Errorf("redis provider: %w", err)
 	}
 
-	return &flagruntime.Binding{Provider: prov, Versioner: prov}, nil
+	return &flagruntime.Binding{Provider: prov, Versioner: prov, Source: prov}, nil
 }
 
 // Close implements [Handle].

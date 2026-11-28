@@ -83,6 +83,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		problems []Problem
 		defs     = map[string]*controlplane.SegmentDefinition{}
 		sets     = map[string]*segment.MemberSet{}
+		owner    = map[string]*segState{}
 		hashes   = map[string]uint64{}
 		inputs   = make([]*segState, len(spec.segSources))
 
@@ -107,6 +108,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			defs[def.Name] = def
 			delete(sets, def.Name)
 			delete(rejected, def.Name)
+			owner[def.Name] = held
 
 			if _, bad := held.rejected[def.Name]; bad {
 				rejected[def.Name] = struct{}{}
@@ -136,7 +138,10 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		out.hashes[name] = hashes[name]
 	}
 
-	catalog, err := segment.NewCatalogWithSets(sets, list...)
+	view, live, bindProblems := st.bindView(out, defs, rejected, owner)
+	problems = append(problems, bindProblems...)
+
+	catalog, err := segment.NewCatalogWithLive(sets, live, list...)
 	if err != nil {
 		problems = append(problems, Problem{
 			Code: controlplane.CodeUnresolvedSource, Reason: fmt.Sprintf("the segments of the flag set: %v", err),
@@ -145,9 +150,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		return inputs, nil, problems
 	}
 
-	out.Catalog = catalog
-
-	problems = append(problems, st.bindView(out, defs, rejected)...)
+	out.Catalog, out.View = catalog, view
 
 	return inputs, out, problems
 }
@@ -347,43 +350,54 @@ func versionSpec(version *controlplane.SegmentVersion) *segment.VersionSpec {
 	return spec
 }
 
-// bindView binds the dynamic definitions that the relay can serve (lookup mode, a connection it knows) to the
-// providers of the process, once for the flag set: the view is part of the generation and unchanged flag sets keep
-// theirs. A definition that cannot be bound stays unserved and the flag set is degraded.
+// bindView takes, for each dynamic definition that the relay can serve (a connection it knows), the binding of the
+// segments object that defines it: built once for the object and shared by every flag set and generation, so a flag
+// set binds nothing of its own. A definition that cannot be bound stays unserved and the flag set is degraded.
 func (st *stage) bindView(
 	out *SetSegments,
 	defs map[string]*controlplane.SegmentDefinition,
 	rejected map[string]struct{},
-) []Problem {
-	env := st.b.opts.Segments
-	if !env.enabled() || out.Dynamic == out.RejectedDefinitions {
-		return nil
+	owner map[string]*segState,
+) (*SegmentView, map[string]segment.Live, []Problem) {
+	if !st.b.opts.Segments.enabled() || out.Dynamic == out.RejectedDefinitions {
+		return nil, nil, nil
 	}
-
-	var served []*controlplane.SegmentDefinition
-
-	for _, name := range sortedNames(defs) {
-		def := defs[name]
-		if _, bad := rejected[name]; !bad && def.Connection != "" {
-			served = append(served, def)
-		}
-	}
-
-	view, failed := newSegmentView(env, served)
-	out.View = view
 
 	var problems []Problem
 
+	bindings := map[string]*segBinding{}
+
 	for _, name := range sortedNames(defs) {
-		if err, bad := failed[name]; bad {
+		def := defs[name]
+		if _, bad := rejected[name]; bad || def.Connection == "" {
+			continue
+		}
+
+		b, err := owner[name].binds.binding(name)
+		if err != nil {
 			problems = append(problems, Problem{
 				Code: controlplane.CodeUnresolvedSource, Subject: name,
 				Reason: fmt.Sprintf("the dynamic segment %q is not served: %v", name, err),
 			})
+
+			continue
 		}
+
+		if refusal, refused := b.refused[name]; refused {
+			problems = append(problems, Problem{
+				Code: controlplane.CodeUnresolvedSource, Subject: name,
+				Reason: fmt.Sprintf("the dynamic segment %q is not served: %v", name, refusal),
+			})
+
+			continue
+		}
+
+		bindings[name] = b
 	}
 
-	return problems
+	view, live := newSegmentView(bindings)
+
+	return view, live, problems
 }
 
 // dynamicTerms is, for each flag that uses a served dynamic segment, the segment terms of its rules that the view

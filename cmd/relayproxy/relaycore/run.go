@@ -53,8 +53,8 @@ func (c *Core) Run(ctx context.Context) error {
 	loops.Go(func() { c.source.Run(runCtx) })
 	loops.Go(func() { c.segs.Run(runCtx) })
 	loops.Go(func() {
-		flagruntime.RunSegmentVersions(runCtx, c.holder, c.segWait, segmentVersionTick, func(err error) {
-			c.log.LogAttrs(runCtx, slog.LevelWarn, "a segment version could not be read", slog.Any("error", err))
+		flagruntime.RunSegmentVersions(runCtx, c.holder, &flagruntime.SegmentPoll{
+			Wait: c.segWait, Tick: segmentVersionTick, Jitter: c.segJitter, Logger: c.log,
 		})
 	})
 	loops.Go(func() {

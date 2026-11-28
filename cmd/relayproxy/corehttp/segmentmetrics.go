@@ -13,6 +13,9 @@ const (
 	metricSegmentBreaker = "semaphore_segment_breaker_transitions_total"
 	metricSegmentStore   = "semaphore_segment_store_state"
 	metricSegmentDynamic = "semaphore_segment_dynamic"
+	metricSegmentSets    = "semaphore_segment_snapshot_sets"
+	metricSegmentMembers = "semaphore_segment_snapshot_members"
+	metricSegmentBinding = "semaphore_segment_bindings"
 	statusHealthy        = "healthy"
 	statusStoreError     = "store_error"
 	storeStateConnected  = "connected"
@@ -35,7 +38,7 @@ const (
 type SegmentCollector struct {
 	src StatusSource
 
-	lookups, calls, failed, breaker, stores, dynamic *prom.Desc
+	lookups, calls, failed, breaker, stores, dynamic, sets, members, bindings *prom.Desc
 }
 
 var _ prom.Collector = (*SegmentCollector)(nil)
@@ -52,12 +55,26 @@ func NewSegmentCollector(src StatusSource) *SegmentCollector {
 		breaker: desc(metricSegmentBreaker, "Transitions of the circuit breakers of the segments.", "to"),
 		stores:  desc(metricSegmentStore, "1 for the state of each segment store connection.", "connection", "state"),
 		dynamic: desc(metricSegmentDynamic, "Served dynamic segments by status.", "status"),
+		sets: desc(
+			metricSegmentSets,
+			"Held sets of the snapshot mode by connection and state (loaded, stale, missing, "+
+				"never_loaded).",
+			"connection",
+			"state",
+		),
+		members: desc(
+			metricSegmentMembers,
+			"Members held by the sets of the snapshot mode, all connections together.",
+		),
+		bindings: desc(metricSegmentBinding, "Shared bindings of dynamic segments that the served runtime uses."),
 	}
 }
 
 // Describe implements [prom.Collector].
 func (c *SegmentCollector) Describe(out chan<- *prom.Desc) {
-	for _, d := range []*prom.Desc{c.lookups, c.calls, c.failed, c.breaker, c.stores, c.dynamic} {
+	all := []*prom.Desc{c.lookups, c.calls, c.failed, c.breaker, c.stores, c.dynamic, c.sets, c.members, c.bindings}
+
+	for _, d := range all {
 		out <- d
 	}
 }
@@ -104,4 +121,20 @@ func (c *SegmentCollector) Collect(out chan<- prom.Metric) {
 	out <- prom.MustNewConstMetric(c.dynamic, prom.GaugeValue, float64(healthy), statusHealthy)
 
 	out <- prom.MustNewConstMetric(c.dynamic, prom.GaugeValue, float64(failing), statusStoreError)
+
+	var members int
+
+	for _, conn := range status.Bindings.Connections {
+		members += conn.Members
+
+		for state, n := range map[string]int{
+			"loaded": conn.Loaded, "stale": conn.Stale, "missing": conn.Missing, "never_loaded": conn.NeverLoaded,
+		} {
+			out <- prom.MustNewConstMetric(c.sets, prom.GaugeValue, float64(n), conn.Connection, state)
+		}
+	}
+
+	out <- prom.MustNewConstMetric(c.members, prom.GaugeValue, float64(members))
+
+	out <- prom.MustNewConstMetric(c.bindings, prom.GaugeValue, float64(status.Bindings.Live))
 }

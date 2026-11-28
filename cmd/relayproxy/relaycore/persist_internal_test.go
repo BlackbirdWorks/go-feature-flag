@@ -122,9 +122,12 @@ func TestPersisterWritesWhatTheRuntimeServes(t *testing.T) {
 		{
 			name: "a rejected revision is not written, and the next applied one is",
 			steps: []step{
-				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
-				{offer: &two}, {result: round(2, flagruntime.OutcomeRejected, false), objects: held("f1", "s1", ok)},
-				{offer: &three}, {result: round(3, flagruntime.OutcomeApplied, true), objects: held("f3", "s1", ok)},
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two},
+				{result: round(2, flagruntime.OutcomeRejected, false), objects: held("f1", "s1", ok)},
+				{offer: &three},
+				{result: round(3, flagruntime.OutcomeApplied, true), objects: held("f3", "s1", ok)},
 			},
 			wantWritten: []written{
 				{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK},
@@ -141,8 +144,10 @@ func TestPersisterWritesWhatTheRuntimeServes(t *testing.T) {
 		{
 			name: "a bootstrap change that came with rejected content writes nothing of the content",
 			steps: []step{
-				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
-				{offer: &two}, {result: round(2, flagruntime.OutcomeApplied, false), objects: held("f1", "s1", ok)},
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two},
+				{result: round(2, flagruntime.OutcomeApplied, false), objects: held("f1", "s1", ok)},
 			},
 			wantWritten: []written{{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK}},
 		},
@@ -164,7 +169,9 @@ func TestPersisterWritesWhatTheRuntimeServes(t *testing.T) {
 		{
 			name: "the engine keeps the latest: the revisions it dropped are not written",
 			steps: []step{
-				{offer: &one}, {offer: &two}, {offer: &three},
+				{offer: &one},
+				{offer: &two},
+				{offer: &three},
 				{result: round(3, flagruntime.OutcomeApplied, true), objects: held("f3", "s1", ok)},
 			},
 			wantWritten: []written{{revision: 3, flags: "f3", sets: "s1", flagsState: manifestreader.StateOK}},
@@ -198,8 +205,10 @@ func TestPersisterWritesWhatTheRuntimeServes(t *testing.T) {
 		{
 			name: "an object the engine could not decode is written with the content the runtime holds",
 			steps: []step{
-				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
-				{offer: &two}, {result: round(2, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", invalid)},
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two},
+				{result: round(2, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", invalid)},
 			},
 			wantWritten: []written{
 				{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK},

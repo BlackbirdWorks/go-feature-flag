@@ -5,6 +5,7 @@ package redissegment_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/redissegment"
+	"github.com/blackbirdworks/semaphore/modules/core/segment/segmenttest"
 )
 
 const (
@@ -94,6 +96,21 @@ func startCluster(t *testing.T) *redis.ClusterClient {
 	}
 
 	require.Zero(t, code, body.String())
+
+	// the nodes agree that the cluster is up before the first command: any node answers CLUSTERDOWN until then
+	segmenttest.AwaitClusterReady(t, ports, func(cmd []string) (string, error) {
+		_, reply, execErr := node.Exec(ctx, cmd)
+		if execErr != nil {
+			return "", fmt.Errorf("cluster info: %w", execErr)
+		}
+
+		buf, readErr := io.ReadAll(reply)
+		if readErr != nil {
+			return "", fmt.Errorf("cluster info: %w", readErr)
+		}
+
+		return string(buf), nil
+	})
 
 	dialer := &net.Dialer{Timeout: 2 * time.Second}
 	client := redis.NewClusterClient(&redis.ClusterOptions{

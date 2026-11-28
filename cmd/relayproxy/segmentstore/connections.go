@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"slices"
 	"sync"
@@ -140,7 +141,7 @@ func (c *Connections) Bind(
 
 	lazy := &lazyBinding{conn: conn, missing: missing, defs: defs}
 
-	return &flagruntime.Binding{Provider: lazy, Versioner: lazy}, nil
+	return &flagruntime.Binding{Provider: lazy, Versioner: lazy, Source: lazy}, nil
 }
 
 // Run dials the connections that are needed and not connected, now and every retry interval, until ctx ends. It is
@@ -259,6 +260,30 @@ func (l *lazyBinding) Version(ctx context.Context, name string) (string, error) 
 	}
 
 	return version, nil
+}
+
+// Members implements [segment.SnapshotSource]: a connection that is not connected yields the error once and ends.
+func (l *lazyBinding) Members(ctx context.Context, name string) iter.Seq2[string, error] {
+	return func(yield func(string, error) bool) {
+		b, err := l.get()
+		if err != nil {
+			yield("", err)
+
+			return
+		}
+
+		if b.Source == nil {
+			yield("", ErrCannotServe)
+
+			return
+		}
+
+		for id, err := range b.Source.Members(ctx, name) {
+			if !yield(id, err) {
+				return
+			}
+		}
+	}
 }
 
 // Health implements [segment.HealthReporter].

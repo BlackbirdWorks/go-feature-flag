@@ -2,6 +2,7 @@ package corehttp_test
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"testing"
 
@@ -22,13 +23,27 @@ beta-flag:
     - {name: members, query: 'targetingKey in segment("beta")', variation: on}
   defaultRule: {name: default, variation: off}
 `
-	// audiencesConnection is a connection of the bootstrap file that can serve segments: nothing connects to it yet.
-	audiencesConnection = "  audiences: {type: redis, addresses: [\"127.0.0.1:6379\"]}\n"
-	segDocOne           = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: beta\n    members: [alice]\n" +
+	segDocOne = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: beta\n    members: [alice]\n" +
 		"  - name: audience\n    connection: audiences\n    mode: lookup\n"
 	segDocTwo = "apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: beta\n    members: [alice, bob]\n" +
 		"  - name: audience\n    connection: audiences\n    mode: lookup\n"
 )
+
+// deadConnection is a connection of the bootstrap file that can serve segments, at an address where nothing listens:
+// the listener was open to take the port and is closed at once, so a store that runs on the machine cannot answer.
+func deadConnection(tb testing.TB) string {
+	tb.Helper()
+
+	var lc net.ListenConfig
+
+	listener, err := lc.Listen(tb.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(tb, err)
+
+	address := listener.Addr().String()
+	require.NoError(tb, listener.Close())
+
+	return "  audiences: {type: redis, addresses: [\"" + address + "\"]}\n"
+}
 
 func ofrepValue(t *testing.T, rig *v2, flag, key string) (int, []byte) {
 	t.Helper()
@@ -60,7 +75,7 @@ func ofrepResult(t *testing.T, rig *v2, key string) bool {
 func TestE2E_StaticSegmentsTargetThroughOFREP(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t)})
 	rig.flags[segFlagsObject] = []byte(segFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocOne)}
 	rig.sets = []controlplane.FlagSet{{
@@ -112,7 +127,7 @@ func TestE2E_StaticSegmentsTargetThroughOFREP(t *testing.T) {
 func TestE2E_PublicFlagsAreTargetedByTheirStaticSegments(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, &v2Options{connections: audiencesConnection})
+	rig := newV2With(t, &v2Options{connections: deadConnection(t)})
 	rig.flags = map[string][]byte{segFlagsObject: []byte(segFlagsYAML)}
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocOne)}
 	rig.sets = []controlplane.FlagSet{{

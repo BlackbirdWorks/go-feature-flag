@@ -75,7 +75,7 @@ func TestAMalformedPageKeepsTheLastKnownGood(t *testing.T) {
 	srv.answerOnly(nameSScan, "*2\r\n$0\r\n\r\n*0\r\n")
 
 	require.ErrorIs(t, holder.Refresh(context.Background()), valkeysegment.ErrProtocol)
-	assert.Equal(t, snapshot.ClassRead, holder.Status().LastError)
+	assert.Equal(t, snapshot.ClassSet, holder.Status().LastError)
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the old set survives")
 	assert.Equal(t, segment.NotMember, holder.Lookup("c"))
 }
@@ -337,4 +337,39 @@ func lookupAndSnapshot() map[string]valkeysegment.SegmentOptions {
 	}
 
 	return segs
+}
+
+// A key that holds another kind of value is the answer of the store about this set: its class is the one of the set. An
+// error of the store that is not about the set (a store that loads) stays a read failure.
+func TestASnapshotErrorIsTheClassOfTheSetOnlyForAWrongType(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		reply     string
+		wantClass snapshot.Class
+	}{
+		{
+			name:      "wrong type",
+			reply:     "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n",
+			wantClass: snapshot.ClassSet,
+		},
+		{name: "loading", reply: "-LOADING Valkey is loading the dataset in memory\r\n", wantClass: snapshot.ClassRead},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv, prov := snapServer(t, "")
+			srv.seed(snapAlpha, []string{"a"})
+			srv.answerOnly(nameSScan, tt.reply)
+
+			holder, err := snapshot.New(snapAlpha, prov, snapshot.Options{})
+			require.NoError(t, err)
+
+			require.Error(t, holder.Refresh(context.Background()))
+			assert.Equal(t, tt.wantClass, holder.Status().LastError)
+		})
+	}
 }

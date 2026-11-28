@@ -64,7 +64,7 @@ type dynamicCheck struct {
 // checkDynamic checks every dynamic definition of the document against the connections of the bootstrap file: the
 // connection exists, its kind can serve segments, and it serves the mode of the definition. The shape of a definition
 // (the keys layout with the snapshot mode, the version block) is checked by [controlplane.ValidateSegments] before.
-func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores, snapshotUnserved bool) dynamicCheck {
+func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores) dynamicCheck {
 	var out dynamicCheck
 
 	for i := range doc.Segments {
@@ -76,19 +76,13 @@ func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores, snap
 		path := "segments[" + strconv.Itoa(i) + "]"
 		before := len(out.reasons)
 
-		var (
-			facts SegmentStore
-			ok    = true
-		)
-
-		if stores != nil {
-			facts, ok = stores.SegmentStore(def.Connection)
+		if stores == nil {
+			continue // the connections are not known: nothing to check them against
 		}
 
+		facts, ok := stores.SegmentStore(def.Connection)
+
 		switch {
-		case stores == nil:
-			// the connections are not known: only the mode is checked
-			out.reasons = appendReason(out.reasons, path+".mode: ", snapshotReason(def, snapshotUnserved))
 		case !ok:
 			out.reasons = append(out.reasons, fmt.Sprintf(
 				"%s.connection: %q is not a connection of the bootstrap file", path, def.Connection))
@@ -99,8 +93,6 @@ func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores, snap
 			err := segment.RequireMode(def.Name, segment.Mode(def.Mode), facts.Kind, facts.Store)
 			if err != nil {
 				out.reasons = append(out.reasons, path+".mode: "+err.Error())
-			} else {
-				out.reasons = appendReason(out.reasons, path+".mode: ", snapshotReason(def, snapshotUnserved))
 			}
 		}
 
@@ -110,22 +102,4 @@ func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores, snap
 	}
 
 	return out
-}
-
-// snapshotReason is the reason that a definition is refused while the relay does not serve the snapshot mode, empty
-// when it is not refused.
-func snapshotReason(def *controlplane.SegmentDefinition, unserved bool) string {
-	if unserved && segment.Mode(def.Mode).Effective() == segment.ModeSnapshot {
-		return ErrSnapshotNotServed.Error()
-	}
-
-	return ""
-}
-
-func appendReason(reasons []string, prefix, reason string) []string {
-	if reason == "" {
-		return reasons
-	}
-
-	return append(reasons, prefix+reason)
 }
