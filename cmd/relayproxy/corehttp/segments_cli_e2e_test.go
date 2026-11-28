@@ -73,7 +73,8 @@ func (env *cliRig) run(t *testing.T, args ...string) (string, error) {
 
 func (env *cliRig) url(key string) string { return "s3://" + env.bucket + "/" + key }
 
-// writes counts the commands of the store that import: SADD, the scripts and SET.
+// writes counts every write command that the tool can send: SADD, SREM, SET, DEL, UNLINK, RENAME, PERSIST, PEXPIRE
+// and the scripts.
 func (s *valkeyStore) writes(tb testing.TB) int {
 	tb.Helper()
 
@@ -89,7 +90,8 @@ func (s *valkeyStore) writes(tb testing.TB) int {
 		}
 
 		switch name {
-		case "cmdstat_sadd", "cmdstat_eval", "cmdstat_evalsha", "cmdstat_set", "cmdstat_unlink":
+		case "cmdstat_sadd", "cmdstat_srem", "cmdstat_eval", "cmdstat_evalsha", "cmdstat_set", "cmdstat_del",
+			"cmdstat_unlink", "cmdstat_rename", "cmdstat_persist", "cmdstat_pexpire", "cmdstat_setnx":
 			calls, _, _ := strings.Cut(strings.TrimPrefix(stats, "calls="), ",")
 			count, convErr := strconv.Atoi(calls)
 			require.NoError(tb, convErr)
@@ -125,14 +127,16 @@ func TestE2E_CLIImportAndSyncFromS3(t *testing.T) {
 	assert.Contains(t, out, "outcome=unchanged")
 	assert.Equal(t, before, env.store.writes(t), "an unchanged source writes nothing to the store")
 
-	env.srv.PutObject(t, env.bucket, "ids/list.txt", []byte("alice\nheidi\n"))
+	env.srv.PutObject(t, env.bucket, "ids/list.txt", []byte("alice\ncarol\nheidi\n"))
 
 	out, err = env.run(t, "sync", "--once", "--from", env.url("ids/list.txt"))
 	require.NoError(t, err, out)
 	assert.Contains(t, out, "outcome=changed")
 
-	// the clock of the tests is frozen, so the version token does not change: ask ids that no answer is cached for
-	awaitEval(t, env.rig, "heidi", isMember, "the replaced object is imported by the next run")
+	// carol was asked before the replacement and cached as not a member: the version bump must invalidate it, though
+	// the clock of the tests is frozen
+	awaitEval(t, env.rig, "carol", isMember, "the replaced object is imported by the next run")
+	awaitEval(t, env.rig, "heidi", isMember, "a member that was never asked is targeted")
 	awaitEval(t, env.rig, "bob", func(b evalBody) bool { return !b.Value }, "a member that left the object is gone")
 
 	before = env.store.writes(t)
@@ -153,6 +157,8 @@ func TestE2E_CLIImportAndSyncFromS3(t *testing.T) {
 	for _, member := range []string{"dave", "erin", "frank", "grace"} {
 		awaitEval(t, env.rig, member, isMember, "a member of a prefix of objects is targeted")
 	}
+
+	awaitEval(t, env.rig, "alice", func(b evalBody) bool { return !b.Value }, "the old set is replaced")
 
 	size, err := env.store.client.Do(t.Context(), env.store.client.B().Scard().Key("aud").Build()).AsInt64()
 	require.NoError(t, err)

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -294,6 +295,11 @@ func TestRun_s3Source(t *testing.T) {
 			wantErr: segmentadmin.ErrObjectURL, wantCode: helper.ExitFailure,
 		},
 		{
+			name: "sync of an interval of 48 hours", config: fileS3,
+			args:    []string{cmdSync, flagFrom, urlIDs, "--interval", "48h"},
+			wantErr: segmentadmin.ErrBadOptions, wantCode: helper.ExitInvalid, wantMembers: []string{memberOld},
+		},
+		{
 			name: "sync once of a source that is empty", config: fileS3,
 			args:    []string{cmdSync, flagFrom, "s3://bkt/nothing/", flagOnce},
 			wantErr: segmentadmin.ErrEmptyInput, wantCode: helper.ExitInvalid, wantMembers: []string{memberOld},
@@ -558,4 +564,44 @@ func TestRun_noMemberIdInOutputFromS3(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRun_syncOnceWithTheLockHeld: an overlap is a warning that says why, and the exit code stays 0, so that a CronJob
+// does not alarm on it. stat shows the lock and its ttl.
+func TestRun_syncOnceWithTheLockHeld(t *testing.T) {
+	t.Parallel()
+
+	store, client := admintest.New(), newFakeS3()
+	client.put(keyList, "a\nb\n")
+
+	held, err := store.Lock(t.Context(), liveKey+":import:lock", "other", time.Hour)
+	require.NoError(t, err)
+	require.True(t, held)
+
+	args := append([]string{cmdSync, flagFrom, urlIDs, flagOnce}, s3Common(fileS3)...)
+	got := runS3(t, store, client, s3Files(), args...)
+
+	require.NoError(t, got.err)
+	assert.Contains(t, got.stderr, "outcome=skipped")
+	assert.Contains(t, got.stderr, "level=WARN")
+	assert.Contains(t, got.stderr, "holds the lock")
+	assert.Empty(t, store.Members(liveKey))
+
+	stat := runS3(t, store, client, s3Files(), append([]string{cmdStat}, s3Common(fileS3)...)...)
+
+	require.NoError(t, stat.err)
+	assert.Contains(t, stat.stdout, "import lock: held, ttl 1h0m0s")
+}
+
+func TestS3Objects_refuseAnObjectWithoutAnETag(t *testing.T) {
+	t.Parallel()
+
+	client := newFakeS3()
+	client.put(keyList, "a\n")
+
+	objects := segment.NewS3Objects(client, "bkt")
+
+	_, err := objects.Get(t.Context(), keyList, "")
+	require.ErrorIs(t, err, segmentadmin.ErrNoETag)
+	assert.NotContains(t, client.calls, "GET "+keyList, "no read is made without If-Match")
 }

@@ -40,6 +40,10 @@ func (cmd *StatCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Stream
 		lines = append(lines, "version: "+orNone(stats.Version, stats.HasVersion))
 	}
 
+	if stats.LockHeld {
+		lines = append(lines, "import lock: held, ttl "+stats.LockTTL.String())
+	}
+
 	if stats.TTL > 0 {
 		lines = append(lines, "ttl: "+stats.TTL.String())
 	}

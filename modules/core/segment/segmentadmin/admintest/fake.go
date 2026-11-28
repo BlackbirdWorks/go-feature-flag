@@ -509,8 +509,9 @@ func (f *Fake) KeyTTL(ctx context.Context, key string) (bool, time.Duration, err
 	}
 
 	_, set := f.sets[key]
+	_, str := f.strs[key]
 
-	return set, f.ttls[key], nil
+	return set || str, f.ttls[key], nil
 }
 
 // CountKeys implements [segmentadmin.Store].

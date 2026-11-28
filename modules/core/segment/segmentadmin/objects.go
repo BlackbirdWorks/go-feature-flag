@@ -27,6 +27,8 @@ var (
 	ErrObjectChanged = errors.New("the source object changed while it was read")
 	// ErrTooManyObjects is returned when a prefix holds more objects than the bound: nothing is read.
 	ErrTooManyObjects = errors.New("the prefix holds more objects than --max-objects")
+	// ErrNoETag is returned when the store gives an object no ETag: a change cannot be detected without it.
+	ErrNoETag = errors.New("the store returned no ETag; change detection needs it")
 	// ErrSourceChanged is returned when the objects of a source are not the ones that were listed when the run began:
 	// nothing is swapped, and the next run starts again.
 	ErrSourceChanged = errors.New("the source changed while it was read: nothing was swapped")
@@ -182,7 +184,7 @@ func (s *ObjectSource) list(ctx context.Context) ([]ObjectInfo, error) {
 			return nil, fmt.Errorf("head the source object: %w", err)
 		}
 
-		return []ObjectInfo{info}, nil
+		return checked([]ObjectInfo{info})
 	}
 
 	var (
@@ -217,5 +219,16 @@ func (s *ObjectSource) list(ctx context.Context) ([]ObjectInfo, error) {
 
 	slices.SortFunc(found, func(a, b ObjectInfo) int { return strings.Compare(a.Key, b.Key) })
 
-	return found, nil
+	return checked(found)
+}
+
+// checked refuses an object without an ETag: the reads carry If-Match with it, and the fingerprint is built from it.
+func checked(objects []ObjectInfo) ([]ObjectInfo, error) {
+	for _, info := range objects {
+		if info.ETag == "" {
+			return nil, fmt.Errorf("%w: %s", ErrNoETag, info.Key)
+		}
+	}
+
+	return objects, nil
 }

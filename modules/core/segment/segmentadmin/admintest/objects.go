@@ -19,8 +19,9 @@ import (
 var ErrReadFailed = errors.New("the connection broke")
 
 type object struct {
-	data []byte
-	gzip bool
+	data   []byte
+	gzip   bool
+	noETag bool
 }
 
 // Objects is an in-memory bucket that implements [segmentadmin.ObjectAPI]. It is safe for concurrent use. The ETag of
@@ -52,6 +53,16 @@ func (o *Objects) Put(key string, data []byte, gzip bool) {
 	defer o.mu.Unlock()
 
 	o.objs[key] = object{data: slices.Clone(data), gzip: gzip}
+}
+
+// WithoutETag makes the store answer an object with an empty ETag, as some S3 compatible stores do.
+func (o *Objects) WithoutETag(key string) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	obj := o.objs[key]
+	obj.noETag = true
+	o.objs[key] = obj
 }
 
 // Remove deletes an object.
@@ -95,8 +106,12 @@ func (o *Objects) Calls() []string {
 	return slices.Clone(o.calls)
 }
 
-func etagOf(data []byte) string {
-	sum := sha256.Sum256(data)
+func etagOf(obj object) string {
+	if obj.noETag {
+		return ""
+	}
+
+	sum := sha256.Sum256(obj.data)
 
 	return `"` + hex.EncodeToString(sum[:8]) + `"`
 }
@@ -118,7 +133,7 @@ func (o *Objects) Head(ctx context.Context, key string) (segmentadmin.ObjectInfo
 		return segmentadmin.ObjectInfo{}, segmentadmin.ErrObjectMissing
 	}
 
-	return segmentadmin.ObjectInfo{Key: key, ETag: etagOf(obj.data), Size: int64(len(obj.data))}, nil
+	return segmentadmin.ObjectInfo{Key: key, ETag: etagOf(obj), Size: int64(len(obj.data))}, nil
 }
 
 // List implements [segmentadmin.ObjectAPI]. The token is the last key of the previous page.
@@ -151,10 +166,10 @@ func (o *Objects) List(ctx context.Context, prefix, token string) (segmentadmin.
 	}
 
 	for _, key := range keys {
-		data := o.objs[key].data
+		obj := o.objs[key]
 		page.Objects = append(
 			page.Objects,
-			segmentadmin.ObjectInfo{Key: key, ETag: etagOf(data), Size: int64(len(data))},
+			segmentadmin.ObjectInfo{Key: key, ETag: etagOf(obj), Size: int64(len(obj.data))},
 		)
 	}
 
@@ -186,7 +201,7 @@ func (o *Objects) Get(ctx context.Context, key, etag string) (segmentadmin.Objec
 	switch {
 	case !ok:
 		return segmentadmin.Object{}, segmentadmin.ErrObjectMissing
-	case etag != "" && etag != etagOf(obj.data):
+	case etag != "" && etag != etagOf(obj):
 		return segmentadmin.Object{}, segmentadmin.ErrObjectChanged
 	}
 

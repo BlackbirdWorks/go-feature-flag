@@ -70,6 +70,7 @@ semaphore-cli segment import --config relay.yaml --segment vip --from s3://ids-b
 - **IAM.** The role needs `s3:GetObject` on the objects and `s3:ListBucket` on the bucket, limited to the prefix with the `s3:prefix` condition. A single object needs `s3:GetObject` only (the check of its ETag uses `HEAD`, which `s3:GetObject` allows).
 - **Streaming.** An object is read with one `GET` and never held whole in memory; no temporary file is written. An object that is gzip (`Content-Encoding: gzip`, or a name that ends with `.gz`) is decompressed on the fly.
 - **A changed source aborts the import before the swap.** Each `GET` carries `If-Match` with the ETag of the listing, so an object that was replaced after the listing fails the import. At the end of the input the listing is read again, and an object that was added, removed or replaced fails it too. A read error in the middle of an object, or a body shorter than announced, fails it. In each case the live set is untouched (exit 3 for a changed source, 1 for the others).
+- **ETag.** The store must return an ETag for each object: change detection and `If-Match` need it. An S3 compatible store that returns none fails the import with `the store returned no ETag; change detection needs it` (the tool never reads without `If-Match` and never falls back to the key and size).
 - **Bounds.** A listing is paginated and holds at most `--max-objects` objects (default 1000): more is an error (exit 2), never a part of the prefix. A prefix with no object is an empty input: an error unless `--allow-empty`.
 - The import records the fingerprint of the source with the swap (see [Sync](#sync)).
 
@@ -83,10 +84,11 @@ semaphore-cli segment sync --config relay.yaml --segment vip --from s3://ids-buc
 Keeps the segment in step with an object or a prefix: it checks the source and runs an import when the source is not the one that the live set came from.
 
 - **Fingerprint.** The identity of the source is a SHA-256 over the key, ETag and size of each object: one `HEAD` for an object, the listing for a prefix. No content is read to compare. It is stored in `<key>:import:source`, in the slot of the set, by the same script that swaps the set: the swap and the record are one step, so a crash between them cannot skip a change or leave a record of a set that is not live. An import without a fingerprint (a file, standard input) removes the record, so the next sync imports again.
-- **Rounds.** A round reads the stored fingerprint (one `GET`) and the source. Equal: `unchanged`, no write. Different, or no record (the first run): the source is imported. Another import holds the lock: `skipped`, the round does nothing and the next one tries again.
-- **Failure.** A failed round (the source, the store or the import) keeps the previous set. It is retried at the next interval; after repeated failures the pause doubles, up to 16 intervals, and comes back to the interval after a good round.
-- **Health.** Each round logs one line to standard error at info level with the outcome (`changed`, `unchanged`, `skipped` or `failed`), the counts and the duration. Warnings carry the error text. No id is ever logged.
-- **Lifecycle.** The command runs until its context ends: the first SIGINT or SIGTERM stops the import in flight before its swap (or lets a swap that was sent finish), and a second signal ends the process at once. `--once` runs one round and exits with its result: 0 when the source was unchanged, imported or skipped, the exit code of the import when it failed.
+- **Rounds.** A round reads the stored fingerprint (one `GET`) and the source. Equal: `unchanged`, no write. Different, or no record (the first run): the source is imported. Another import holds the lock: `skipped`, logged at warn level with the reason, the round does nothing and the next one tries again. `segment stat` shows the lock and its ttl (`import lock: held, ttl ...`): a lock that a dead run left expires by its ttl (`--temp-ttl`).
+- **Failure.** A failed round (the source, the store or the import) keeps the previous set. It is retried at the next interval; after repeated failures the pause doubles, up to 16 intervals (never above 24 h), and comes back to the interval after a good round.
+- **Health.** Each round logs one line to standard error with the outcome (`changed`, `unchanged`, `skipped`, `failed` or `stopped`), the counts and the duration. `unchanged`, `changed` and `stopped` (the signal that ends the command arrived during the round) are info lines; `skipped` and `failed` are warnings, with the reason or the error text. No id is ever logged.
+- **Lifecycle.** The command runs until its context ends: the first SIGINT or SIGTERM stops the import in flight before its swap (or lets a swap that was sent finish), and a second signal ends the process at once. `--once` runs one round and exits with its result: 0 when the source was unchanged, imported or skipped (an overlap with another import must not alarm a job), the exit code of the import when it failed. `--interval` is 1 s to 24 h (exit 2 outside).
+- `add` and `remove` do not touch the record of the source. A manual edit survives while the source is unchanged; the next import of a changed source replaces the whole set, edits included.
 - The import options of `import` apply (`--format`, `--column`, `--batch-size`, `--temp-ttl`, `--max-line-bytes`, `--allow-empty`, `--max-objects`, `--source-connection`).
 
 Run it as a Kubernetes `CronJob` with `--once` (recommended: one short process, the schedule is the interval, a failure is a failed job with its exit code), or as a long-running process with `--interval` (default 1m).
@@ -157,7 +159,7 @@ semaphore-cli segment stat --config relay.yaml --segments segments.yaml --segmen
 ```
 
 Prints whether the segment exists, its members (`SCARD`; for `keys`, distinct keys counted by `SCAN` up to `--scan-limit`, default 100,000, printed as `at least N` when it is hit; memory is bounded by that limit),
-the version token and the ttl of the set when it has one.
+the version token, the ttl of the set when it has one, and the import lock with its ttl when an import (or a dead run) holds it.
 
 ## Bump
 
@@ -183,7 +185,7 @@ Key layouts (see [Redis](../configure-flags/segments-redis.md) and [Valkey](../c
 
 - The default set key holds the segment name in a hash tag. The keys of an import (`<key>:import:lock`, `<key>:import:last`, `<key>:import:<token>:new`, `<key>:import:<token>:old`) keep the tag of the live key, or, for a key without a tag, wrap the key in one (`{<key>}:import:...`), so that they are in the cluster slot of the live key and the scripts work on a cluster. A key whose tag cannot be shared is refused.
 - The record of the source (`<key>:import:source`) is a string, the fingerprint of the input of the last import that had one. It is in the slot of the set and is written by the swap script; the writer ACL below covers it.
-- The version key is a string: the time of the last change. Keep it outside the prefix of a `keys` segment, or `stat` counts it.
+- The version key is a string: the time of the last change (RFC 3339), a dot and 16 random hex characters. The random part makes every bump a different value whatever the clock says, so a relay that compares the token always sees a change. Keep it outside the prefix of a `keys` segment, or `stat` counts it.
 - The tool refuses (exit 2) a segment whose keys can meet those of another segment of the same document on the same connection: no key, version key or member prefix of another segment may be one of the keys that an import of the segment uses (`<key>:import:...`), and two segments may not share a key. It removes only keys that it created under its own token.
 - The temporary key and the lock have a ttl from the first batch (`--temp-ttl`, refreshed by each batch). The live key has no ttl: `PERSIST` removes the one that `RENAME` carries over.
 

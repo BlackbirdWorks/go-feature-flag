@@ -35,6 +35,20 @@ func (cmd *SyncCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Stream
 			helper.ErrUsage, segmentadmin.ErrObjectURL)
 	}
 
+	opts := &segmentadmin.SyncOptions{
+		Log:      slog.New(slog.NewTextHandler(streams.Stderr, nil)),
+		Interval: cmd.Interval,
+		Reader: segmentadmin.ReaderOptions{
+			Format: segmentadmin.Format(cmd.Format), Column: cmd.Column, MaxLineBytes: cmd.MaxLineBytes,
+		},
+		Import: segmentadmin.ImportOptions{BatchSize: cmd.BatchSize, TempTTL: cmd.TempTTL, AllowEmpty: cmd.AllowEmpty},
+	}
+
+	err := opts.Validate()
+	if err != nil {
+		return wrapErr(err)
+	}
+
 	sess, err := open(ctx, &cmd.Common, parent.Debug, streams, deps)
 	if err != nil {
 		return wrapErr(err)
@@ -46,19 +60,8 @@ func (cmd *SyncCmd) Run(ctx context.Context, parent *Cmd, streams *helper.Stream
 		return wrapErr(err)
 	}
 
-	opts := &segmentadmin.SyncOptions{
-		Log:      slog.New(slog.NewTextHandler(streams.Stderr, nil)),
-		Interval: cmd.Interval,
-		Reader: segmentadmin.ReaderOptions{
-			Format: segmentadmin.Format(cmd.Format), Column: cmd.Column, MaxLineBytes: cmd.MaxLineBytes,
-		},
-		Import: segmentadmin.ImportOptions{BatchSize: cmd.BatchSize, TempTTL: cmd.TempTTL, AllowEmpty: cmd.AllowEmpty},
-	}
-
 	if !cmd.Once {
-		segmentadmin.Sync(ctx, sess.store, sess.target, source, opts)
-
-		return nil
+		return wrapErr(segmentadmin.Sync(ctx, sess.store, sess.target, source, opts))
 	}
 
 	return wrapErr(segmentadmin.SyncRound(ctx, sess.store, sess.target, source, opts).Err)

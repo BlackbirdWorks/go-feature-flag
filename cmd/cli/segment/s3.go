@@ -78,10 +78,11 @@ func (o *S3Objects) List(ctx context.Context, prefix, token string) (segmentadmi
 
 // Get implements [segmentadmin.ObjectAPI]: one GET, conditional on the ETag, whose body is read as it arrives.
 func (o *S3Objects) Get(ctx context.Context, key, etag string) (segmentadmin.Object, error) {
-	in := &s3.GetObjectInput{Bucket: &o.bucket, Key: &key}
-	if etag != "" {
-		in.IfMatch = &etag
+	if etag == "" {
+		return segmentadmin.Object{}, fmt.Errorf("%w: %s", segmentadmin.ErrNoETag, key) // never read without If-Match
 	}
+
+	in := &s3.GetObjectInput{Bucket: &o.bucket, Key: &key, IfMatch: &etag}
 
 	out, err := o.client.GetObject(ctx, in)
 	if err != nil {
