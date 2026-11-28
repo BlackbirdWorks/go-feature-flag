@@ -27,6 +27,9 @@ type Settings struct {
 	Mode ServerMode
 	// Host is the host the API and the monitoring listeners bind.
 	Host string
+	// MonitoringHost is the host the monitoring (ops) listener binds, empty for every interface; nil means Host, the
+	// way it was before the ops listener had an address of its own.
+	MonitoringHost *string
 	// UnixSocketPath is the path of the socket in the unix socket mode.
 	UnixSocketPath string
 	// OfrepEventStream is what the OFREP bulk evaluation advertises of the stream of flag changes.

@@ -18,7 +18,7 @@ Check the [**OpenAPI specification**](https://github.com/BlackbirdWorks/semaphor
 | `POST /v1/flag/configuration`           | Current flag configuration.                                            |
 | `GET /openfeature/v0/manifest`          | OpenFeature flag manifest.                                             |
 | `POST /admin/v1/flags/validate`         | Validate a flag file.                                                  |
-| `POST /admin/v1/retriever/refresh`      | Force a refresh of the retrievers.                                     |
+| `POST /admin/v1/retriever/refresh`      | Poll the control plane now (admin key); answers the result, the generation and whether it changed. |
 | `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when set; `/metrics` requires metrics enabled). |
 
 Streaming endpoints are listed in [Flag change streams](#flag-change-streams).

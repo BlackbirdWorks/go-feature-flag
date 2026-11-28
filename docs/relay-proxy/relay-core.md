@@ -81,15 +81,16 @@ seam; the tests of the handlers implement it on engine clients.
   effect); when more than 1024 flag sets wait, the oldest is dropped and counted. `Close` is bounded by its context.
   The end to end test follows an SSE client.
 - **Flag change**: the hashes of a flag set are computed once per flag set and reused by every poll.
-- **Refresh**: `/admin/v1/retriever/refresh` answers 501: the core has no refresh on request, its changes arrive by
-  polling the control plane (the manifest reader has no trigger yet).
+- **Refresh**: `/admin/v1/retriever/refresh` (admin key) polls the control plane now through the loop that polls on
+  schedule, shares one poll between the calls that arrive together, and answers when the engine has decided the
+  generation the poll found: `applied` says that the relay serves it, `rejection` gives the code when the engine
+  refused it and kept the last known good.
 - **Read only**: a result of an evaluation and the flags of a flag set are shared between requests. The handlers
   serialize them and never change them.
 
 ### Not yet in the v2 core
 
 - Tracking events (`kind: tracking`) reach no exporter: they are accepted and dropped.
-- Refresh on request (`/admin/v1/retriever/refresh`): answers 501.
 - A change of the bootstrap file is read on `SIGHUP`, not watched.
 
 The binary builds `corehttp.NewReadiness(core)` and calls `BeginShutdown` on SIGTERM before the streams close and the

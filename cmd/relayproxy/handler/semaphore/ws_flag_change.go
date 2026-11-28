@@ -24,15 +24,25 @@ import (
 // this guard the relay proxy panics with "concurrent write to websocket
 // connection" (see issue #5463).
 type threadSafeConn struct {
-	conn *websocket.Conn
+	conn writeConn
+	// now is the clock the deadlines are measured on; nil is the wall clock, which the network deadlines run on.
+	now func() time.Time
 	// deadline is the time the network gets to take one message.
 	deadline time.Duration
 	mu       sync.Mutex
 }
 
+// writeConn is what the writers use of a websocket connection: *websocket.Conn implements it.
+type writeConn interface {
+	SetWriteDeadline(deadline time.Time) error
+	WriteJSON(message any) error
+	WriteMessage(messageType int, data []byte) error
+	Close() error
+}
+
 // WriteJSON satisfies stream.WebsocketConnector (used by BroadcastFlagChanges).
 func (c *threadSafeConn) WriteJSON(message any) error {
-	err := c.write(func(conn *websocket.Conn) error { return conn.WriteJSON(message) })
+	err := c.write(func(conn writeConn) error { return conn.WriteJSON(message) })
 	if err != nil {
 		return fmt.Errorf("write websocket JSON: %w", err)
 	}
@@ -52,7 +62,7 @@ func (c *threadSafeConn) Close() error {
 
 // ping sends a ping control message to the client.
 func (c *threadSafeConn) ping() error {
-	err := c.write(func(conn *websocket.Conn) error { return conn.WriteMessage(websocket.PingMessage, nil) })
+	err := c.write(func(conn writeConn) error { return conn.WriteMessage(websocket.PingMessage, nil) })
 	if err != nil {
 		return fmt.Errorf("write websocket ping: %w", err)
 	}
@@ -63,7 +73,7 @@ func (c *threadSafeConn) ping() error {
 // write runs one write on the connection, alone, with a fresh deadline that is set right before it. A deadline stays
 // on the connection after the write, so every writer (messages and control frames) sets its own: none runs on the
 // one that an earlier write left behind.
-func (c *threadSafeConn) write(send func(*websocket.Conn) error) error {
+func (c *threadSafeConn) write(send func(writeConn) error) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -75,7 +85,12 @@ func (c *threadSafeConn) write(send func(*websocket.Conn) error) error {
 		deadline = writeDeadline
 	}
 
-	_ = c.conn.SetWriteDeadline(time.Now().Add(deadline))
+	now := c.now
+	if now == nil {
+		now = time.Now
+	}
+
+	_ = c.conn.SetWriteDeadline(now().Add(deadline))
 
 	return send(c.conn)
 }

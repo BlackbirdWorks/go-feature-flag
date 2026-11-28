@@ -2,8 +2,12 @@
 
 ## Refresh on request
 
-The relay does not refresh on request: `POST /admin/v1/retriever/refresh` answers `501`. The relay polls the control plane
-manifest and applies a change after one poll, see [the core](relay-core.md).
+The relay polls the control plane manifest on a schedule and applies a change after one poll, see [the core](relay-core.md).
+To not wait for the next poll, call `POST /admin/v1/retriever/refresh` with an admin key: the relay polls at once and
+answers `{"result", "generation", "refreshed", "changed", "applied", "appliedGeneration"}` when it serves the generation
+the poll found (an evaluation after the answer uses it). A generation the engine rejects is answered with
+`"applied": false` and a `rejection` code, and the relay keeps the last known good. Calls that arrive together share one
+poll.
 
 ## Validate a flag file
 

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -65,6 +66,27 @@ type FlagChanger interface {
 	// FlagChange returns the hash of every flag and the hash of the whole table.
 	FlagChange() (flags map[string]uint32, hash uint32, err error)
 }
+
+// RefreshOutcome is what a refresh on request found.
+type RefreshOutcome struct {
+	Result            string
+	Reason            string
+	Rejection         string
+	Generation        uint64
+	AppliedGeneration uint64
+	Changed           bool
+	Applied           bool
+}
+
+// Refresher is a [FlagSetResolver] that polls its control plane on request, through the poll of the schedule: calls
+// that arrive together share one poll, and ctx bounds the wait for it.
+type Refresher interface {
+	// Refresh polls now and returns what the poll found.
+	Refresh(ctx context.Context) (RefreshOutcome, error)
+}
+
+// ErrNotPolling is the error of [Refresher.Refresh] when the relay does not poll (not started, or stopped).
+var ErrNotPolling = errors.New("the relay is not polling its control plane")
 
 // RefreshUnsupported is a [FlagSetResolver] whose flag sets can not be refreshed on request: the refresh endpoint
 // answers 501 with the reason.

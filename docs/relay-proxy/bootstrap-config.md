@@ -14,8 +14,9 @@ control plane location, listeners, observability and admin keys. It is strict: a
   path-addressed error that holds no secret. An invalid or version 1 file exits with a non-zero
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).
-- Listeners: one `api` listener and at most one `ops` listener on the same host, with ports from 1 to 65535. More
-  listeners, another host for `ops` and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
+- Listeners: one `api` listener and at most one `ops` listener, each with its own address (the ops listener can bind another host, for
+  example `127.0.0.1:1032`), with ports from 1 to 65535. More
+  listeners, the same address twice and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
   validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
   cleartext on the `api` listener.
 - `observability.logging.format: text` writes logfmt lines.
@@ -25,8 +26,8 @@ control plane location, listeners, observability and admin keys. It is strict: a
   is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
   whole and the running keys stay. A change of the file on disk is not watched: send `SIGHUP`.
 - Stop: on `SIGTERM` or `SIGINT` the relay shuts down in the order described in [Shutdown](#shutdown).
-- Removed with the switch: the `/admin/v1/retriever/refresh` endpoint answers 501 (the relay polls the manifest, it has no
-  refresh on request), the AWS Lambda mode and artifact are gone, and so are the retrievers other than the control plane
+- Removed with the switch: the AWS Lambda mode and artifact are gone (`/admin/v1/retriever/refresh` polls the control
+  plane on request, see [advanced usage](advanced-usage.md)), and so are the retrievers other than the control plane
   store (they come back with the retriever kinds of the control plane, issue #57).
 
 ## Rules
