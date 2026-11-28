@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 // SetState is the state of a flag set.
@@ -62,6 +63,8 @@ type FlagSet struct {
 	ModifiedAt time.Time
 	change     *changeMemo
 	Flags      map[string]*flagdef.InternalFlag
+	// Segments is what the rules of the flag set can use as segments, nil when the flag set has none.
+	Segments   *SetSegments
 	Name       string
 	State      SetState
 	Hash       uint64
@@ -79,6 +82,15 @@ func (f *FlagSet) Flag(name string) (*flagdef.InternalFlag, bool) {
 	fl, ok := f.Flags[name]
 
 	return fl, ok
+}
+
+// SegmentCatalog is the catalog of the segments of the flag set, nil when it has none. It does not allocate.
+func (f *FlagSet) SegmentCatalog() *segment.Catalog {
+	if f == nil || f.Segments == nil {
+		return nil
+	}
+
+	return f.Segments.Catalog
 }
 
 // Holder is the one place readers get the current Runtime from. The zero value is usable: the first Load stores

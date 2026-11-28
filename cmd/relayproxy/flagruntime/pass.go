@@ -162,6 +162,10 @@ func newSpec(entry *controlplane.FlagSet) (*setSpec, int) {
 
 	sum = mixUint(sum, uint64(len(entry.Sources)))
 
+	for _, source := range entry.SegmentSources {
+		sum = mixString(mixString(sum, "segmentSource"), source)
+	}
+
 	for _, key := range entry.APIKeys {
 		sum = mixString(sum, key)
 	}
@@ -169,7 +173,8 @@ func newSpec(entry *controlplane.FlagSet) (*setSpec, int) {
 	keys, repeats := uniqueKeys(entry.APIKeys)
 
 	return &setSpec{
-		name: entry.Name, sources: entry.Sources, declKeys: keys, keys: keys, declHash: sum,
+		name: entry.Name, sources: entry.Sources, segSources: entry.SegmentSources, declKeys: keys, keys: keys,
+		declHash: sum,
 	}, repeats
 }
 
@@ -491,6 +496,11 @@ func dropLostKeys(cands []*candidate, owner map[string]string, entries []EntryPr
 func (st *stage) reusable(old *setState, cand *candidate) bool {
 	if old.spec.declHash != cand.spec.declHash || len(old.spec.sources) != len(cand.spec.sources) ||
 		!slices.Equal(old.spec.keys, cand.spec.keys) || !slices.Equal(old.notes, cand.notes) ||
+		len(
+			old.spec.segSources,
+		) != len(
+			cand.spec.segSources,
+		) || !slices.Equal(old.spec.segSources, cand.spec.segSources) ||
 		old.frozen != (cand.mode == modeFrozen) || old.placeholder != (cand.mode == modePlaceholder) {
 		return false
 	}
@@ -501,6 +511,18 @@ func (st *stage) reusable(old *setState, cand *candidate) bool {
 
 	for idx, source := range cand.spec.sources {
 		if st.objects[source] != old.inputs[idx] {
+			return false
+		}
+	}
+
+	return st.sameSegments(old, cand)
+}
+
+// sameSegments says whether the segments objects that a built flag set was made from are still the ones in force, by
+// pointer: a changed, stale or removed segments object makes a new flag set.
+func (st *stage) sameSegments(old *setState, cand *candidate) bool {
+	for idx, source := range cand.spec.segSources {
+		if st.segs[source] != old.segInputs[idx] {
 			return false
 		}
 	}

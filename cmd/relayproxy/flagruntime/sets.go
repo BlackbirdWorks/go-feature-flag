@@ -27,6 +27,17 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 		}
 	}
 
+	// a segments object that changed (same names, other members): the flag sets that list it as a source
+	for setName, held := range st.prev.sets {
+		for _, source := range held.spec.segSources {
+			if slices.Contains(st.chSegs, source) {
+				affected[setName] = struct{}{}
+
+				break
+			}
+		}
+	}
+
 	if len(affected) == 0 {
 		return &next, nil
 	}
@@ -148,16 +159,22 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 		phase = StateDegraded
 	}
 
+	segInputs, segments, segProblems := st.setSegments(spec)
+	if len(segProblems) > 0 {
+		sum.problems = append(sum.problems, segProblems...)
+		phase = StateDegraded
+	}
+
 	fset := &FlagSet{
 		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
-		ModifiedAt: st.now,
+		ModifiedAt: st.now, Segments: segments,
 	}
 
 	return &setState{
-		spec: spec, fs: fset, inputs: inputs, notes: notes,
+		spec: spec, fs: fset, inputs: inputs, segInputs: segInputs, notes: notes,
 		status: &FlagSetStatus{
 			Name: spec.name, State: phase, Sources: spec.sources, Problems: sum.problems, Flags: len(flags),
-			APIKeys: len(spec.keys), Rejected: sum.rejected,
+			APIKeys: len(spec.keys), Rejected: sum.rejected, Segments: segments.counts(),
 		},
 	}
 }
@@ -167,8 +184,14 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *setState {
 	// the fields are copied one by one: a FlagSet holds a memo that must not be copied
 	fset := &FlagSet{
-		Flags: old.fs.Flags, Name: old.fs.Name, State: old.fs.State, Hash: old.fs.Hash, APIKeys: len(spec.keys),
-		Rejected: old.fs.Rejected, ModifiedAt: now,
+		Flags:      old.fs.Flags,
+		Segments:   old.fs.Segments,
+		Name:       old.fs.Name,
+		State:      old.fs.State,
+		Hash:       old.fs.Hash,
+		APIKeys:    len(spec.keys),
+		Rejected:   old.fs.Rejected,
+		ModifiedAt: now,
 	}
 
 	if fset.State == StateServing {
@@ -178,7 +201,15 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *se
 	status := *old.status
 	status.State, status.APIKeys, status.Problems = fset.State, len(spec.keys), slices.Clone(notes)
 
-	return &setState{spec: spec, fs: fset, status: &status, inputs: old.inputs, notes: notes, frozen: true}
+	return &setState{
+		spec:      spec,
+		fs:        fset,
+		status:    &status,
+		inputs:    old.inputs,
+		segInputs: old.segInputs,
+		notes:     notes,
+		frozen:    true,
+	}
 }
 
 // placeholderSet routes the keys of an invalid entry that never had a valid definition to a flag set that is

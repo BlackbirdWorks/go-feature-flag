@@ -318,6 +318,7 @@ func variation[T model.JSONType](
 		DefaultSdkValue:             sdkDefaultValue,
 		EvaluationContextEnrichment: eval.enrichmentFor(set).values,
 		Service:                     eval.svc,
+		SegmentCatalog:              set.SegmentCatalog(),
 	}
 
 	return evaluation.Evaluate[T](
@@ -465,6 +466,7 @@ func (e *Evaluator) GetFlagStates(
 		EvaluationContextEnrichment: e.enrichmentFor(set).values,
 		DefaultSdkValue:             nil,
 		Service:                     e.svc,
+		SegmentCatalog:              set.SegmentCatalog(),
 	}
 
 	states := flagstate.NewAllFlags()

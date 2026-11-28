@@ -37,7 +37,7 @@ type WithdrawnSet struct {
 }
 
 // FlagSetStatus is the status of one flag set.
-type FlagSetStatus struct {
+type FlagSetStatus struct { //nolint:govet // fieldalignment: the field order is the order of the JSON
 	// Name is the name of the flag set.
 	Name string `json:"name"`
 	// State is the state of the flag set.
@@ -52,6 +52,8 @@ type FlagSetStatus struct {
 	APIKeys int `json:"apiKeys"`
 	// Rejected is the number of rejected flags in its sources.
 	Rejected int `json:"rejected"`
+	// Segments counts the segments of the flag set (nil when it has none).
+	Segments *SegmentCounts `json:"segments,omitempty"`
 }
 
 // Problem is one reported problem of a flag set. Subject is a source name or empty.

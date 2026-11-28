@@ -39,11 +39,13 @@ type docState struct {
 
 // setSpec is the definition of a flag set in force.
 type setSpec struct {
-	name     string
-	sources  []string
-	declKeys []string // keys as declared
-	keys     []string // keys the flag set holds (declared minus the ones another flag set holds)
-	declHash uint64
+	name    string
+	sources []string
+	// segSources are the names of the segments objects whose segments the rules of the flag set can use.
+	segSources []string
+	declKeys   []string // keys as declared
+	keys       []string // keys the flag set holds (declared minus the ones another flag set holds)
+	declHash   uint64
 }
 
 // setState is a built flag set with what it was built from.
@@ -52,7 +54,9 @@ type setState struct {
 	fs     *FlagSet
 	status *FlagSetStatus
 	inputs []*objState
-	notes  []Problem
+	// segInputs are the segments objects that the set was built from, by pointer, in the order of segSources.
+	segInputs []*segState
+	notes     []Problem
 	// frozen: the entry is invalid, the set keeps the flags it had. placeholder: the entry is invalid and the
 	// set never had flags; it only routes its keys.
 	frozen      bool

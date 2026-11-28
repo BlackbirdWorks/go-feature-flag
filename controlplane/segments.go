@@ -73,7 +73,7 @@ type SegmentDefinition struct { //nolint:govet // fieldalignment: the field orde
 	Layout string `json:"layout,omitempty" yaml:"layout,omitempty"`
 	// MissingKey is "notMember" (default) or "unknown": what a segment that does not exist in the store means.
 	MissingKey string `json:"missingKey,omitempty" yaml:"missingKey,omitempty"`
-	// OnError is what a lookup that could not be answered becomes: "unknown" (default), "notMember" or "member".
+	// OnError is what a lookup that could not be answered becomes: "notMember" (default), "unknown" or "member".
 	OnError string `json:"onError,omitempty" yaml:"onError,omitempty"`
 	// Version says how the version of the segment is learned (dynamic only).
 	Version *SegmentVersion `json:"version,omitempty" yaml:"version,omitempty"`

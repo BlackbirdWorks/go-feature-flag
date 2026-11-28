@@ -1,13 +1,22 @@
 package model
 
 // FlagSetInfo is the state of one flag set: ready, degraded or pending.
-type FlagSetInfo struct {
+type FlagSetInfo struct { //nolint:govet // fieldalignment: the field order is the order of the JSON
 	Name     string        `json:"name"`
 	State    string        `json:"state"`
 	Problems []ProblemInfo `json:"problems"`
 	Flags    int           `json:"flags"`
 	APIKeys  int           `json:"apiKeys"`
 	Rejected int           `json:"rejected"`
+	// Segments counts the segments of the flag set by kind; it is left out for a flag set without segments.
+	Segments *SegmentCountsInfo `json:"segments,omitempty"`
+}
+
+// SegmentCountsInfo is the number of segments of a flag set: static (members in the document) and dynamic (members in
+// a store).
+type SegmentCountsInfo struct {
+	Static  int `json:"static"`
+	Dynamic int `json:"dynamic"`
 }
 
 // ProblemInfo is a reported problem of a flag set: a closed code and the object it is about. The free text of the

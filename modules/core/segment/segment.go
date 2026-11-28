@@ -183,7 +183,28 @@ func (d *Definition) Resolve(state State) State {
 // Catalog is the set of the segments that a flag set defines. It is immutable and safe for concurrent use: a change
 // of the definitions is a new Catalog.
 type Catalog struct {
-	defs map[string]Definition
+	defs   map[string]Definition
+	static map[string]*MemberSet
+}
+
+// NewCatalogWithSets is [NewCatalog] with the members of the static segments: the segment name of a set is answered
+// from memory (see [Catalog.Member]), no provider is asked. The catalog keeps the sets, it does not copy them. A set
+// whose name has no definition is an error.
+func NewCatalogWithSets(sets map[string]*MemberSet, defs ...Definition) (*Catalog, error) {
+	catalog, err := NewCatalog(defs...)
+	if err != nil {
+		return nil, err
+	}
+
+	for name := range sets {
+		if _, ok := catalog.defs[name]; !ok {
+			return nil, fmt.Errorf("%w: %q: members of a segment that is not defined", ErrInvalidDefinition, name)
+		}
+	}
+
+	catalog.static = sets
+
+	return catalog, nil
 }
 
 // NewCatalog validates the definitions and returns the catalog of them. The names must be unique.
@@ -218,6 +239,25 @@ func (c *Catalog) Has(name string) bool {
 	_, ok := c.defs[name]
 
 	return ok
+}
+
+// Member answers a lookup from the members of a static segment: ok is false when the segment is not static, and
+// the provider decides. It does not allocate and is safe for concurrent use.
+func (c *Catalog) Member(name, id string) (State, bool) {
+	if c == nil {
+		return Unknown, false
+	}
+
+	set, ok := c.static[name]
+	if !ok {
+		return Unknown, false
+	}
+
+	if set.Contains(id) {
+		return Member, true
+	}
+
+	return NotMember, true
 }
 
 // ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does; a segment
