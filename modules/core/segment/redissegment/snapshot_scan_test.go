@@ -496,13 +496,19 @@ func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
 		return nil
 	}
 
+	var releaseOnce sync.Once
+
+	open := func() { releaseOnce.Do(func() { close(release) }) }
+
+	t.Cleanup(open) // a failed test must not leave the read at the gate
+
 	prov := snapProvider(t, store, segs, "")
 
 	var wait sync.WaitGroup
 
 	wait.Go(func() {
 		_, err := prov.Version(context.Background(), snapAlpha)
-		assert.NoError(t, err)
+		assert.NoError(t, err, "the store ignores its context: the read ends with its answer once it is released")
 	})
 
 	<-entered
@@ -516,7 +522,7 @@ func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
 		"the read in flight is waited for, bounded by the context",
 	)
 
-	close(release)
+	open()
 	wait.Wait()
 	require.NoError(t, prov.Shutdown(context.Background()))
 }

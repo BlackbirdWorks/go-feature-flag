@@ -2,12 +2,14 @@ package valkeysegment_test
 
 import (
 	"context"
+	"errors"
 	"strconv"
-	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/valkey-io/valkey-go"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
@@ -284,32 +286,43 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 	}
 }
 
-func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
+// A read in flight when Shutdown gives up is ended by Shutdown, not by its answer: the gate of the server stays closed
+// until the read has returned, so the only way out for the read is the cancellation. (With the gate open, the answer
+// can reach the read before it sees the cancellation, and the read then returns its answer: that is not a failure.)
+func TestShutdownEndsASnapshotReadInFlight(t *testing.T) {
 	t.Parallel()
 
 	srv, prov := snapServer(t, "")
 	entered := srv.Hang()
 
-	var wait sync.WaitGroup
+	t.Cleanup(srv.Release) // a failed test must not leave the read at the gate
 
-	wait.Go(func() {
+	ended := make(chan error, 1)
+
+	go func() {
 		_, err := prov.Version(context.Background(), snapAlpha)
-		assert.ErrorIs(t, err, context.Canceled, "Shutdown ended the call that it had waited for")
-	})
+		ended <- err
+	}()
 
-	<-entered
+	<-entered // the command is at the server: the read is in flight
 
-	ended, cancel := context.WithCancel(context.Background())
+	expired, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.ErrorIs(
 		t,
-		prov.Shutdown(ended),
+		prov.Shutdown(expired),
 		context.Canceled,
 		"the read in flight is waited for, bounded by the context",
 	)
 
-	srv.Release()
-	wait.Wait()
+	select {
+	case err := <-ended:
+		require.Error(t, err, "the answer is still held by the server: the read ended by the cancellation")
+		assert.True(t, errors.Is(err, context.Canceled) || errors.Is(err, valkey.ErrClosing),
+			"Shutdown ended the read with its cancellation or the closing of the client")
+	case <-time.After(shutdownBound):
+		require.FailNow(t, "Shutdown did not end the read in flight")
+	}
 }
 
 // lookupAndSnapshot is 16 segments of the lookup mode, each in its own namespace, and one segment of the snapshot mode.
