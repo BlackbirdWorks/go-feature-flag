@@ -6,8 +6,10 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -322,7 +324,24 @@ func goroutinesBack(t *testing.T, baseline int) {
 		select {
 		case <-tick.C:
 		case <-deadline.C:
-			assert.LessOrEqual(t, runtime.NumGoroutine(), baseline, "goroutines left after the run")
+			const goroutineDumpMode = 2
+
+			var stacks strings.Builder
+
+			if prof := pprof.Lookup("goroutine"); prof != nil {
+				err := prof.WriteTo(&stacks, goroutineDumpMode)
+				if err != nil {
+					stacks.WriteString(err.Error())
+				}
+			}
+
+			assert.LessOrEqual(
+				t,
+				runtime.NumGoroutine(),
+				baseline,
+				"goroutines left after the run:\n%s",
+				stacks.String(),
+			)
 
 			return
 		}
@@ -334,7 +353,13 @@ func goroutinesBack(t *testing.T, baseline int) {
 //nolint:paralleltest // the throughput and the goroutine count are process wide
 func TestE2ELoad(t *testing.T) {
 	srv := startServerImage(t, valkeyImage)
-	admin := seed(t, srv.option(plainDial))
+	adminOpt := srv.option(plainDial)
+	// Keep admin's goroutine count constant across subtests: start its background pipeline before any subtest
+	// samples baseline, and disable idle keepalive pings so backgroundPing cannot race with fault injection
+	// (promoting a sync pipe to background mode mid-subtest) or add transient goroutines during sampling.
+	adminOpt.AlwaysPipelining = true
+	adminOpt.Dialer.KeepAlive = -1
+	admin := seed(t, adminOpt)
 
 	seedLoad(t, admin)
 
