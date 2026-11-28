@@ -93,6 +93,8 @@ Protocol, endpoint, and headers use standard `OTEL_EXPORTER_OTLP_*` environment 
 
 All relay proxy series use the `semaphore_` prefix. To also emit series under the legacy `gofeatureflag_` prefix while migrating dashboards and alerts, set [`observability.metrics.legacyNames`](bootstrap-config.md).
 
+The metrics of the configuration (generations, reloads, rejected flags, objects by state), the reload log line and the probes are on the [probes page](probes.md#metrics).
+
 ---
 
 ## Use a dedicated monitoring port

@@ -52,13 +52,66 @@ it. It works with zero flag sets.
 | `semaphore_resource_count` | `kind` (`flagset`, `object`, `dynamicSegment`), `state` | resources by state, always exported; `dynamicSegment` counts the dynamic segment definitions of the flag sets as `valid` or `rejected` |
 | `semaphore_resource_status` | `kind`, `name`, `state` | 1 for a resource that is not ready, at most 100 per kind |
 | `semaphore_config_pending_restart` | | settings that changed and need a restart |
+| `semaphore_flag_rejected_total` | `reason` (`kept`, `dropped`) | flags rejected at load: `kept` serves the last valid definition, `dropped` had none |
+| `semaphore_flags_rejected` | `reason` (`kept`, `dropped`) | rejected flags present in the running generation (a gauge: it falls when the rejection is fixed; alert on it for "still rejected") |
+| `semaphore_object_status` | `state` (`ok`, `stale`, `missing`, `pending`, `invalid`) | source objects by state, always exported |
+| `semaphore_object_oldest_unapplied_age_seconds` | | seconds since the oldest object that is not `ok` left that state, 0 when all are `ok` |
 
 The generation of the manifest the reader fetched (`semaphore_manifest_generation`: the engine may have rejected it; the generation served is `semaphore_config_generation{layer="applied"}`), the S3 requests and the exporters have their own metrics
 (`semaphore_manifest_*`, `semaphore_s3_requests_total`, `semaphore_exporter_*`).
 
+Rejected flags: `semaphore_flag_rejected_total` counts a rejected flag **once**, in the applied generation whose content
+brought the rejection (a new version of its object, or a flag that was valid before). A poll or a generation that leaves
+the rejection as it was counts nothing, so the counter never grows with the poll interval; `rate()` shows new rejections.
+The rejections still present are the gauge `semaphore_flags_rejected` and, per flag set and object, `rejected` and `kept` in
+`/info` (`semaphore_object_status` counts objects by state: an object with a rejected flag is still `ok`). The flag set is not a
+label: the flag sets that have a problem are in `semaphore_resource_status`. Object names appear only in
+`semaphore_resource_status{kind="object"}` (not `ok` only, at most 100): there is no per-object series for every object.
+The age starts when this process first saw the object not `ok`, and a restart from the state directory starts it again.
+
+The age is the only value computed per scrape: each scrape subtracts the recorded start time from the current time. The
+other values are computed when a generation is built, not per scrape, and nothing was added to the request path.
+
 Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per
 scrape, and a scrape evaluates no flag: its cost does not grow with the number of flags per flag set.
 Per-flag-set series exist only for flag sets that are not ready.
+
+## Reload log line
+
+Every reload writes one `runtime reload` line (`log/slog`), and an unchanged poll writes none:
+
+- Applied (level info): `outcome=applied`, `generation`, `snapshot`, `flagsets.created|updated|deleted`,
+  `flags.created|updated|deleted`, `objects.ok|stale|missing|pending|invalid`, `rejected` (flags rejected in the
+  objects that run) and `duration`.
+- Rejected (level warn): `outcome=rejected`, `generation`, the stable `code` and the `detail`. The running generation
+  stays (last known good). `detail` is free text and can quote the content of an object, as the page says for `/info`.
+
+The lines carry counts, codes and paths, and never an API key or an admin key. Only the `detail` of a rejected line can
+quote object content.
+
+## Admin key equal to a flag-set key
+
+Flag-set keys are given to clients and are not secrets, so such a key must never become an admin credential. A key that is
+both an admin key and an API key of a flag set therefore grants **nothing** while the collision exists. The generation is
+still applied (a published key can never make the relay unready or stuck), and:
+
+- the key is not routed to the flag set, and it is not accepted as an admin key: both answer `401`, as for an unknown key,
+  with no hint in the response;
+- the other keys of the flag set and the other admin keys work;
+- the flag set reports the problem `admin-key-collision` in `/info` (state `degraded`, fewer `apiKeys`; a pending flag
+  set stays `pending`) and in `semaphore_resource_status`, the way `duplicate-key` is reported for a key held by two flag
+  sets;
+- `/info` shows `config.disabledAdminKeys`, the number of admin keys that are disabled this way;
+- one `ERROR` line is logged where the collision is new, saying that an admin key is disabled because a flag set
+  publishes the same key. It names the flag set and never the key.
+
+If every admin key is disabled this way the relay still serves flags and stays ready; the admin endpoints answer `401`
+until the bootstrap file or the published document is fixed.
+
+The routing is derived again from the content the relay holds each time the admin keys change, so a reload of the
+bootstrap file (`SIGHUP`) that rotates the admin key makes the flag-set key route again, and a reload that introduces a
+collision disables the key, without publishing anything. The check is made when a generation is built or the admin keys
+change; evaluation requests do no extra work (the routing table simply does not hold the key).
 
 ## Kubernetes
 

@@ -3,6 +3,7 @@ package relaycore
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -76,6 +77,10 @@ type ReloadStats struct {
 	LastRejected *RoundSummary `json:"lastRejected,omitempty"`
 	// LastSuccess is the time of the last applied round, zero when none was applied.
 	LastSuccess time.Time `json:"lastSuccess"`
+	// FlagsRejected counts the flags rejected at load by what happened to them (RejectedKept, RejectedDropped). A
+	// rejected flag counts once, in the applied round whose content brought the rejection (a new object checksum
+	// or a flag that was not rejected before); a poll or a generation that leaves it as it was counts nothing.
+	FlagsRejected map[string]uint64 `json:"flagsRejected"`
 	// Applied, Rejected and Ignored count the rounds by outcome.
 	Applied  uint64 `json:"applied"`
 	Rejected uint64 `json:"rejected"`
@@ -91,10 +96,49 @@ type RoundSummary struct {
 	Generation uint64    `json:"generation"`
 }
 
+// The reasons of semaphore_flag_rejected_total: a flag that failed validation either keeps the definition it had
+// (last known good) or, with none to fall back on, is dropped. They are the whole set; the flag set is no label.
+const (
+	RejectedKept    = "kept"
+	RejectedDropped = "dropped"
+)
+
+// rejection identifies a rejected flag of one version of an object.
+type rejection struct{ object, checksum, flag string }
+
 // reloadCounter keeps the [ReloadStats]; the engine goroutine writes, Status reads.
 type reloadCounter struct {
+	// seen are the rejections of the content that runs, to count only the new ones; the engine goroutine only.
+	seen  map[rejection]struct{}
 	stats ReloadStats
 	mu    sync.Mutex
+}
+
+// countRejected counts the rejected flags of the objects that were not rejected in the previous content.
+func (r *reloadCounter) countRejected(objects map[string]*flagruntime.ObjectStatus) map[string]uint64 {
+	added := map[string]uint64{}
+	now := make(map[rejection]struct{}, len(r.seen))
+
+	for _, obj := range objects {
+		for _, rej := range obj.Rejected {
+			key := rejection{object: obj.Name, checksum: obj.Checksum, flag: rej.Flag}
+			now[key] = struct{}{}
+
+			if _, known := r.seen[key]; known {
+				continue
+			}
+
+			if rej.Kept {
+				added[RejectedKept]++
+			} else {
+				added[RejectedDropped]++
+			}
+		}
+	}
+
+	r.seen = now
+
+	return added
 }
 
 func (r *reloadCounter) record(res *flagruntime.RoundResult) {
@@ -120,12 +164,35 @@ func (r *reloadCounter) record(res *flagruntime.RoundResult) {
 	}
 }
 
+// recordRejected counts the flags that the round of res rejected, when it stored content.
+func (r *reloadCounter) recordRejected(res *flagruntime.RoundResult, objects map[string]*flagruntime.ObjectStatus) {
+	if res.Outcome != flagruntime.OutcomeApplied || !res.ContentApplied {
+		return
+	}
+
+	added := r.countRejected(objects)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.stats.FlagsRejected == nil {
+		r.stats.FlagsRejected = map[string]uint64{}
+	}
+
+	for reason, n := range added {
+		r.stats.FlagsRejected[reason] += n
+	}
+}
+
 // snapshot returns a copy; the summaries it points to are never changed.
 func (r *reloadCounter) snapshot() ReloadStats {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	return r.stats
+	out := r.stats
+	out.FlagsRejected = maps.Clone(r.stats.FlagsRejected)
+
+	return out
 }
 
 type phase uint8
