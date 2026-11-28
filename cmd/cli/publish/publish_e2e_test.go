@@ -387,3 +387,57 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 	assert.Equal(t, "control", manifest.Objects[0].Connection)
 	assert.Contains(t, manifest.Objects[0].Key, "p/objects/sha256/")
 }
+
+const e2eSegments = `apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta
+    members:
+      - alice
+  - name: churned
+    connection: audiences
+    version:
+      key: churned:version
+      interval: 5s
+`
+
+const e2eSegmentSets = `apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: with-segments
+    sources: [checkout]
+    segmentSources: [people]
+    apiKeys: [segment-api-key-0001]
+`
+
+func TestE2EPublishSegmentsAndVerify(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(env.dir, "segments"), 0o750))
+	env.write(t, "segments/people.yaml", e2eSegments)
+	env.write(t, "flagsets/segment-sets.yaml", e2eSegmentSets)
+
+	out, err := runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.NoError(t, err, out)
+
+	manifest := env.readManifest(t)
+	require.Len(t, manifest.Objects, 4)
+
+	var found *controlplane.ManifestObject
+
+	for i := range manifest.Objects {
+		if manifest.Objects[i].Kind == controlplane.KindSegments {
+			found = &manifest.Objects[i]
+		}
+	}
+
+	require.NotNil(t, found, "the manifest lists the segments object")
+	assert.Equal(t, "people", found.Name)
+	assert.Equal(t, e2eSegments, string(env.get(t, found.Key)))
+	require.NoError(t, controlplane.VerifyChecksum(env.get(t, found.Key), found.Checksum))
+
+	out, err = runCLI(t, env.deps, verifyWord, optConfig, env.config)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "ok: every checked object matches")
+}

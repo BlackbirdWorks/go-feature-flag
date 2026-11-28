@@ -27,11 +27,12 @@ func TestLoadSource(t *testing.T) {
 		{
 			name: "valid tree, in path order, dotfiles ignored",
 			tree: fstest.MapFS{
-				"flags/b.json":     {Data: []byte("{}")},
-				"flags/a.yml":      {Data: []byte("a")},
-				"flagsets/set.yml": {Data: []byte("s")},
-				"flags/.keep":      {},
-				".git/config":      {},
+				"flags/b.json":       {Data: []byte("{}")},
+				"flags/a.yml":        {Data: []byte("a")},
+				"flagsets/set.yml":   {Data: []byte("s")},
+				"segments/beta.json": {Data: []byte("{}")},
+				"flags/.keep":        {},
+				".git/config":        {},
 			},
 			wantObjects: []s3publish.Object{
 				{
@@ -54,6 +55,13 @@ func TestLoadSource(t *testing.T) {
 					Format: controlplane.FormatYAML,
 					Source: "src/flagsets/set.yml",
 					Body:   []byte("s"),
+				},
+				{
+					Name:   "beta",
+					Kind:   controlplane.KindSegments,
+					Format: controlplane.FormatJSON,
+					Source: "src/segments/beta.json",
+					Body:   []byte("{}"),
 				},
 			},
 		},

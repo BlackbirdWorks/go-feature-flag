@@ -56,7 +56,7 @@ type Cmd struct {
 
 	dashVerifyDir bool
 
-	Dir    ApplyCmd  `arg:"" help:"Source directory containing flags/ and flagsets/."`
+	Dir    ApplyCmd  `arg:"" help:"Source directory containing flags/, flagsets/ and segments/."`
 	Verify VerifyCmd `cmd:"" help:"${helpPubVerify}"`
 }
 
@@ -87,7 +87,7 @@ func RewriteDashVerify(args []string) ([]string, bool) {
 
 // Help returns the detailed description of publish for kong's help output.
 func (*Cmd) Help() string {
-	return `Reads the documents of <dir> (flags/*.yaml|yml|json and flagsets/*.yaml|yml|json), validates them,
+	return `Reads the documents of <dir> (flags/, flagsets/ and segments/, each *.yaml|yml|json), validates them,
 uploads the objects that are absent under their content-addressed keys, and writes the manifest last with a
 conditional write, so a reader never sees a half-written state.
 
@@ -111,7 +111,7 @@ func (c *Cmd) targetFlags() targetFlags {
 
 // ApplyCmd uploads source documents from a directory and writes the manifest.
 type ApplyCmd struct {
-	Dir string `arg:"" help:"Source directory containing flags/ and flagsets/." name:"dir"`
+	Dir string `arg:"" help:"Source directory containing flags/, flagsets/ and segments/." name:"dir"`
 }
 
 // Run executes the publish operation against ApplyCmd.Dir.

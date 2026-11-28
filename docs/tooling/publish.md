@@ -12,10 +12,11 @@ One document per file. The kind comes from the directory, the object name from t
 ```text
 flags/<name>.yaml|yml|json      a flag file (kind flags)
 flagsets/<name>.yaml|yml|json   a flag-set document (kind flagSets)
+segments/<name>.yaml|yml|json   a segments document (kind segments)
 ```
 
-- Names match `^[a-z][a-z0-9-]{0,62}$` and are unique in the whole tree (a flag file and a flag-set document cannot share one).
-- Flag-set documents name flag files in `sources` (the object names).
+- Names match `^[a-z][a-z0-9-]{0,62}$` and are unique in the whole tree (a flag file, a flag-set document and a segments document cannot share one).
+- Flag-set documents name flag files in `sources` and segments documents in `segmentSources` (the object names). A segments document defines static and dynamic [segments](../configure-flags/segments.md); see [the document format](../go-module/controlplane.md#segments-document).
 - Names that start with a dot are ignored. Any other file or directory is an error that names it, so a typo is not skipped.
 - Only regular files are read. A symbolic link, a named pipe, a device or a socket is an error that names it: nothing is
   followed and nothing that could block is opened.
