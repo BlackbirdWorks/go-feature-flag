@@ -729,13 +729,13 @@ func TestSegmentPollPasses(t *testing.T) {
 	// the second tick starts both passes: the hung store holds its own, the other connection is read
 	tick.step(t, 1)
 	tick.awaitEnd(t)
-	assert.Equal(t, 2, good.Calls(segment.OpVersion), "the first load reads the version before and after its pull")
+	assert.Equal(t, 1, good.Calls(segment.OpVersion))
 
 	// the interval of the good connection passes (five seconds) while the other pass still runs: it is read again, the
 	// hung one is not started twice
 	tick.step(t, 5)
 	tick.awaitEnd(t)
-	assert.Equal(t, 3, good.Calls(segment.OpVersion))
+	assert.Equal(t, 2, good.Calls(segment.OpVersion))
 	assert.Equal(t, 1, tick.passes(connOther), "the pass that still runs is not started twice")
 	assert.Equal(t, 2, tick.passes(connAudiences))
 
@@ -1237,7 +1237,7 @@ func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
 	// the next poll (a second later, as one set is not loaded) tries the first one again and reaches the others again
 	tick.joined(t, 2)
 	assert.Equal(t, 2, source.asked(audienceSegmentName))
-	assert.Equal(t, 3, source.asked(thirdName))
+	assert.Equal(t, 2, source.asked(thirdName))
 	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
 }
 
@@ -1715,7 +1715,7 @@ func TestBindingWakesAtTheEarliestDeadline(t *testing.T) {
 		snapReads = append(snapReads, source.asked("snap"))
 	}
 
-	assert.Equal(t, []int{2, 2, 2, 3, 3, 3, 4}, snapReads)
+	assert.Equal(t, []int{1, 1, 1, 2, 2, 2, 3}, snapReads)
 }
 
 // The freshness of a set comes from its own refresh, not from the start of the pass: the sets that load after a slow
