@@ -519,12 +519,29 @@ func (e *Engine) planContent(ctx context.Context, content *Content) contentPlan 
 	for i := range built.SegmentRejections {
 		rejection := &built.SegmentRejections[i]
 
-		e.logger.LogAttrs(ctx, slog.LevelWarn, "segments object rejected: its last good content stays",
-			slog.String("object", rejection.Object), slog.String("checksum", rejection.Checksum),
-			slog.Uint64("generation", content.Generation), slog.String("reason", rejection.Reason))
+		e.logRejection(ctx, rejection, content.Generation)
 	}
 
 	return contentPlan{built: built, running: describe(content)}
+}
+
+// logRejection logs a segments object that the build met with a problem: rejected whole (its last good content stays)
+// or, when some of its dynamic definitions are not served by the connections, rejected in part.
+func (e *Engine) logRejection(ctx context.Context, rejection *SegmentRejection, generation uint64) {
+	attrs := []slog.Attr{
+		slog.String("object", rejection.Object), slog.String("checksum", rejection.Checksum),
+		slog.Uint64("generation", generation), slog.String("reason", rejection.Reason),
+		slog.Int("definitions", rejection.Definitions),
+	}
+
+	if rejection.Definitions > 0 {
+		e.logger.LogAttrs(ctx, slog.LevelWarn,
+			"dynamic segment definitions rejected: the connections cannot serve them, the others are applied", attrs...)
+
+		return
+	}
+
+	e.logger.LogAttrs(ctx, slog.LevelWarn, "segments object rejected: its last good content stays", attrs...)
 }
 
 func (e *Engine) reject(generation uint64, code string, err error) contentPlan {

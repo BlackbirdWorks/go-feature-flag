@@ -175,9 +175,9 @@ func flagSetInfo(set *flagruntime.FlagSetStatus) model.FlagSetInfo {
 func segmentCountsInfo(counts *flagruntime.SegmentCounts) *model.SegmentCountsInfo {
 	out := &model.SegmentCountsInfo{Static: counts.Static, Dynamic: counts.Dynamic}
 
-	if counts.Dynamic > 0 || counts.RejectedDefinitions > 0 {
+	if counts.Dynamic > 0 {
 		out.DynamicStates = &model.DynamicStatesInfo{
-			Valid: counts.Dynamic, Rejected: counts.RejectedDefinitions,
+			Valid: counts.Dynamic - counts.RejectedDefinitions, Rejected: counts.RejectedDefinitions,
 		}
 	}
 

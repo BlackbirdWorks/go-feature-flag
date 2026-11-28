@@ -12,14 +12,19 @@ import (
 )
 
 const (
-	dynFlagName     = "dyn-flag"
-	staticFlagName  = "static-flag"
-	mixedFlagName   = "mixed-flag"
-	plainFlagName   = "plain-flag"
-	carolKey        = "carol"
-	betaSegmentName = "beta"
-	vipKey          = "vip"
-	useFlagsYAML    = `
+	dynFlagName         = "dyn-flag"
+	staticFlagName      = "static-flag"
+	mixedFlagName       = "mixed-flag"
+	plainFlagName       = "plain-flag"
+	metaDynName         = "meta-dyn-flag"
+	metaStaticName      = "meta-static-flag"
+	carolKey            = "carol"
+	betaSegmentName     = "beta"
+	audienceSegmentName = "audience"
+	teamKey             = "team"
+	teamValue           = "core"
+	vipKey              = "vip"
+	useFlagsYAML        = `
 dyn-flag:
   variations: {on: true, off: false}
   targeting:
@@ -41,6 +46,19 @@ static-flag:
 plain-flag:
   variations: {on: true, off: false}
   defaultRule: {name: default, variation: off}
+meta-dyn-flag:
+  variations: {on: true, off: false}
+  metadata: {semaphore_cacheable: true, gofeatureflag_cacheable: true, team: core}
+  targeting:
+    - {name: vip, query: 'targetingKey eq "vip"', variation: on}
+    - {name: audience, query: 'targetingKey in segment("audience")', variation: on}
+  defaultRule: {name: default, variation: off}
+meta-static-flag:
+  variations: {on: true, off: false}
+  metadata: {semaphore_cacheable: true, gofeatureflag_cacheable: true, team: core}
+  targeting:
+    - {name: vip, query: 'targetingKey eq "vip"', variation: on}
+  defaultRule: {name: default, variation: off}
 `
 	openFlagYAML = "other-flag:\n  variations: {on: true, off: false}\n  defaultRule: {variation: off}\n"
 	useSegments  = segHeader + "  - name: beta\n    members: [alice]\n  - name: audience\n    connection: audiences\n"
@@ -54,9 +72,12 @@ func useRuntime(t *testing.T) *flagruntime.Runtime {
 	return buildAndCommit(t, builder, content(1, objs{
 		"f1":      obj(flagruntime.KindFlags, []byte(useFlagsYAML)),
 		segObject: segObj(useSegments),
-		setsName: setsObj(t, controlplane.FlagSet{
-			Name: "a", Sources: src("f1"), SegmentSources: []string{segObject}, APIKeys: []string{keyA},
-		}),
+		setsName: setsObj(t,
+			controlplane.FlagSet{
+				Name: "a", Sources: src("f1"), SegmentSources: []string{segObject}, APIKeys: []string{keyA},
+			},
+			controlplane.FlagSet{Name: "bare", Sources: src("f1"), APIKeys: []string{keyB}},
+		),
 	})).Runtime
 }
 
@@ -66,11 +87,12 @@ func useRuntime(t *testing.T) *flagruntime.Runtime {
 func TestEvaluatorOfAFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.T) {
 	t.Parallel()
 
-	set := useRuntime(t).FlagSets["a"]
+	run := useRuntime(t)
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 
 	tests := []struct {
 		name          string
+		set           string
 		flag          string
 		key           string
 		wantCacheable bool
@@ -81,11 +103,23 @@ func TestEvaluatorOfAFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.T) {
 		{name: "static only, decided before", flag: staticFlagName, key: vipKey, wantCacheable: true},
 		{name: "static only, segment looked up", flag: staticFlagName, key: carolKey},
 		{name: "no segment", flag: plainFlagName, key: vipKey, wantCacheable: true},
+		{
+			name:          "name that the flag set cannot resolve",
+			set:           "bare",
+			flag:          dynFlagName,
+			key:           vipKey,
+			wantCacheable: true,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
+			set := run.FlagSets["a"]
+			if tt.set != "" {
+				set = run.FlagSets[tt.set]
+			}
 
 			raw, err := eval.RawVariation(set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
 			require.NoError(t, err)
@@ -124,7 +158,7 @@ func TestEvaluatorOfAPublicFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.
 		flag          string
 		wantCacheable bool
 	}{
-		{name: "dynamic", flag: dynFlagName},
+		{name: "dynamic flag", flag: dynFlagName},
 		{name: "static only", flag: staticFlagName, wantCacheable: true},
 		{name: "other flag set", flag: "other-flag", wantCacheable: true},
 	}
@@ -145,7 +179,8 @@ func TestEvaluatorOfAPublicFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.
 func TestFlagSetSegmentUse(t *testing.T) {
 	t.Parallel()
 
-	set := useRuntime(t).FlagSets["a"]
+	run := useRuntime(t)
+	set := run.FlagSets["a"]
 
 	tests := []struct {
 		set         *flagruntime.FlagSet
@@ -154,14 +189,21 @@ func TestFlagSetSegmentUse(t *testing.T) {
 		wantNames   []string
 		wantDynamic bool
 	}{
-		{name: "dynamic", set: set, flag: dynFlagName, wantNames: []string{"audience"}, wantDynamic: true},
+		{name: "dynamic", set: set, flag: dynFlagName, wantNames: []string{audienceSegmentName}, wantDynamic: true},
 		{
-			name: "both kinds", set: set, flag: mixedFlagName, wantNames: []string{"audience", betaSegmentName},
+			name:        "both kinds",
+			set:         set,
+			flag:        mixedFlagName,
+			wantNames:   []string{audienceSegmentName, betaSegmentName},
 			wantDynamic: true,
 		},
 		{name: "static", set: set, flag: staticFlagName, wantNames: []string{betaSegmentName}},
 		{name: "no segment", set: set, flag: plainFlagName},
 		{name: "unknown flag", set: set, flag: "nope"},
+		{
+			name: "names that the flag set cannot resolve", set: run.FlagSets["bare"], flag: dynFlagName,
+			wantNames: []string{audienceSegmentName}, wantDynamic: true,
+		},
 		{name: "nil flag set", flag: dynFlagName},
 	}
 
@@ -173,5 +215,103 @@ func TestFlagSetSegmentUse(t *testing.T) {
 			assert.Equal(t, tt.wantNames, names)
 			assert.Equal(t, tt.wantDynamic, dynamic)
 		})
+	}
+}
+
+// A flag that uses a dynamic segment never tells a client that its value can be held, even when its own metadata says
+// so: the cacheable keys that the flag wrote are removed from the single and from the bulk answer, and the other keys
+// stay. A flag with no dynamic segment keeps what it wrote.
+func TestEvaluatorDropsTheCacheableKeysOfAFlagThatUsesADynamicSegment(t *testing.T) {
+	t.Parallel()
+
+	set := useRuntime(t).FlagSets["a"]
+	eval := flagruntime.NewEvaluator(newService(t), nil)
+
+	tests := []struct {
+		wantMetadata map[string]any
+		name         string
+		flag         string
+	}{
+		{name: "dynamic metadata", flag: metaDynName, wantMetadata: map[string]any{teamKey: teamValue}},
+		{
+			name: "no dynamic segment",
+			flag: metaStaticName,
+			wantMetadata: map[string]any{
+				teamKey:                   teamValue,
+				"semaphore_cacheable":     true,
+				"gofeatureflag_cacheable": true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evalCtx := ffcontext.NewEvaluationContext(vipKey)
+
+			raw, err := eval.RawVariation(set, tt.flag, evalCtx, false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMetadata, withoutRule(raw.Metadata))
+
+			bulk := eval.GetFlagStates(set, evalCtx, []string{tt.flag})
+			assert.Equal(t, tt.wantMetadata, withoutRule(bulk.GetFlags()[tt.flag].Metadata))
+
+			all := eval.AllFlagsState(set, evalCtx)
+			assert.Equal(t, tt.wantMetadata, withoutRule(all.GetFlags()[tt.flag].Metadata))
+		})
+	}
+}
+
+// withoutRule is the metadata without the name of the rule that the evaluation adds.
+func withoutRule(metadata map[string]any) map[string]any {
+	out := map[string]any{}
+
+	for key, value := range metadata {
+		if key != "evaluatedRuleName" {
+			out[key] = value
+		}
+	}
+
+	return out
+}
+
+// A flag set that is only a placeholder (its entry is invalid and never was valid) still reports the segments of the
+// segments objects that it names, and follows them when they change.
+func TestPlaceholderReportsTheSegmentsOfItsSources(t *testing.T) {
+	t.Parallel()
+
+	stores := flagruntime.StoreTable{connAudiences: {Kind: kindRedis, Store: bothStore{}}}
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{SegmentStores: stores})
+	invalid := setsObj(t, controlplane.FlagSet{Name: "a", SegmentSources: []string{segObject}, APIKeys: []string{keyA}})
+	all := objs{"f1": flagsObj(1, "x"), setsName: invalid}
+
+	steps := []struct {
+		name       string
+		doc        string
+		more       string
+		wantCounts flagruntime.SegmentCounts
+	}{
+		{name: "one definition is rejected", doc: audienceDoc("nowhere", ""),
+			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1}},
+		{name: "the document is fixed", doc: audienceDoc(connAudiences, ""),
+			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1}},
+		{name: "rejected again, with a new object (a full pass)", doc: audienceDoc("elsewhere", ""), more: "f9",
+			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1}},
+	}
+
+	for gen, step := range steps {
+		next := all.with(objs{segObject: segObj(step.doc)})
+		if step.more != "" {
+			next = next.with(objs{step.more: flagsObj(1, "y")})
+		}
+
+		built := buildAndCommit(t, builder, content(uint64(gen+1), next))
+
+		status := built.Runtime.Status.FlagSets["a"]
+		require.NotNil(t, status, step.name)
+		assert.Equal(t, flagruntime.StatePending, status.State, step.name)
+		require.NotNil(t, status.Segments, step.name)
+		assert.Equal(t, step.wantCounts, *status.Segments, step.name)
 	}
 }

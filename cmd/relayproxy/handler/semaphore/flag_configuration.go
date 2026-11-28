@@ -1,6 +1,7 @@
 package semaphore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -90,14 +91,17 @@ func (f flagWithSegments) MarshalJSON() ([]byte, error) {
 		return nil, fmt.Errorf("%w: %s", errNotAnObject, data)
 	}
 
-	out := make([]byte, 0, len(data)+len(extra))
-	out = append(out, data[:len(data)-1]...)
+	var out bytes.Buffer
+
+	out.Write(data[:len(data)-1])
 
 	if len(data) > len(emptyObject) {
-		out = append(out, ',')
+		out.WriteByte(',')
 	}
 
-	return append(out, extra[1:]...), nil
+	out.Write(extra[1:])
+
+	return out.Bytes(), nil
 }
 
 // withSegments marks the flags that use segments. The map it is given is not changed: a map that holds a marked

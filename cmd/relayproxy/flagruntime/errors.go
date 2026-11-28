@@ -19,8 +19,4 @@ var (
 	ErrVetoed = errors.New("runtime: candidate vetoed")
 	// ErrDecode is matched by the reason of an object that cannot be decoded.
 	ErrDecode = errors.New("runtime: decode")
-	// ErrDynamicDefinitions is matched by the reason of a segments object that holds a dynamic definition that its
-	// connections cannot serve: the connection is not in the bootstrap file, cannot serve segments, or cannot serve
-	// the mode.
-	ErrDynamicDefinitions = errors.New("runtime: the dynamic segments do not fit the connections of the bootstrap file")
 )

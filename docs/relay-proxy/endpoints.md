@@ -25,7 +25,7 @@ Streaming endpoints are listed in [Flag change streams](#flag-change-streams).
 
 ### Flags that use segments
 
-- `POST /v1/flag/configuration` lists, for each flag whose rules use [segments](../configure-flags/segments.md), the sorted `segments` it uses and `requiresServerEvaluation`: `true` when one of them is [dynamic](../configure-flags/segments-dynamic.md#cacheable-and-flag-configuration) (its members live in a store, so only the relay can answer). A flag that uses no segment has neither field, and no member of any segment is ever listed.
+- `POST /v1/flag/configuration` lists, for each flag whose rules use [segments](../configure-flags/segments.md), the sorted `segments` it uses and `requiresServerEvaluation`: `true` when one of them is [dynamic](../configure-flags/segments-dynamic.md#cacheable-and-flag-configuration) (its members live in a store) or cannot be resolved by the flag set: only the relay can answer. A flag that uses no segment has neither field, and no member of any segment is ever listed.
 - An evaluation of a flag that uses a dynamic segment is never cacheable: the OFREP single evaluation carries neither `semaphore_cacheable` nor `gofeatureflag_cacheable`, and `POST /v1/feature/{key}/eval` answers `"cacheable": false`. The bulk endpoints (`/ofrep/v1/evaluate/flags`, `/v1/allflags`) never send the cacheable keys.
 
 ## OpenAPI documentation

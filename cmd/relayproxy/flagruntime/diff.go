@@ -142,6 +142,13 @@ type reevaluated struct {
 	sig uint64
 }
 
+// Internal returns the flag itself, so that a notifier reads it (its editor, its changes).
+func (r reevaluated) Internal() *flagdef.InternalFlag {
+	internal, _ := r.Flag.(*flagdef.InternalFlag)
+
+	return internal
+}
+
 // MarshalJSON encodes the flag.
 func (r reevaluated) MarshalJSON() ([]byte, error) {
 	data, err := json.Marshal(r.Flag)

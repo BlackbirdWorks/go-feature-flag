@@ -154,8 +154,8 @@ func newEmptyRuntime() *Runtime {
 }
 
 // SegmentUse tells which segments the rules of a flag use (sorted names, scheduled steps included; nil for a flag
-// that uses none) and whether one of them is dynamic: such a flag cannot be evaluated by a client from a cached
-// configuration, because its members live in a store. It does not allocate.
+// that uses none) and whether the flag needs the server to be evaluated: one of them is dynamic (its members live in a
+// store) or cannot be resolved by the flag set (no source defines it). It does not allocate.
 func (f *FlagSet) SegmentUse(flagKey string) ([]string, bool) {
 	if f == nil {
 		return nil, false
@@ -163,7 +163,7 @@ func (f *FlagSet) SegmentUse(flagKey string) ([]string, bool) {
 
 	use := f.uses[flagKey]
 
-	return use.names, use.dynamic
+	return use.names, use.dynamic || use.unresolved
 }
 
 // usesDynamicSegment tells whether the rules of a flag use a dynamic segment. It does not allocate, and costs nothing

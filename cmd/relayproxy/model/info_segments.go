@@ -10,12 +10,12 @@ type SegmentCountsInfo struct {
 	Dynamic       int                `json:"dynamic"`
 }
 
-// DynamicStatesInfo is the dynamic segments of a flag set by state. Valid ones are served. A rejected definition is one
-// that the last content of its segments object offered and the relay refused (a connection that is not in the
-// bootstrap file, a store that cannot serve the mode): the object keeps its last good content, and the reasons are in
-// the log, never in this answer.
+// DynamicStatesInfo is the dynamic segments of a flag set by state. A rejected definition is one that the connections
+// of the bootstrap file cannot serve (a connection that is not in the file, a store that cannot serve the mode): it is
+// rejected alone, the rest of its document is applied, and it answers as a segment without a provider. The reasons are
+// in the log, never in this answer.
 type DynamicStatesInfo struct {
-	// Valid is the number of dynamic segments that are served.
+	// Valid is the number of dynamic segments that the connections can serve.
 	Valid int `json:"valid"`
 	// Rejected is the number of dynamic definitions that were rejected.
 	Rejected int `json:"rejected"`

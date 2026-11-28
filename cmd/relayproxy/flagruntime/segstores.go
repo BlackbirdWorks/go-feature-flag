@@ -38,23 +38,27 @@ func (t StoreTable) SegmentStore(connection string) (SegmentStore, bool) {
 	return facts, ok
 }
 
-// SegmentRejection is a segments object that was rejected when a generation was built: its last good content stays.
-// It is reported once, for the build that met the content, not for each build that finds the same content again.
+// SegmentRejection is a segments object that the build met with a problem. It is reported once, for the build that
+// met the content, not for each build that finds the same content again.
 type SegmentRejection struct {
 	// Object is the name of the segments object.
 	Object string
-	// Checksum is the checksum of the rejected content.
+	// Checksum is the checksum of the content.
 	Checksum string
 	// Reason says what is wrong, with the path of each field: it quotes no value of the document.
 	Reason string
+	// Definitions is the number of dynamic definitions that the connections of the bootstrap file cannot serve and
+	// that were rejected alone: the object and its other definitions are applied. Zero means that the whole object was
+	// rejected and keeps its last good content.
+	Definitions int
 }
 
 // dynamicCheck is the outcome of checking the dynamic definitions of a document against the connections.
 type dynamicCheck struct {
 	// reasons are the path addressed reasons, in document order.
 	reasons []string
-	// definitions is the number of definitions that have at least one reason.
-	definitions int
+	// names are the names of the definitions that have a reason, in document order.
+	names []string
 }
 
 // checkDynamic checks every dynamic definition of the document against the connections of the bootstrap file: the
@@ -93,7 +97,7 @@ func checkDynamic(doc *controlplane.SegmentsDocument, stores SegmentStores) dyna
 		}
 
 		if len(out.reasons) > before {
-			out.definitions++
+			out.names = append(out.names, def.Name)
 		}
 	}
 

@@ -60,9 +60,9 @@ func TestConfigCollector_ScrapeCost(t *testing.T) {
 		flagsPerSet int
 		wantSeries  int
 	}{
-		{name: "one flag per set", sets: 5000, flagsPerSet: 1, wantSeries: 26},
-		{name: "thousand flags per set", sets: 5000, flagsPerSet: 1000, wantSeries: 26},
-		{name: "no flag sets", sets: 0, flagsPerSet: 0, wantSeries: 16},
+		{name: "one flag per set", sets: 5000, flagsPerSet: 1, wantSeries: 28},
+		{name: "thousand flags per set", sets: 5000, flagsPerSet: 1000, wantSeries: 28},
+		{name: "no flag sets", sets: 0, flagsPerSet: 0, wantSeries: 18},
 	}
 
 	for _, tt := range tests {
@@ -100,8 +100,9 @@ func TestConfigCollector_NamedSeriesAreCapped(t *testing.T) {
 
 	col := collector(current)
 
-	// 5 gauges + 3 reloads + 3 flag set counts + 5 object counts = 16, plus the cap for the degraded flag sets
-	assert.Equal(t, 16+maxNamedResources, testutil.CollectAndCount(col))
+	// 5 gauges + 3 reloads + 3 flag set counts + 5 object counts + 2 dynamic segment counts = 18, plus the cap
+	// for the degraded flag sets
+	assert.Equal(t, 18+maxNamedResources, testutil.CollectAndCount(col))
 }
 
 // TestConfigCollector_NoRuntime pins the series before any runtime exists.
@@ -110,5 +111,5 @@ func TestConfigCollector_NoRuntime(t *testing.T) {
 
 	col := collector(nil)
 
-	assert.Equal(t, 16, testutil.CollectAndCount(col))
+	assert.Equal(t, 18, testutil.CollectAndCount(col))
 }

@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
@@ -34,7 +36,8 @@ func (snapshotStore) Members(context.Context, string) iter.Seq2[string, error] {
 }
 
 const (
-	rejectPrefix  = "runtime: the dynamic segments do not fit the connections of the bootstrap file: "
+	rejectedNoticePrefix = "the dynamic definitions that the connections cannot serve are rejected, " +
+		"the others are applied: "
 	connAudiences = "audiences"
 	tablePresent  = "present"
 	tableAbsent   = "absent"
@@ -51,8 +54,10 @@ func audienceDoc(connection, mode string) string {
 }
 
 // A dynamic definition is checked against the connections of the bootstrap file when its segments object is read: the
-// connection is there, its kind serves segments, and it serves the mode of the definition. A document that fails keeps
-// the last good content of the object; the reasons name the field and never the content of the document.
+// connection is there, its kind serves segments, and it serves the mode of the definition. A definition that fails is
+// rejected alone: the object and its other definitions are applied, the segment stays in the catalog and answers as a
+// segment without a provider, and the flag set is served. A document that is not valid is rejected whole. The reasons
+// name the field and never the content of the document.
 func TestBuilderChecksDynamicDefinitions(t *testing.T) {
 	t.Parallel()
 
@@ -61,70 +66,77 @@ func TestBuilderChecksDynamicDefinitions(t *testing.T) {
 	}
 
 	tests := []struct {
-		stores     flagruntime.SegmentStores
-		name       string
-		doc        string
-		wantReason string
-		wantState  flagruntime.ObjectState
+		stores        flagruntime.SegmentStores
+		name          string
+		doc           string
+		wantNotice    string
+		wantObjReason string
+		wantObjState  flagruntime.ObjectState
+		wantRejected  int
+		wantServed    bool
 	}{
 		{
 			name: "snapshot default is served", stores: redis(bothStore{}), doc: audienceDoc(connAudiences, ""),
-			wantState: flagruntime.ObjectOK,
+			wantObjState: flagruntime.ObjectOK, wantServed: true,
 		},
 		{
 			name: "lookup is served", stores: redis(bothStore{}), doc: audienceDoc(connAudiences, "lookup"),
-			wantState: flagruntime.ObjectOK,
+			wantObjState: flagruntime.ObjectOK, wantServed: true,
 		},
 		{
 			name: "no stores is not checked", stores: nil, doc: audienceDoc("nowhere", ""),
-			wantState: flagruntime.ObjectOK,
+			wantObjState: flagruntime.ObjectOK, wantServed: true,
 		},
 		{
 			name: "unknown connection", stores: redis(bothStore{}), doc: audienceDoc("nowhere", ""),
-			wantState:  flagruntime.ObjectInvalid,
-			wantReason: rejectPrefix + `segments[1].connection: "nowhere" is not a connection of the bootstrap file`,
+			wantObjState: flagruntime.ObjectOK, wantServed: true, wantRejected: 1,
+			wantNotice: `segments[1].connection: "nowhere" is not a connection of the bootstrap file`,
 		},
 		{
-			name:      "kind that serves no segment",
-			stores:    flagruntime.StoreTable{connAudiences: {Kind: "s3"}},
-			doc:       audienceDoc(connAudiences, ""),
-			wantState: flagruntime.ObjectInvalid,
-			wantReason: rejectPrefix +
-				`segments[1].connection: "audiences" is a "s3" connection, which cannot serve segments`,
+			name:         "kind that serves no segment",
+			stores:       flagruntime.StoreTable{connAudiences: {Kind: "s3"}},
+			doc:          audienceDoc(connAudiences, ""),
+			wantObjState: flagruntime.ObjectOK, wantServed: true, wantRejected: 1,
+			wantNotice: `segments[1].connection: "audiences" is a "s3" connection, which cannot serve segments`,
 		},
 		{
 			name: "lookup that the store cannot serve", stores: redis(snapshotStore{}),
-			doc: audienceDoc(connAudiences, "lookup"), wantState: flagruntime.ObjectInvalid,
-			wantReason: rejectPrefix + `segments[1].mode: the store does not support the segment mode: ` +
+			doc: audienceDoc(connAudiences, "lookup"), wantObjState: flagruntime.ObjectOK, wantServed: true,
+			wantRejected: 1,
+			wantNotice: `segments[1].mode: the store does not support the segment mode: ` +
 				`segment "audience": mode "lookup", store "redis"`,
 		},
 		{
 			name: "snapshot that the store cannot serve", stores: redis(lookupStore{}),
-			doc: audienceDoc(connAudiences, ""), wantState: flagruntime.ObjectInvalid,
-			wantReason: rejectPrefix + `segments[1].mode: the store does not support the segment mode: ` +
+			doc: audienceDoc(connAudiences, ""), wantObjState: flagruntime.ObjectOK, wantServed: true,
+			wantRejected: 1,
+			wantNotice: `segments[1].mode: the store does not support the segment mode: ` +
 				`segment "audience": mode "snapshot", store "redis"`,
 		},
 		{
+			name: "every bad definition has its reason", stores: redis(bothStore{}),
+			doc: segHeader + "  - name: one\n    connection: nowhere\n  - name: two\n    connection: audiences\n" +
+				"  - name: three\n    connection: elsewhere\n",
+			wantObjState: flagruntime.ObjectOK, wantServed: true, wantRejected: 2,
+			wantNotice: `segments[0].connection: "nowhere" is not a connection of the bootstrap file; ` +
+				`segments[2].connection: "elsewhere" is not a connection of the bootstrap file`,
+		},
+		{
 			name: "keys layout with snapshot", stores: redis(bothStore{}),
-			doc:       segHeader + "  - name: audience\n    connection: audiences\n    layout: keys\n",
-			wantState: flagruntime.ObjectInvalid,
-			wantReason: "controlplane: invalid document: segments[0].layout: segment \"audience\": " +
+			doc:          segHeader + "  - name: audience\n    connection: audiences\n    layout: keys\n",
+			wantObjState: flagruntime.ObjectInvalid,
+			wantObjReason: "controlplane: invalid document: segments[0].layout: segment \"audience\": " +
+				"layout \"keys\" with mode \"snapshot\": the keys layout is lookup-only",
+			wantNotice: "controlplane: invalid document: segments[0].layout: segment \"audience\": " +
 				"layout \"keys\" with mode \"snapshot\": the keys layout is lookup-only",
 		},
 		{
 			name: "version interval without a key", stores: redis(bothStore{}),
 			doc: segHeader + "  - name: audience\n    connection: audiences\n" +
 				"    version: {interval: 5s}\n",
-			wantState:  flagruntime.ObjectInvalid,
-			wantReason: "controlplane: invalid document: segments[0].version.interval: needs a key",
-		},
-		{
-			name: "every bad definition has its reason", stores: redis(bothStore{}),
-			doc: segHeader + "  - name: one\n    connection: nowhere\n  - name: two\n    connection: audiences\n" +
-				"  - name: three\n    connection: elsewhere\n",
-			wantState: flagruntime.ObjectInvalid,
-			wantReason: rejectPrefix + `segments[0].connection: "nowhere" is not a connection of the bootstrap file; ` +
-				`segments[2].connection: "elsewhere" is not a connection of the bootstrap file`,
+			wantObjState:  flagruntime.ObjectInvalid,
+			wantObjReason: "controlplane: invalid document: segments[0].version.interval: needs a key",
+			wantNotice:    "controlplane: invalid document: segments[0].version.interval: needs a key",
 		},
 	}
 
@@ -142,28 +154,98 @@ func TestBuilderChecksDynamicDefinitions(t *testing.T) {
 
 			status := built.Runtime.Status.Objects[segObject]
 			require.NotNil(t, status)
-			assert.Equal(t, tt.wantState, status.State)
-			assert.Equal(t, tt.wantReason, status.Reason)
+			assert.Equal(t, tt.wantObjState, status.State)
+			assert.Equal(t, tt.wantObjReason, status.Reason)
 
-			if tt.wantState == flagruntime.ObjectOK {
+			setA := built.Runtime.Status.FlagSets["a"]
+			require.NotNil(t, setA)
+			require.NotNil(t, setA.Segments)
+			assert.Equal(t, tt.wantRejected, setA.Segments.RejectedDefinitions)
+			assert.Equal(t, tt.wantServed, setA.State == flagruntime.StateServing, "the flag set is served")
+
+			if tt.wantNotice == "" {
 				assert.Empty(t, built.SegmentRejections)
 
 				return
 			}
 
 			require.Len(t, built.SegmentRejections, 1)
-			assert.Equal(t, flagruntime.SegmentRejection{
-				Object: segObject, Checksum: built.SegmentRejections[0].Checksum, Reason: tt.wantReason,
-			}, built.SegmentRejections[0])
-			assert.NotEmpty(t, built.SegmentRejections[0].Checksum)
+
+			notice := built.SegmentRejections[0]
+			assert.NotEmpty(t, notice.Checksum)
+			assert.Equal(t, segObject, notice.Object)
+			assert.Equal(t, tt.wantRejected, notice.Definitions)
+
+			if tt.wantRejected > 0 {
+				assert.Equal(t, rejectedNoticePrefix+tt.wantNotice, notice.Reason)
+			} else {
+				assert.Equal(t, tt.wantNotice, notice.Reason)
+			}
 		})
 	}
 }
 
-// A rejected document keeps the last good content: the flag set is served with the segments it had, the rejection is
-// counted for the flag set and reported once, the same content again is not reported again, and a document that is
-// fixed clears the count.
-func TestARejectedDynamicDefinitionKeepsTheLastGoodContentAndIsReportedOnce(t *testing.T) {
+// A rejected definition answers as a segment without a provider: not a member, NOT_CONFIGURED, never cacheable; a
+// static segment of the same document keeps answering from its members.
+func TestARejectedDynamicDefinitionAnswersNotConfigured(t *testing.T) {
+	t.Parallel()
+
+	stores := flagruntime.StoreTable{connAudiences: {Kind: kindRedis, Store: bothStore{}}}
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{SegmentStores: stores})
+	built := buildAndCommit(t, builder, content(1, objs{
+		"f1":      obj(flagruntime.KindFlags, []byte(useFlagsYAML)),
+		segObject: segObj(audienceDoc("nowhere", "")),
+		setsName: setsObj(t, controlplane.FlagSet{
+			Name: "a", Sources: src("f1"), SegmentSources: []string{segObject}, APIKeys: []string{keyA},
+		}),
+	}))
+
+	set := built.Runtime.FlagSets["a"]
+	require.NotNil(t, set, "the flag set is served on its first load")
+
+	eval := flagruntime.NewEvaluator(newService(t), nil)
+
+	tests := []struct {
+		name            string
+		flag            string
+		key             string
+		wantStatus      segment.Status
+		wantValue       bool
+		wantCacheable   bool
+		wantRequiresSrv bool
+	}{
+		{
+			name: "rejected definition", flag: dynFlagName, key: carolKey, wantStatus: segment.StatusNotConfigured,
+			wantRequiresSrv: true,
+		},
+		{
+			name:       "static segment of the same document",
+			flag:       staticFlagName,
+			key:        "alice",
+			wantStatus: segment.StatusHealthy,
+			wantValue:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := eval.BoolVariationDetails(set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantValue, got.Value)
+			assert.Equal(t, tt.wantStatus, got.SegmentStatus)
+			assert.Equal(t, tt.wantCacheable, got.Cacheable)
+
+			_, requires := set.SegmentUse(tt.flag)
+			assert.Equal(t, tt.wantRequiresSrv, requires)
+		})
+	}
+}
+
+// A document that is not valid keeps the last good content of the object (whole), a rejected definition does not: the
+// counts follow the last content, a rejection is reported once for its content, and a fixed document clears it.
+func TestRejectionsAreReportedOnceAndCounted(t *testing.T) {
 	t.Parallel()
 
 	stores := flagruntime.StoreTable{connAudiences: {Kind: kindRedis, Store: bothStore{}}}
@@ -174,6 +256,8 @@ func TestARejectedDynamicDefinitionKeepsTheLastGoodContentAndIsReportedOnce(t *t
 		segObject: segObj(audienceDoc(connAudiences, "")),
 		setsName:  withSegmentSources(t),
 	}
+
+	invalid := segHeader + "  - name: audience\n    connection: audiences\n    layout: keys\n"
 
 	steps := []struct {
 		name           string
@@ -187,24 +271,29 @@ func TestARejectedDynamicDefinitionKeepsTheLastGoodContentAndIsReportedOnce(t *t
 			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1},
 		},
 		{
-			name: "rejected", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectInvalid,
+			name: "definition rejected", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectOK,
 			wantCounts:     flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
 			wantRejections: 1,
 		},
 		{
-			name: "the same content again", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectInvalid,
+			name: "the same content again", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectOK,
 			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
 		},
 		{
-			name: "other bad content", doc: audienceDoc("elsewhere", ""), wantState: flagruntime.ObjectInvalid,
+			name: "other bad content", doc: audienceDoc("elsewhere", ""), wantState: flagruntime.ObjectOK,
 			wantCounts:     flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
 			wantRejections: 1,
 		},
 		{
 			name: "two bad definitions", doc: segHeader + "  - name: one\n    connection: nowhere\n" +
 				"  - name: two\n    connection: elsewhere\n",
-			wantState:      flagruntime.ObjectInvalid,
-			wantCounts:     flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 2},
+			wantState:      flagruntime.ObjectOK,
+			wantCounts:     flagruntime.SegmentCounts{Dynamic: 2, RejectedDefinitions: 2},
+			wantRejections: 1,
+		},
+		{
+			name: "invalid document keeps the last good one", doc: invalid, wantState: flagruntime.ObjectInvalid,
+			wantCounts:     flagruntime.SegmentCounts{Dynamic: 2, RejectedDefinitions: 2},
 			wantRejections: 1,
 		},
 		{
@@ -225,9 +314,9 @@ func TestARejectedDynamicDefinitionKeepsTheLastGoodContentAndIsReportedOnce(t *t
 	}
 }
 
-// The engine logs a rejected segments object once, with the reason, when the generation that met it is built, and does
-// not log it again for the generations that carry the same content.
-func TestEngineLogsARejectedSegmentsObjectOnce(t *testing.T) {
+// The engine logs the definitions that the connections cannot serve once, with the reason, when the generation that
+// met them is built, and does not log them again for the generations that carry the same content.
+func TestEngineLogsRejectedDefinitionsOnce(t *testing.T) {
 	t.Parallel()
 
 	handler := newRecordingHandler()
@@ -251,13 +340,16 @@ func TestEngineLogsARejectedSegmentsObjectOnce(t *testing.T) {
 	rejected := 0
 
 	for record := range strings.SplitSeq(handler.text(), "\n") {
-		if strings.HasPrefix(record, "segments object rejected: its last good content stays") {
-			rejected++
-
-			assert.Contains(t, record, "object="+segObject)
-			assert.Contains(t, record, "generation=2")
-			assert.Contains(t, record, `segments[1].connection: "nowhere" is not a connection of the bootstrap file`)
+		if !strings.HasPrefix(record, "dynamic segment definitions rejected") {
+			continue
 		}
+
+		rejected++
+
+		assert.Contains(t, record, "object="+segObject)
+		assert.Contains(t, record, "generation=2")
+		assert.Contains(t, record, "definitions=1")
+		assert.Contains(t, record, `segments[1].connection: "nowhere" is not a connection of the bootstrap file`)
 	}
 
 	assert.Equal(t, 1, rejected, "one record for the content, not one for each generation")

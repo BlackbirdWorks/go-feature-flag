@@ -81,24 +81,27 @@ with the `keys` layout and the `snapshot` mode is rejected when the document is 
 
 ## Checks when a generation is built
 
-The relay checks every dynamic definition of a segments document against the connections of its bootstrap file when it reads the document. The checks run in this order, and each failure names the field in the document (`segments[2].connection`):
+The relay checks a segments document when it reads it. The connections are settings of the process (the bootstrap file), the definitions are published content that several relays share: a relay that lacks a connection must not stop serving its flag sets. So there are two levels.
 
-- The document is valid: names, the exclusive fields, the `keys` layout with the `snapshot` mode (invalid: the `keys` layout is lookup-only), `missingKey`, the `version` block (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h) and the `cache` block.
+The document is checked as a whole. It is valid: names, the exclusive fields, the `keys` layout with the `snapshot` mode (invalid: the `keys` layout is lookup-only), `missingKey`, the `version` block (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h) and the `cache` block. A document that is not valid is rejected whole and follows the last-known-good rules of the other objects: the flag sets keep serving the content they had, the object is `invalid` in `/info` and in the `objects` metric, and a document that was never good is an invalid entry (the flag sets that list it keep the flags they had, or serve none).
+
+Each dynamic definition is then checked against the connections of the bootstrap file, one by one. In this order, and each failure names the field in the document (`segments[2].connection`):
+
 - The `connection` is a connection of the bootstrap file.
 - The type of the connection can serve segments (`redis` and `valkey`; a bucket or a stream cannot).
 - The store of the connection serves the `mode` of the definition (`segment.RequireMode`: `lookup` needs a provider, `snapshot` a snapshot source).
 
-A definition that fails is rejected, and the whole segments object follows the last-known-good rules of the other objects: the flag sets keep serving the content they had, the object is reported as `invalid` in `/info` and in the `objects` metric, and the next version of the document is checked again. A document that was never good is an invalid entry: the flag sets that list it keep the flags they had, or serve none.
+A definition that fails is rejected alone. The document and its other definitions are applied (the static segments work, the other dynamic ones too), and the flag set is served, on the first load and later. The rejected segment stays in the catalog as "not configured": it answers like a segment without a provider (not a member, status `NOT_CONFIGURED`), and the flags that use it are not cacheable.
 
-- A rejection is logged once, when its generation is built (`segments object rejected: its last good content stays`, with the object, the checksum and the reasons), not for each evaluation and not for each poll that finds the same content.
-- `/info` shows, for each flag set, the dynamic segments by state: `valid` (served) and `rejected` (offered by the last content of its segments objects and refused). The reasons are in the log only.
-- Fixing the document and publishing it applies on the next poll, without a restart. The connections are settings that need a restart: a changed `connections` section is listed in `pendingRestart`, and the relay keeps checking against the connections it started with.
-- `semaphore-cli config validate` and `publish` do not know the bootstrap file of a relay, so they do not check the connections: a document can be valid for the CLI and rejected by a relay.
+- A rejection is logged once, when its generation is built (`dynamic segment definitions rejected: ...`, with the object, the checksum and the path-addressed reasons), not for each evaluation and not for each poll that finds the same content.
+- `/info` shows, for each flag set, the dynamic segments by state: `valid` and `rejected` (in `segments.dynamicStates`). The same counts are the series `semaphore_resource_count{kind="dynamicSegment", state="valid"|"rejected"}`. The reasons are in the log only.
+- Fixing the document and publishing it applies on the next poll, without a restart. Fixing a connection is a change of the bootstrap file, which needs a restart (a changed `connections` section is listed in `pendingRestart`): the relay keeps checking against the connections it started with.
+- `semaphore-cli config validate` and `publish` do not know the bootstrap file of a relay, so they do not check the connections: a document can be valid for the CLI and have definitions that a relay rejects.
 
 ## Cacheable and flag configuration
 
-- A flag whose rules use a dynamic segment answers without `semaphore_cacheable` (and without its legacy alias `gofeatureflag_cacheable`), and with `"cacheable": false` on `/v1/feature/{key}/eval`, even when the evaluation did not reach the segment: its members live in a store and change without a new flag. The bulk endpoints never send the cacheable keys. A flag with static segments only, and a flag with none, answer as before.
-- `POST /v1/flag/configuration` adds two fields to a flag whose rules use segments: `segments` (the sorted names) and `requiresServerEvaluation` (`true` when one of them is dynamic: a client that evaluates the flag itself cannot answer it). A flag that uses no segment has neither field. Members, keys and key patterns are never listed.
+- A flag whose rules use a dynamic segment answers without `semaphore_cacheable` (and without its legacy alias `gofeatureflag_cacheable`), and with `"cacheable": false` on `/v1/feature/{key}/eval`, even when the evaluation did not reach the segment, and even when the flag wrote these keys in its own `metadata`: they are removed from the single and the bulk answers. Its members live in a store and change without a new flag. The bulk endpoints never send the cacheable keys of an evaluation. A flag with static segments only, and a flag with none, answer as before.
+- `POST /v1/flag/configuration` adds two fields to a flag whose rules use segments: `segments` (the sorted names, also when the flag set cannot resolve a name) and `requiresServerEvaluation` (`true` when one of them is dynamic or cannot be resolved by the flag set: a client that evaluates the flag itself cannot answer it). A flag that uses no segment has neither field. Members, keys and key patterns are never listed.
 
 ## Which type to choose
 

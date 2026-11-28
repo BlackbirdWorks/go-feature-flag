@@ -31,7 +31,7 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 	// (a set whose entry is invalid, frozen or placeholder, stays as it is: it is built only when every one of its
 	// sources resolves, and what resolves is decided by the documents, which an incremental pass does not change)
 	for setName, held := range st.prev.sets {
-		if held.frozen || held.placeholder {
+		if held.frozen {
 			continue
 		}
 
@@ -60,7 +60,7 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 		}
 
 		old := st.prev.sets[name]
-		set := st.buildSet(old.spec, old.notes)
+		set := st.rebuiltSet(old)
 		next.sets[name] = set
 		next.flagSets[name] = set.fs
 		next.setStatus[name] = set.status
@@ -73,6 +73,16 @@ func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 	}
 
 	return &next, nil
+}
+
+// rebuiltSet is the flag set that replaces a running one in an incremental pass: a placeholder stays a placeholder (it
+// only follows its segments objects), any other is built again.
+func (st *stage) rebuiltSet(old *setState) *setState {
+	if old.placeholder {
+		return st.placeholderSet(old.spec, old.notes)
+	}
+
+	return st.buildSet(old.spec, old.notes)
 }
 
 // inputSummary is what a flag set learns from its sources.
@@ -233,13 +243,20 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *se
 
 // placeholderSet routes the keys of an invalid entry that never had a valid definition to a flag set that is
 // pending and has no flags, so a valid key reaches the "not available" answer.
-func placeholderSet(spec *setSpec, notes []Problem, now time.Time) *setState {
+func (st *stage) placeholderSet(spec *setSpec, notes []Problem) *setState {
+	now := st.now
+	segInputs := make([]*segState, len(spec.segSources))
+
+	for idx, source := range spec.segSources {
+		segInputs[idx] = st.segs[source]
+	}
+
 	return &setState{
-		spec: spec, notes: notes, placeholder: true,
+		spec: spec, notes: notes, placeholder: true, segInputs: segInputs,
 		fs: &FlagSet{Name: spec.name, State: StatePending, APIKeys: len(spec.keys), ModifiedAt: now},
 		status: &FlagSetStatus{
 			Name: spec.name, State: StatePending, Sources: spec.sources, Problems: slices.Clone(notes),
-			APIKeys: len(spec.keys),
+			APIKeys: len(spec.keys), Segments: st.placeholderCounts(spec),
 		},
 	}
 }

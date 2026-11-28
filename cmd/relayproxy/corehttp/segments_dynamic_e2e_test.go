@@ -20,6 +20,7 @@ const (
 	dynFlagsYAML = `
 dyn-flag:
   variations: {on: true, off: false}
+  metadata: {semaphore_cacheable: true, gofeatureflag_cacheable: true, team: core}
   targeting:
     - {name: vip, query: 'targetingKey eq "vip"', variation: on}
     - {name: audience, query: 'targetingKey in segment("audience")', variation: on}
@@ -112,17 +113,17 @@ func segmentsInfo(t *testing.T, cfg *model.ConfigInfo) (*model.SegmentCountsInfo
 	return counts, state
 }
 
-// A definition that names a connection the bootstrap file does not have is rejected when its generation is built: the
-// segments object keeps its last good content and the flags are evaluated as before (the dynamic segment has no
-// provider yet: not a member, NOT_CONFIGURED), /info counts the rejection, and a document that is fixed is applied on
-// the next poll without a restart. A flag that uses a dynamic segment is never cacheable, a flag with static segments
-// only is as before; the flag configuration lists the segments of the flags that use some.
+// A definition that names a connection the bootstrap file does not have is rejected alone: the document is applied
+// with its other definitions on the first load, the flag set is served, the segment answers as a segment without a
+// provider (not a member, NOT_CONFIGURED), /info counts it, and a document that is fixed is applied on the next poll
+// without a restart. A flag that uses a dynamic segment is never cacheable, even when its own metadata says so; a flag
+// with static segments only is as before; the flag configuration lists the segments of the flags that use some.
 func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, v2Options{connections: audiencesConnection})
+	rig := newV2With(t, v2Options{connections: audiencesConnection, cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
-	rig.segments = map[string][]byte{segObjectName: []byte(segDocGood)}
+	rig.segments = map[string][]byte{segObjectName: []byte(segDocMissing)}
 	rig.sets = []controlplane.FlagSet{{
 		Name: setName, Sources: []string{flagsObject, dynFlagsObject}, SegmentSources: []string{segObjectName},
 		APIKeys: []string{tenantKey},
@@ -131,49 +132,36 @@ func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	rig.publish(t)
 	rig.poll(t)
 
-	// a good document: the definition is valid and served
-	counts, state := segmentsInfo(t, infoOf(t, rig))
+	// the definition that names a missing connection is rejected, the document is applied, the flag set is served
+	cfg := infoOf(t, rig)
+	counts, state := segmentsInfo(t, cfg)
 	assert.Equal(t, string(flagruntime.ObjectOK), state)
 	assert.Equal(t, model.SegmentCountsInfo{
-		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1},
+		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 0, Rejected: 1},
 	}, *counts)
+
+	for i := range cfg.FlagSets {
+		if cfg.FlagSets[i].Name == setName {
+			assert.Equal(t, "ready", cfg.FlagSets[i].State)
+		}
+	}
+
+	assert.Equal(t, 1, dynamicSegmentGauge(t, rig, "rejected"))
+	assert.Equal(t, 0, dynamicSegmentGauge(t, rig, "valid"))
 
 	dyn := evalOFREP(t, rig, "dyn-flag", "carol")
 	assert.False(t, dyn.Value)
 	assert.Equal(t, "NOT_CONFIGURED", dyn.Metadata[flagruntime.MetadataSegmentStatus])
 
-	// the first rule decides: the dynamic segment is never reached, and the answer is still not cacheable
-	vip := evalOFREP(t, rig, "dyn-flag", "vip")
-	assert.True(t, vip.Value)
-	assert.NotContains(t, vip.Metadata, flagruntime.MetadataCacheable)
-	assert.NotContains(t, vip.Metadata, flagruntime.LegacyMetadataCacheable)
+	static := evalOFREP(t, rig, "static-flag", "alice")
+	assert.True(t, static.Value, "the static segment of the same document")
 
-	cacheable, _ := evalGOFF(t, rig, "dyn-flag", "vip")
-	assert.False(t, cacheable, "the GOFF evaluation of a flag with a dynamic segment")
-
-	// a flag with a static segment only keeps the answer it had: it is looked up (not cacheable by its lookup), and
-	// the flag that uses no segment stays cacheable
-	assert.Contains(t, evalOFREP(t, rig, "bool-flag", "user-1").Metadata, flagruntime.LegacyMetadataCacheable)
+	assertNotCacheable(t, rig)
 
 	assertFlagConfigurationSegments(t, rig, map[string]string{
 		"dyn-flag":    `"segments":["audience"],"requiresServerEvaluation":true`,
 		"static-flag": `"segments":["beta"],"requiresServerEvaluation":false`,
 	}, "bool-flag")
-
-	// a rejected document: the last good content stays, /info counts it
-	rig.segments[segObjectName] = []byte(segDocMissing)
-	rig.publish(t)
-	rig.poll(t)
-
-	counts, state = segmentsInfo(t, infoOf(t, rig))
-	assert.Equal(t, string(flagruntime.ObjectInvalid), state)
-	assert.Equal(t, model.SegmentCountsInfo{
-		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1, Rejected: 1},
-	}, *counts)
-
-	kept := evalOFREP(t, rig, "dyn-flag", "carol")
-	assert.False(t, kept.Value)
-	assert.Equal(t, "NOT_CONFIGURED", kept.Metadata[flagruntime.MetadataSegmentStatus])
 
 	// the document is fixed: it is applied on the next poll, without a restart
 	rig.segments[segObjectName] = []byte(segDocFixed)
@@ -186,9 +174,62 @@ func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1},
 	}, *counts)
 
+	assert.Equal(t, 0, dynamicSegmentGauge(t, rig, "rejected"))
+	assert.Equal(t, 1, dynamicSegmentGauge(t, rig, "valid"))
+
 	code, body := ofrepValue(t, rig, "static-flag", "bob")
 	require.Equal(t, http.StatusOK, code, string(body))
 	assert.Contains(t, string(body), `"value":true`, "the new members of the fixed document")
+
+	assertNotCacheable(t, rig)
+}
+
+// assertNotCacheable checks that the flag of the dynamic segment carries no cacheable key on the single, the bulk and
+// the GOFF evaluation, whether or not the segment was reached, and that the flag with static segments only keeps its
+// own metadata.
+func assertNotCacheable(t *testing.T, rig *v2) {
+	t.Helper()
+
+	vip := evalOFREP(t, rig, "dyn-flag", "vip")
+	assert.True(t, vip.Value)
+	assert.NotContains(t, vip.Metadata, flagruntime.MetadataCacheable)
+	assert.NotContains(t, vip.Metadata, flagruntime.LegacyMetadataCacheable)
+	assert.Equal(t, "core", vip.Metadata["team"], "the other metadata of the flag stays")
+
+	cacheable, metadata := evalGOFF(t, rig, "dyn-flag", "vip")
+	assert.False(t, cacheable)
+	assert.NotContains(t, metadata, flagruntime.MetadataCacheable)
+	assert.NotContains(t, metadata, flagruntime.LegacyMetadataCacheable)
+
+	code, _, body := do(t, http.MethodPost, rig.url+pathOFREPBulk,
+		`{"context":{"targetingKey":"vip"}}`, keyHeader(tenantKey))
+	require.Equal(t, http.StatusOK, code, string(body))
+
+	var bulk struct {
+		Flags []struct {
+			Metadata map[string]any `json:"metadata"`
+			Key      string         `json:"key"`
+		} `json:"flags"`
+	}
+
+	require.NoError(t, json.Unmarshal(body, &bulk))
+
+	seen := 0
+
+	for _, flag := range bulk.Flags {
+		if flag.Key == "dyn-flag" {
+			seen++
+
+			assert.NotContains(t, flag.Metadata, flagruntime.MetadataCacheable)
+			assert.NotContains(t, flag.Metadata, flagruntime.LegacyMetadataCacheable)
+			assert.Equal(t, "core", flag.Metadata["team"])
+		}
+	}
+
+	assert.Equal(t, 1, seen)
+
+	// a flag that uses no segment is cacheable as before
+	assert.Contains(t, evalOFREP(t, rig, "bool-flag", "user-1").Metadata, flagruntime.LegacyMetadataCacheable)
 }
 
 func assertFlagConfigurationSegments(t *testing.T, rig *v2, want map[string]string, without string) {
@@ -211,4 +252,33 @@ func assertFlagConfigurationSegments(t *testing.T, rig *v2, want map[string]stri
 	require.Contains(t, got.Flags, without)
 	assert.NotContains(t, string(got.Flags[without]), "segments", "a flag that uses no segment has no field")
 	assert.NotContains(t, string(got.Flags[without]), "requiresServerEvaluation")
+}
+
+// dynamicSegmentGauge reads the count of dynamic segment definitions of a state from the metrics of the relay.
+func dynamicSegmentGauge(t *testing.T, rig *v2, state string) int {
+	t.Helper()
+
+	families, err := rig.metrics.Registry.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != "semaphore_resource_count" {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+
+			if labels["kind"] == "dynamicSegment" && labels["state"] == state {
+				return int(metric.GetGauge().GetValue())
+			}
+		}
+	}
+
+	require.FailNow(t, "the series of the dynamic segments is missing", state)
+
+	return 0
 }

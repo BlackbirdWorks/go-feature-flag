@@ -1,7 +1,6 @@
 package flagruntime
 
 import (
-	"fmt"
 	"maps"
 	"strings"
 
@@ -26,10 +25,9 @@ type segState struct {
 	attempted string
 	reason    string
 	state     ObjectState
+	rejected  []string // the dynamic definitions that the connections cannot serve
 	segments  int
-	// rejectedDefs is the number of dynamic definitions of the last rejected content that the connections cannot serve.
-	rejectedDefs int
-	loaded       bool
+	loaded    bool
 }
 
 // segObject computes the state of one segments object; it returns prev itself when nothing changed.
@@ -60,7 +58,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return prev
 	}
 
-	doc, check, err := st.readSegments(obj.Bytes)
+	doc, err := parseSegments(obj.Bytes)
 
 	st.emit(name, KindSegments, sum)
 
@@ -71,7 +69,6 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 
 		next := keepSeg(name, prev)
 		next.state, next.reason, next.attempted = ObjectInvalid, err.Error(), sum
-		next.rejectedDefs = check.definitions
 		next.status = segStatus(next)
 
 		st.built.SegmentRejections = append(st.built.SegmentRejections,
@@ -80,28 +77,30 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return next
 	}
 
+	check := st.noteDynamic(name, sum, doc)
+
 	next := &segState{
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
-		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc),
+		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: check.names,
 	}
 	next.status = segStatus(next)
 
 	return next
 }
 
-// readSegments decodes and validates a segments document and checks its dynamic definitions against the connections.
-func (st *stage) readSegments(body []byte) (*controlplane.SegmentsDocument, dynamicCheck, error) {
-	doc, err := parseSegments(body)
-	if err != nil {
-		return nil, dynamicCheck{}, err
-	}
-
+// noteDynamic checks the dynamic definitions of an accepted document against the connections and lists the ones that
+// are rejected, once for this content.
+func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocument) dynamicCheck {
 	check := checkDynamic(doc, st.b.opts.SegmentStores)
 	if len(check.reasons) > 0 {
-		return nil, check, fmt.Errorf("%w: %s", ErrDynamicDefinitions, strings.Join(check.reasons, "; "))
+		st.built.SegmentRejections = append(st.built.SegmentRejections, SegmentRejection{
+			Object: name, Checksum: sum, Reason: "the dynamic definitions that the connections cannot serve are " +
+				"rejected, the others are applied: " + strings.Join(check.reasons, "; "),
+			Definitions: len(check.names),
+		})
 	}
 
-	return doc, check, nil
+	return check
 }
 
 // parseSegments decodes and validates a segments document.
@@ -124,7 +123,7 @@ func keepSeg(name string, prev *segState) *segState {
 
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
-		next.doc, next.sets, next.hashes = prev.doc, prev.sets, prev.hashes
+		next.doc, next.sets, next.hashes, next.rejected = prev.doc, prev.sets, prev.hashes, prev.rejected
 	}
 
 	return next
@@ -141,7 +140,6 @@ func segKept(name string, obj *Object, state ObjectState, prev *segState) *segSt
 
 	if prev != nil {
 		next.attempted = prev.attempted
-		next.rejectedDefs = prev.rejectedDefs
 	}
 
 	next.status = segStatus(next)
