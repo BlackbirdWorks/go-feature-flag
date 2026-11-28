@@ -1,7 +1,7 @@
 # Publish
 
 `semaphore-cli publish` is the reference publisher of the [control plane documents](../go-module/controlplane.md): it reads a
-directory of flag files and flag-set documents, builds the manifest and writes both to S3 with the
+directory of flag files and flag-set documents, builds the manifest and writes both to S3 or to a directory ([file store](#file-store)) with the
 [`s3publish`](../go-module/s3publish.md) package, so that a relay polling the manifest never sees a half-written state.
 An external control plane uses the same package.
 
@@ -32,7 +32,7 @@ Either the control-plane connection of a [bootstrap file](../relay-proxy/bootstr
 
 | Flag | Meaning |
 |---|---|
-| `--config`, `-c` | Bootstrap file: `controlPlane.connection` gives the bucket, endpoint, region and credentials, `controlPlane.manifest.key` and `channel` the manifest, `maxObjects` the limit. Secrets are read from `fromEnv` and `fromFile` references. |
+| `--config`, `-c` | Bootstrap file: `controlPlane.connection` is an `s3` connection (bucket, endpoint, region and credentials) or a `file` connection (see [file store](#file-store)), `controlPlane.manifest.key` and `channel` the manifest, `maxObjects` the limit. Secrets are read from `fromEnv` and `fromFile` references. |
 | `--bucket`, `--region` | Without `--config`. Both are required. Credentials come from the AWS default chain. |
 | `--endpoint` | Without `--config`: an emulator or S3 compatible store (path-style addressing is used). |
 | `--channel` | Without `--config`. Default `stable`. |
@@ -296,6 +296,44 @@ semaphore-cli publish verify --config bootstrap.yaml                 # exit 0
 > [!WARNING]
 > API keys in flag-set documents are plain strings until dynamic keys exist. Protect the bucket with access control and
 > encryption at rest; the publisher never prints or logs them.
+
+## File store
+
+With `--config`, a `controlPlane.connection` of type `file` is a directory (`path`, which must exist). The explicit flags
+(`--bucket`, ...) always mean S3. `publish`, `publish verify`, `--dry-run` and every other flag work as for S3, and the
+exit codes are the same.
+
+```yaml
+connections:
+  control: {type: file, path: ./store}
+controlPlane: {connection: control}
+```
+
+```shell
+semaphore-cli publish ./flags-repo --config bootstrap.yaml
+```
+
+The upload protocol is the one above, with files for objects:
+
+- Keys are relative paths below `path`, mapped exactly as the relay maps them. A key that is empty, absolute, has a `..`
+  element, or leaves the directory through a symbolic link is refused (exit 2). A key that names a directory or a symbolic
+  link that a write would replace is refused too.
+- Objects first, manifest last. Every file is written aside under a unique name that starts with `.tmp-`, in the directory of
+  its final name (so on the same file system), flushed with `fsync`, then renamed over the final name; the directory is
+  flushed after the rename. A reader sees the old file or the new one, never a partial file. Missing parent directories are
+  created with mode `0755`, files get `0644` (the umask can only remove bits): nothing is world-writable.
+- A killed publish leaves at most a `.tmp-*` file. The relay never lists the directory and reads only the keys of the
+  manifest, so it ignores them; they are safe to delete.
+- The "manifest changed since read" protection is a lock. The conditional write (create only when there is no manifest, else
+  replace only if it still has the content that was read) runs under an exclusive advisory lock (`flock`) on
+  `.semaphore-publish.lock` in the directory. Of two concurrent publishers exactly one wins; the other fails with the conflict
+  error and exit code 3, as on S3.
+- Limits of the lock: it is advisory (a writer that does not use `semaphore-cli publish` or `s3publish` over this store is not
+  excluded), it holds on one host, and it is not reliable on network file systems that do not support `flock` (NFS before
+  version 4, or mounted without locks): publish to such a store from one host only.
+- Platforms: writing needs `flock` (Linux, macOS, the BSDs). On Windows `publish` to a file store fails with a clear
+  "not supported" error; `publish verify` and the relay read on every platform.
+- Permissions: the publisher needs read, write and create in the directory; `publish verify` needs read only.
 
 ## Not yet
 
