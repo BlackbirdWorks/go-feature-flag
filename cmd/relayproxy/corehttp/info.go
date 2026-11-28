@@ -172,9 +172,14 @@ func unknownFieldsInfo(status *relaycore.Status) []model.UnknownFieldsInfo {
 	return out
 }
 
+// collectObjectUnknownFields adds the unknown fields of the objects to byKind. The paths are "object/path": they are
+// sorted as these strings (so object "a-b" is before object "a": "-" sorts before "/"), and the limit applies to
+// that order.
 func collectObjectUnknownFields(
 	byKind map[string]*model.UnknownFieldsInfo, objects map[string]*flagruntime.ObjectStatus,
 ) {
+	touched := map[string]struct{}{}
+
 	for _, name := range slices.Sorted(maps.Keys(objects)) {
 		obj := objects[name]
 		if obj.UnknownFields == 0 {
@@ -187,13 +192,21 @@ func collectObjectUnknownFields(
 			byKind[obj.Kind] = entry
 		}
 
+		touched[obj.Kind] = struct{}{}
 		entry.Count += obj.UnknownFields
-		for _, field := range obj.UnknownFieldPaths {
-			if len(entry.Fields) >= maxUnknownFieldPaths {
-				break
-			}
 
+		for _, field := range obj.UnknownFieldPaths {
 			entry.Fields = append(entry.Fields, obj.Name+"/"+field)
+		}
+	}
+
+	for kind := range touched {
+		entry := byKind[kind]
+
+		slices.Sort(entry.Fields)
+
+		if len(entry.Fields) > maxUnknownFieldPaths {
+			entry.Fields = entry.Fields[:maxUnknownFieldPaths]
 		}
 	}
 }

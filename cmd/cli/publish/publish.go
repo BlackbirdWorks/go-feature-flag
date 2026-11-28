@@ -13,6 +13,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/controlplane/filepublish"
 	"github.com/blackbirdworks/semaphore/controlplane/flagcheck"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
@@ -332,14 +333,22 @@ func leaves(err error) []error {
 func newPublisher(ctx context.Context, tgt *target, deps *Deps) (*s3publish.Publisher, error) {
 	var api s3publish.API
 
-	if deps.NewAPI != nil {
+	switch {
+	case tgt.root != "":
+		store, err := filepublish.New(tgt.root)
+		if err != nil {
+			return nil, fmt.Errorf("connection %s: %w", tgt.name, err)
+		}
+
+		api = store
+	case deps.NewAPI != nil:
 		custom, err := deps.NewAPI(ctx, tgt.spec, tgt.name)
 		if err != nil {
 			return nil, err
 		}
 
 		api = custom
-	} else {
+	default:
 		client, err := newClient(ctx, deps.ConnectionOptions, tgt)
 		if err != nil {
 			return nil, err
@@ -413,6 +422,8 @@ func codeOf(err error) int {
 	switch {
 	case errors.Is(err, s3publish.ErrConflict):
 		return helper.ExitConflict
+	case errors.Is(err, filepublish.ErrKeyRefused):
+		return helper.ExitInvalid
 	case errors.As(err, new(*s3publish.OperationError)):
 		return helper.ExitTransport
 	case errors.Is(err, s3publish.ErrPreviousManifest), errors.Is(err, s3publish.ErrObjectMismatch),
