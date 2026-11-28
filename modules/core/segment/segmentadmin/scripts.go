@@ -45,9 +45,15 @@ redis.call('PEXPIRE', KEYS[1], ARGV[2])
 return added
 `
 
-	// commitScript: KEYS lock, tmp, live, old, committed. ARGV token, want, ttl in ms, empty ("1" for the explicit
-	// empty import). Returns the codes below. A run that was swapped in once is answered 5 when it asks again.
+	// commitScript: KEYS lock, tmp, live, old, committed, source. ARGV token, want, ttl in ms, empty ("1" for the
+	// explicit empty import), source (the fingerprint of the input, empty for an input that has none). Returns the
+	// codes below. A run that was swapped in once is answered 5 when it asks again. The swap, the mark of the run and
+	// the record of the source are one step: a source fingerprint is stored exactly when the set it describes is live,
+	// and a swap without one removes the old fingerprint, which no longer describes the set.
 	commitScript = `
+local function record()
+  redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
+  if ARGV[5] == '' then redis.call('DEL', KEYS[6]) else redis.call('SET', KEYS[6], ARGV[5]) end
 if redis.call('GET', KEYS[5]) == ARGV[1] then return 5 end
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 1 end
 local want = tonumber(ARGV[2])
@@ -57,7 +63,7 @@ if ARGV[4] == '1' then
     redis.call('DEL', KEYS[3])
     code = 4
   end
-  redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
+  record()
   return code
 end
 if redis.call('EXISTS', KEYS[2]) == 0 then return 2 end
@@ -68,7 +74,7 @@ if redis.call('EXISTS', KEYS[3]) == 1 then
 end
 redis.call('RENAME', KEYS[2], KEYS[3])
 redis.call('PERSIST', KEYS[3])
-redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
+record()
 return 0
 `
 

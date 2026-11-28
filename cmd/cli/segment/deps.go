@@ -12,6 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
+	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/segmentadmin"
 )
 
@@ -33,6 +34,11 @@ type Deps struct {
 	Open func(string) (io.ReadCloser, error)
 	// Connect connects to a store.
 	Connect Connector
+	// NewS3 builds the client of an S3 source. Nil means the connection factory of the relay, which honours
+	// ConnectionOptions.
+	NewS3 func(ctx context.Context, spec *connection.S3Spec, name string) (S3Client, error)
+	// ConnectionOptions are passed to the connection factory (a round tripper that counts requests, for example).
+	ConnectionOptions []connection.Option
 }
 
 // DefaultDeps returns the dependencies of the real command.

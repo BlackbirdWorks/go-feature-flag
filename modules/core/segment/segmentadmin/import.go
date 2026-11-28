@@ -56,20 +56,13 @@ type Target struct {
 
 // ImportOptions set how an import runs.
 type ImportOptions struct {
-	// Wait pauses between the tries of a step that may have lost its reply. Nil means a timer. A test injects one that
-	// returns at once.
-	Wait func(ctx context.Context, delay time.Duration) error
-	// Token identifies the run in the lock and in the name of its temporary key. Empty means a random token.
-	Token string
-	// BatchSize is the members of one batch. Zero means [DefaultBatchSize].
-	BatchSize int
-	// TempTTL is the life of the temporary key and of the lock, refreshed by every batch. Zero means [DefaultTempTTL];
-	// the least is one second.
-	TempTTL time.Duration
-	// AllowEmpty lets an input without a valid id empty the segment.
-	AllowEmpty bool
-	// DryRun reads and validates the input and writes nothing.
-	DryRun bool
+	Wait        func(ctx context.Context, delay time.Duration) error
+	Token       string
+	Fingerprint string
+	BatchSize   int
+	TempTTL     time.Duration
+	AllowEmpty  bool
+	DryRun      bool
 }
 
 // Report is what an import did. It holds counts only, never an id.
@@ -484,8 +477,8 @@ func (run *importRun) finish(ctx context.Context) error {
 func (run *importRun) commit(ctx context.Context) (CommitResult, bool, error) {
 	commit := &Commit{
 		Lock: run.keys.Lock, Tmp: run.keys.Tmp, Live: run.target.Key, Old: run.keys.Old,
-		Committed: run.keys.Committed, Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL,
-		Empty: run.rep.Accepted == 0,
+		Committed: run.keys.Committed, Source: run.keys.Source, Fingerprint: run.opts.Fingerprint,
+		Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL, Empty: run.rep.Accepted == 0,
 	}
 
 	var err error

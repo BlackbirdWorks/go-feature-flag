@@ -143,7 +143,7 @@ func runWith(
 		},
 	}
 
-	return segment.Run(ctx, args, streams, deps)
+	return segment.Run(ctx, args, streams, &deps)
 }
 
 func files() map[string]string {
@@ -182,15 +182,15 @@ func runCases1() []runCase {
 	return []runCase{
 		{
 			name:    "import from a file",
-			args:    append([]string{cmdImport, flagFrom, "ids.txt"}, common(segVIP)...),
-			extra:   map[string]string{"ids.txt": " A\nb\nB\n"},
+			args:    append([]string{cmdImport, flagFrom, fileIDs}, common(segVIP)...),
+			extra:   map[string]string{fileIDs: " A\nb\nB\n"},
 			preload: []string{memberOld},
 			wantOut: []string{
 				"read: 3",
 				"accepted: 3",
 				wantAdded2,
 				"duplicates: 1",
-				"swapped: true",
+				wantSwapped,
 				wantVersionLine,
 			},
 			wantMembers: []string{"a", "b"},
@@ -235,7 +235,7 @@ func runCases1() []runCase {
 		},
 		{
 			name: "allow empty", args: append([]string{cmdImport, flagFrom, "-", "--allow-empty"}, common(segVIP)...),
-			preload: []string{memberOld}, wantOut: []string{"swapped: true"}, wantVersion: true,
+			preload: []string{memberOld}, wantOut: []string{wantSwapped}, wantVersion: true,
 		},
 		{
 			name: "keys layout import is refused", args: append([]string{cmdImport, flagFrom, "-"}, common("flags")...),

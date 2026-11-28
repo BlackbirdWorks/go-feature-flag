@@ -525,7 +525,7 @@ func (s *stubServer) evalCommit(keys, argv []string) string {
 		return integer(1)
 	case argv[3] == "1":
 		s.del(keys[2])
-		s.strs[keys[4]] = argv[0]
+		s.record(keys, argv)
 
 		return integer(0)
 	case !s.exists(keys[1]):
@@ -542,7 +542,17 @@ func (s *stubServer) evalCommit(keys, argv []string) string {
 	s.rename(keys[1], keys[2])
 	delete(s.ttl, keys[2])
 
-	s.strs[keys[4]] = argv[0]
+	s.record(keys, argv)
 
 	return integer(0)
+}
+
+func (s *stubServer) record(keys, argv []string) {
+	s.strs[keys[4]] = argv[0]
+
+	if argv[4] == "" {
+		s.del(keys[5])
+	} else {
+		s.strs[keys[5]] = argv[4]
+	}
 }
