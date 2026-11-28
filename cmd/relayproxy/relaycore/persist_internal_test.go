@@ -17,106 +17,200 @@ const (
 	objSets  = "sets"
 )
 
-func objectOf(kind, content string) manifestreader.ObjectState {
-	return manifestreader.ObjectState{
+// body is the content of an object: its bytes are its own checksum, so a test reads which content it holds.
+func objectOf(kind, content string) *manifestreader.ObjectState {
+	return &manifestreader.ObjectState{
 		Kind: kind, Format: "yaml", State: manifestreader.StateOK, Bytes: []byte(content),
-		Checksum: controlplane.Checksum{Algorithm: "sha256", Value: kind + "-" + content},
+		Checksum: controlplane.Checksum{Algorithm: "sha256", Value: content},
 	}
 }
 
-func snapshotOf(revision, generation uint64, flags, sets string) manifestreader.Persist {
+// staleOf is an object that the reader serves from earlier content of its own.
+func staleOf(kind, content string) *manifestreader.ObjectState {
+	state := objectOf(kind, content)
+	state.State, state.Reason = manifestreader.StateStale, "download"
+
+	return state
+}
+
+func snapshotWith(revision uint64, flags, sets *manifestreader.ObjectState) manifestreader.Persist {
 	return manifestreader.Persist{
 		ETag: "etag", Manifest: []byte("manifest"),
 		Snapshot: &manifestreader.Snapshot{
-			Revision: revision, Generation: generation,
-			Objects: map[string]manifestreader.ObjectState{
-				objFlags: objectOf(controlplane.KindFlags, flags), objSets: objectOf(controlplane.KindFlagSets, sets),
-			},
+			Revision: revision, Generation: revision,
+			Objects: map[string]manifestreader.ObjectState{objFlags: *flags, objSets: *sets},
 		},
 	}
 }
 
-func round(revision uint64, outcome flagruntime.Outcome) *flagruntime.RoundResult {
+func snapshotOf(revision uint64, flags, sets string) manifestreader.Persist {
+	return snapshotWith(revision, objectOf(controlplane.KindFlags, flags), objectOf(controlplane.KindFlagSets, sets))
+}
+
+// round is a decided round: Applied with content, or not.
+func round(revision uint64, outcome flagruntime.Outcome, content bool) *flagruntime.RoundResult {
 	return &flagruntime.RoundResult{
 		Outcome: outcome, Code: string(outcome),
-		Revision: revision,
+		Revision: revision, ContentApplied: content,
 	}
 }
 
-func statuses(invalid ...string) map[string]*flagruntime.ObjectStatus {
-	out := map[string]*flagruntime.ObjectStatus{
-		objFlags: {Name: objFlags, State: flagruntime.ObjectOK},
-		objSets:  {Name: objSets, State: flagruntime.ObjectOK},
+// held is what the runtime holds: the checksum per object, and its state.
+func held(flags, sets string, flagsState flagruntime.ObjectState) map[string]*flagruntime.ObjectStatus {
+	return map[string]*flagruntime.ObjectStatus{
+		objFlags: {Name: objFlags, Kind: controlplane.KindFlags, State: flagsState, Checksum: flags},
+		objSets:  {Name: objSets, Kind: controlplane.KindFlagSets, State: flagruntime.ObjectOK, Checksum: sets},
 	}
-
-	for _, name := range invalid {
-		out[name] = &flagruntime.ObjectStatus{Name: name, State: flagruntime.ObjectInvalid}
-	}
-
-	return out
 }
 
 func never() uint64 { return 0 }
 
-// step is one thing that happens to the persister: the reader offers a snapshot, or the engine decides a revision.
+// step is one thing that happens to the persister: the reader offers a snapshot, or the engine decides a round.
 type step struct {
 	offer   *manifestreader.Persist
 	result  *flagruntime.RoundResult
 	objects map[string]*flagruntime.ObjectStatus
 }
 
-// The state directory is handed what the engine applied and nothing else, with the content that the runtime serves.
-func TestPersisterHandsOverWhatTheEngineApplied(t *testing.T) {
+// written is what one write handed to the store: the revision and, per object, the state and the content.
+type written struct {
+	flags, sets string
+	flagsState  manifestreader.State
+	revision    uint64
+}
+
+func writtenOf(persist *manifestreader.Persist) written {
+	return written{
+		revision: persist.Snapshot.Revision, flags: string(persist.Snapshot.Objects[objFlags].Bytes),
+		sets: string(persist.Snapshot.Objects[objSets].Bytes), flagsState: persist.Snapshot.Objects[objFlags].State,
+	}
+}
+
+// The state directory is handed what the runtime serves, once the engine stored the content, whichever of the offer
+// of the snapshot and the decision of the round comes first.
+func TestPersisterWritesWhatTheRuntimeServes(t *testing.T) {
 	t.Parallel()
 
-	one, two, three := snapshotOf(1, 1, "v1", "s1"), snapshotOf(2, 2, "v2", "s1"), snapshotOf(3, 3, "v3", "s1")
+	one, two, three := snapshotOf(1, "f1", "s1"), snapshotOf(2, "f2", "s1"), snapshotOf(3, "f3", "s1")
+	// the generation 3 could not download its flags object: the reader serves the bytes of the rejected generation 2
+	downloadFailed := snapshotWith(3, staleOf(controlplane.KindFlags, "f2"), objectOf(controlplane.KindFlagSets, "s1"))
+	ok, stale, invalid := flagruntime.ObjectOK, flagruntime.ObjectStale, flagruntime.ObjectInvalid
 
 	tests := []struct {
-		name  string
-		steps []step
-		// wantSaved are the revisions handed to the store, in order, with the content of the flags object
-		wantSaved   []uint64
-		wantContent []string
+		name        string
+		steps       []step
+		wantWritten []written
 		wantPending int
 	}{
 		{
-			name:      "an applied revision is saved",
-			steps:     []step{{offer: &one}, {result: round(1, flagruntime.OutcomeApplied), objects: statuses()}},
-			wantSaved: []uint64{1}, wantContent: []string{"v1"},
-		},
-		{
-			name: "a rejected revision is not saved, and the next applied one is",
+			name: "an applied revision is written",
 			steps: []step{
-				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied), objects: statuses()},
-				{offer: &two}, {result: round(2, flagruntime.OutcomeRejected), objects: statuses()},
-				{offer: &three}, {result: round(3, flagruntime.OutcomeApplied), objects: statuses()},
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
 			},
-			wantSaved: []uint64{1, 3}, wantContent: []string{"v1", "v3"},
+			wantWritten: []written{{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK}},
 		},
 		{
-			name:  "a rejected first revision saves nothing",
-			steps: []step{{offer: &one}, {result: round(1, flagruntime.OutcomeRejected), objects: statuses()}},
+			name: "the decision before the offer: the write is made when the snapshot comes",
+			steps: []step{
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &one},
+			},
+			wantWritten: []written{{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK}},
 		},
 		{
-			name:  "an ignored revision saves nothing",
-			steps: []step{{offer: &one}, {result: round(1, flagruntime.OutcomeIgnored), objects: statuses()}},
+			name: "a rejected revision is not written, and the next applied one is",
+			steps: []step{
+				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two}, {result: round(2, flagruntime.OutcomeRejected, false), objects: held("f1", "s1", ok)},
+				{offer: &three}, {result: round(3, flagruntime.OutcomeApplied, true), objects: held("f3", "s1", ok)},
+			},
+			wantWritten: []written{
+				{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK},
+				{revision: 3, flags: "f3", sets: "s1", flagsState: manifestreader.StateOK},
+			},
 		},
 		{
-			name:        "a round without content saves nothing",
-			steps:       []step{{offer: &one}, {result: round(0, flagruntime.OutcomeApplied), objects: statuses()}},
+			name: "a rejected first revision writes nothing",
+			steps: []step{
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeRejected, false), objects: held("", "", ok)},
+			},
+		},
+		{
+			name: "a bootstrap change that came with rejected content writes nothing of the content",
+			steps: []step{
+				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two}, {result: round(2, flagruntime.OutcomeApplied, false), objects: held("f1", "s1", ok)},
+			},
+			wantWritten: []written{{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK}},
+		},
+		{
+			name: "an ignored revision writes nothing",
+			steps: []step{
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeIgnored, false), objects: held("f1", "s1", ok)},
+			},
+		},
+		{
+			name: "a round without content writes nothing",
+			steps: []step{
+				{offer: &one},
+				{result: round(0, flagruntime.OutcomeApplied, false), objects: held("f1", "s1", ok)},
+			},
 			wantPending: 1,
 		},
 		{
-			name: "the engine keeps the latest: the revisions it dropped are not saved",
+			name: "the engine keeps the latest: the revisions it dropped are not written",
 			steps: []step{
 				{offer: &one}, {offer: &two}, {offer: &three},
-				{result: round(3, flagruntime.OutcomeApplied), objects: statuses()},
+				{result: round(3, flagruntime.OutcomeApplied, true), objects: held("f3", "s1", ok)},
 			},
-			wantSaved: []uint64{3}, wantContent: []string{"v3"},
+			wantWritten: []written{{revision: 3, flags: "f3", sets: "s1", flagsState: manifestreader.StateOK}},
 		},
 		{
-			name:  "a revision that was never offered saves nothing",
-			steps: []step{{result: round(9, flagruntime.OutcomeApplied), objects: statuses()}},
+			name:        "a revision that the engine never decided is not written (a crash before the decision)",
+			steps:       []step{{offer: &one}, {offer: &two}},
+			wantPending: 2,
+		},
+		{
+			name:  "a revision that was never offered writes nothing",
+			steps: []step{{result: round(9, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)}},
+		},
+		{
+			name: "after a rejected generation, a failed download writes the bytes the runtime holds, not the reader's",
+			steps: []step{
+				{offer: &one},
+				{result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two},
+				{result: round(2, flagruntime.OutcomeRejected, false), objects: held("f1", "s1", ok)},
+				{
+					offer: &downloadFailed,
+				},
+				{result: round(3, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", stale)},
+			},
+			wantWritten: []written{
+				{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK},
+				{revision: 3, flags: "f1", sets: "s1", flagsState: manifestreader.StateStale},
+			},
+		},
+		{
+			name: "an object the engine could not decode is written with the content the runtime holds",
+			steps: []step{
+				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", ok)},
+				{offer: &two}, {result: round(2, flagruntime.OutcomeApplied, true), objects: held("f1", "s1", invalid)},
+			},
+			wantWritten: []written{
+				{revision: 1, flags: "f1", sets: "s1", flagsState: manifestreader.StateOK},
+				{revision: 2, flags: "f1", sets: "s1", flagsState: manifestreader.StateStale},
+			},
+		},
+		{
+			name: "an object the runtime never held is written as missing",
+			steps: []step{
+				{offer: &one}, {result: round(1, flagruntime.OutcomeApplied, true), objects: held("", "s1", invalid)},
+			},
+			wantWritten: []written{{revision: 1, flags: "", sets: "s1", flagsState: manifestreader.StateMissing}},
 		},
 	}
 
@@ -124,9 +218,9 @@ func TestPersisterHandsOverWhatTheEngineApplied(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var saved []manifestreader.Persist
+			var saved []written
 
-			persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
+			persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, writtenOf(&p)) }, never)
 
 			for _, one := range tt.steps {
 				if one.offer != nil {
@@ -138,16 +232,7 @@ func TestPersisterHandsOverWhatTheEngineApplied(t *testing.T) {
 				}
 			}
 
-			revisions := make([]uint64, 0, len(saved))
-			contents := make([]string, 0, len(saved))
-
-			for _, p := range saved {
-				revisions = append(revisions, p.Snapshot.Revision)
-				contents = append(contents, string(p.Snapshot.Objects[objFlags].Bytes))
-			}
-
-			assert.Equal(t, tt.wantSaved, nilIfEmpty(revisions))
-			assert.Equal(t, tt.wantContent, nilIfEmpty(contents))
+			assert.Equal(t, nilIfEmpty(tt.wantWritten), nilIfEmpty(saved))
 			assert.Len(t, persist.pending, tt.wantPending)
 		})
 	}
@@ -161,72 +246,35 @@ func nilIfEmpty[T any](in []T) []T {
 	return in
 }
 
-// A generation applied with an object that the engine could not decode is saved with the content the engine kept for
-// the object: the last one that was saved, as a stale object; an object it never held has no content.
-func TestPersisterSavesTheLastGoodContentOfAnObjectTheEngineRejected(t *testing.T) {
+// What is written names the checksum the runtime holds, with the manifest of the generation it runs.
+func TestPersisterWritesTheHeldChecksumAndTheManifest(t *testing.T) {
 	t.Parallel()
 
-	good, bad, first := snapshotOf(
-		1,
-		1,
-		"good",
-		"s1",
-	), snapshotOf(
-		2,
-		2,
-		"broken",
-		"s2",
-	), snapshotOf(
-		1,
-		1,
-		"broken",
-		"s1",
-	)
+	one := snapshotOf(1, "f1", "s1")
+	downloadFailed := snapshotWith(2, staleOf(controlplane.KindFlags, "f2"), objectOf(controlplane.KindFlagSets, "s1"))
+	downloadFailed.Manifest = []byte("manifest 2")
 
 	var saved []manifestreader.Persist
 
 	persist := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
 
-	persist.offer(good)
-	persist.decided(round(1, flagruntime.OutcomeApplied), statuses())
-
-	persist.offer(bad)
-	persist.decided(round(2, flagruntime.OutcomeApplied), statuses(objFlags))
+	persist.offer(one)
+	persist.decided(round(1, flagruntime.OutcomeApplied, true), held("f1", "s1", flagruntime.ObjectOK))
+	persist.offer(downloadFailed)
+	persist.decided(round(2, flagruntime.OutcomeApplied, true), held("f1", "s1", flagruntime.ObjectStale))
 
 	require.Len(t, saved, 2)
 
 	flags := saved[1].Snapshot.Objects[objFlags]
-	assert.Equal(t, manifestreader.StateStale, flags.State, "the object is stale")
-	assert.Equal(t, "good", string(flags.Bytes), "with the content the engine serves, not the rejected one")
-	assert.Equal(t, good.Snapshot.Objects[objFlags].Checksum, flags.Checksum)
-	assert.Equal(t, "s2", string(saved[1].Snapshot.Objects[objSets].Bytes), "the other objects are the new ones")
-	assert.Equal(t, "broken", string(bad.Snapshot.Objects[objFlags].Bytes), "the snapshot of the reader is not changed")
-
-	// the same persister, a generation applied with an undecodable object it never held
-	fresh := newPersister(func(p manifestreader.Persist) { saved = append(saved, p) }, never)
-	fresh.offer(first)
-	fresh.decided(round(1, flagruntime.OutcomeApplied), statuses(objFlags))
-
-	require.Len(t, saved, 3)
-
-	none := saved[2].Snapshot.Objects[objFlags]
-	assert.Equal(t, manifestreader.StateMissing, none.State)
-	assert.Nil(t, none.Bytes)
-}
-
-// The snapshots that wait for a decision are bounded.
-func TestPersisterForgetsTheOldestPendingSnapshots(t *testing.T) {
-	t.Parallel()
-
-	persist := newPersister(func(manifestreader.Persist) {}, never)
-
-	for revision := uint64(1); revision <= maxPending+6; revision++ {
-		persist.offer(snapshotOf(revision, revision, "v", "s"))
-	}
-
-	assert.Len(t, persist.pending, maxPending)
-	assert.NotContains(t, persist.pending, uint64(1))
-	assert.Contains(t, persist.pending, uint64(maxPending+6))
+	assert.Equal(t, "f1", flags.Checksum.Value, "the checksum the runtime holds")
+	assert.Equal(t, "sha256", flags.Checksum.Algorithm)
+	assert.Equal(t, "manifest 2", string(saved[1].Manifest), "the manifest of the generation the runtime runs")
+	assert.Equal(
+		t,
+		"f2",
+		string(downloadFailed.Snapshot.Objects[objFlags].Bytes),
+		"the snapshot of the reader is not changed",
+	)
 }
 
 // The engine decides the revision it took, never an older one: the snapshots older than the one taken are forgotten as
@@ -254,6 +302,10 @@ func TestPersisterKeepsTheRevisionInFlight(t *testing.T) {
 			name: "a long run of newer offers does not drop the one in flight", taken: 1,
 			offered: seq(1, maxPending), decide: 1, wantPending: seq(2, maxPending), wantSaved: []uint64{1},
 		},
+		{
+			name: "the guard of a stalled engine forgets the oldest", taken: 0,
+			offered: seq(1, maxPending+6), decide: maxPending + 6, wantSaved: []uint64{maxPending + 6},
+		},
 	}
 
 	for _, tt := range tests {
@@ -268,10 +320,10 @@ func TestPersisterKeepsTheRevisionInFlight(t *testing.T) {
 			)
 
 			for _, revision := range tt.offered {
-				persist.offer(snapshotOf(revision, revision, "v", "s"))
+				persist.offer(snapshotOf(revision, "f", "s"))
 			}
 
-			persist.decided(round(tt.decide, flagruntime.OutcomeApplied), statuses())
+			persist.decided(round(tt.decide, flagruntime.OutcomeApplied, true), held("f", "s", flagruntime.ObjectOK))
 
 			pending := make([]uint64, 0, len(persist.pending))
 			for revision := range persist.pending {

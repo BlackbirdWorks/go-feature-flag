@@ -130,7 +130,7 @@ func TestEngineAwaitRejectedAndCancelled(t *testing.T) {
 	res := harness.feed(revision(content(1, simpleObjs(t, 1)), 1))
 	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
-	bad := revision(content(2, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}})), 2)
+	bad := revision(content(2, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: objectBogus}})), 2)
 	res = harness.feed(bad)
 	require.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
 

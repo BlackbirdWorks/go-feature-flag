@@ -792,6 +792,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "kept": {
+            "format": "int64",
+            "type": "integer"
+          },
           "kind": {
             "type": "string"
           },
@@ -815,7 +819,8 @@
           "state",
           "checksumHeld",
           "flags",
-          "rejected"
+          "rejected",
+          "kept"
         ],
         "type": "object"
       },
@@ -951,6 +956,10 @@
           "enabled": {
             "type": "boolean"
           },
+          "keptFlags": {
+            "format": "int64",
+            "type": "integer"
+          },
           "lastSaveError": {
             "type": "string"
           },
@@ -969,6 +978,7 @@
           "lastSaveError",
           "saves",
           "saveErrors",
+          "keptFlags",
           "enabled"
         ],
         "type": "object"

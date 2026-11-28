@@ -51,7 +51,8 @@
         "checksumHeld": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
         "checksumListed": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
         "flags": 9,
-        "rejected": 0
+        "rejected": 0,
+        "kept": 0
       },
       {
         "name": "flags-bad",
@@ -59,7 +60,8 @@
         "state": "invalid",
         "checksumHeld": "ba8f3b9fd68d72f6182fbb191f99c225822de9fdda1d2e5b37e6d614bc744152",
         "flags": 9,
-        "rejected": 0
+        "rejected": 0,
+        "kept": 0
       },
       {
         "name": "sets",
@@ -68,7 +70,8 @@
         "checksumHeld": "da4326466c7c4952b0946c043846921fbddf3d4095d348bba5959e199692af2c",
         "checksumListed": "da4326466c7c4952b0946c043846921fbddf3d4095d348bba5959e199692af2c",
         "flags": 2,
-        "rejected": 0
+        "rejected": 0,
+        "kept": 0
       }
     ],
     "withdrawn": [
@@ -87,6 +90,7 @@
       "lastSaveError": "",
       "saves": 0,
       "saveErrors": 0,
+      "keptFlags": 0,
       "enabled": false
     },
     "generation": 3,

@@ -27,8 +27,9 @@ const (
 	savesName      = "semaphore_manifest_state_saves_total"
 	restoreName    = "semaphore_manifest_state_restore_total"
 
-	generationHelp = "Generation of the manifest the reader holds (the applied one)."
-	lastSyncHelp   = "Unix time of the last poll that confirmed the held manifest (a 200 that was accepted or a 304); " +
+	generationHelp = "Generation of the manifest the reader fetched and holds. The engine may not have applied it: " +
+		"semaphore_config_generation{layer=\"applied\"} is the generation that is served."
+	lastSyncHelp = "Unix time of the last poll that confirmed the held manifest (a 200 that was accepted or a 304); " +
 		"0 when there was none."
 	pollsHelp    = "Manifest polls by result (not_modified, updated, not_found, too_large, error)."
 	objectsHelp  = "Objects of the held manifest by state (ok, stale, missing)."

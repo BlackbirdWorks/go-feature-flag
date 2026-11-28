@@ -190,9 +190,25 @@ func (c *Core) DropNotPublic(count int) { c.events.DropNotPublic(count) }
 
 // Status returns a snapshot of the status. It reads atomics and immutable values and never blocks.
 func (c *Core) Status() Status {
+	source := c.source.Status()
+	if c.state != nil {
+		// the writes end between the rounds of the reader: the state of the directory is read now
+		source.Reader.State = c.state.Hooks().StateStatus()
+	}
+
 	return Status{
-		StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: c.source.Status(),
+		StateDirDisabled: c.stateDisabled, Events: c.events.Status(), Source: source,
 		Reloads: c.reloads.snapshot(), ShuttingDown: c.shutdownStarted.Load(),
 		Bootstrapped: c.engine.Bootstrapped(),
 	}
+}
+
+// readerStatus is the status of the reader with the state of the state directory as it is now.
+func (c *Core) readerStatus() manifestreader.Status {
+	status := c.reader.Status()
+	if c.state != nil {
+		status.State = c.state.Hooks().StateStatus()
+	}
+
+	return status
 }

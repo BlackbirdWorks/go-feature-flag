@@ -186,7 +186,7 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 		}
 
 		// the reader of the manifest: its polls and the writes of the state directory, with the connection as the one label
-		c.readerMetrics, err = metric.NewManifestReader(c.registry, cfg.ControlPlane.Connection, c.reader.Status)
+		c.readerMetrics, err = metric.NewManifestReader(c.registry, cfg.ControlPlane.Connection, c.readerStatus)
 		if err != nil {
 			return &BuildError{Path: "observability.metrics", Err: fmt.Errorf("register the reader metrics: %w", err)}
 		}

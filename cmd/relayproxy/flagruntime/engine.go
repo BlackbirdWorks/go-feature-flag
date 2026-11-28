@@ -91,18 +91,18 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // are dropped, and the channel is closed.
 type Engine struct {
 	hooks         Hooks
-	roundDone     atomic.Pointer[chan struct{}]
-	cur           *Runtime
+	builder       *Builder
+	announced     map[string]struct{}
 	content       chan *Content
 	boot          chan *bootstrap.Config
 	changes       chan Change
 	queue         *pendingQueue
-	announced     map[string]struct{}
+	roundDone     atomic.Pointer[chan struct{}]
 	logger        *slog.Logger
 	last          atomic.Pointer[RoundResult]
 	running       map[string]runningObject
+	cur           *Runtime
 	rejected      *Reload
-	builder       *Builder
 	baseline      *bootstrap.Config
 	holder        *Holder
 	decided       atomic.Pointer[decision]
@@ -113,6 +113,7 @@ type Engine struct {
 	snapshot      uint64
 	roundRevision uint64
 	bootstrapped  atomic.Bool
+	roundContent  bool
 	roundHadBoot  bool
 }
 
@@ -338,7 +339,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 
 	e.roundHadBoot = cfg != nil
 
-	e.roundRevision = 0
+	e.roundRevision, e.roundContent = 0, false
 	if content != nil {
 		e.roundRevision = content.Revision
 		e.taken.Store(content.Revision)
@@ -377,6 +378,8 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	}
 
 	e.adoptBaseline(&boot, cfg)
+
+	e.roundContent = plan.built != nil
 
 	applied := e.cur.Status.LastReload
 
@@ -784,7 +787,7 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 		final = *applied
 	}
 
-	result := RoundResult{Reload: final, Revision: e.roundRevision}
+	result := RoundResult{Reload: final, Revision: e.roundRevision, ContentApplied: e.roundContent}
 	if applied != nil {
 		result.Events = events
 	}
