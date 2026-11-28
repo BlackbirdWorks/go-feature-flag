@@ -191,6 +191,8 @@ type rigOptions struct {
 	manifestKey string
 	flags       []string
 	// serverOptions are added to the options of the API server, listenFails makes it fail to bind its address.
+	// broadcast sees every change the core hands to the streams.
+	broadcast     func(flagruntime.Change)
 	serverOptions []api.Option
 	listenFails   bool
 	watchDrain    bool
@@ -259,6 +261,7 @@ func startRelay(t *testing.T, ropts *rigOptions) *relayRig {
 		Load:   bootstrap.LoadOptions{ReadFile: readFileOf(ropts)},
 		Reload: rig.reload,
 		Deps: relaycore.Deps{
+			Broadcast: ropts.broadcast,
 			Scheduler: rig.sched,
 			StateFS:   ropts.stateFS,
 			TuneReader: func(cfg *manifestreader.Config) {

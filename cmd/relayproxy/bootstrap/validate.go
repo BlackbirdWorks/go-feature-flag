@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"reflect"
 	"regexp"
@@ -191,7 +192,7 @@ func (v *validator) server() {
 }
 
 // serveLayout refuses the listener layouts that the relay can not serve yet: a unix socket, several listeners of a
-// role, a port 0, and an ops listener on another host than the api listener.
+// role and a port 0.
 func (v *validator) serveLayout() {
 	server := v.cfg.Server
 
@@ -200,12 +201,11 @@ func (v *validator) serveLayout() {
 	}
 
 	roles := map[string]int{}
-	hosts := map[string]string{}
 
 	for i, listener := range server.Listeners {
 		base := "server.listeners[" + strconv.Itoa(i) + "]"
 
-		host, port, err := net.SplitHostPort(listener.Address)
+		_, port, err := net.SplitHostPort(listener.Address)
 		if err != nil {
 			continue // address() reported it
 		}
@@ -227,23 +227,71 @@ func (v *validator) serveLayout() {
 			continue
 		}
 
-		roles[listener.Role], hosts[listener.Role] = i, host
+		roles[listener.Role] = i
 	}
 
-	apiHost, hasAPI := hosts[RoleAPI]
+	v.overlap(roles)
+}
 
-	opsHost, hasOps := hosts[RoleOps]
-	if hasAPI && hasOps && apiHost != opsHost {
-		v.failf("server.listeners["+strconv.Itoa(roles[RoleOps])+"].address", ErrInvalidValue,
-			"the ops listener must use the host of the api listener")
+// overlap refuses an api and an ops listener that can not both bind: the same port, with a wildcard host on a side.
+// The check is conservative: a "::" listener is taken as covering the IPv4 hosts too (dual stack).
+func (v *validator) overlap(roles map[string]int) {
+	apiIdx, hasAPI := roles[RoleAPI]
+	opsIdx, hasOps := roles[RoleOps]
+
+	if !hasAPI || !hasOps {
+		return
 	}
+
+	listeners := v.cfg.Server.Listeners
+	apiHost, apiPort, apiErr := net.SplitHostPort(listeners[apiIdx].Address)
+	opsHost, opsPort, opsErr := net.SplitHostPort(listeners[opsIdx].Address)
+
+	if apiErr != nil || opsErr != nil || apiPort != opsPort || listeners[apiIdx].Address == listeners[opsIdx].Address {
+		return // the duplicate address is reported by address()
+	}
+
+	if hostsOverlap(apiHost, opsHost) {
+		v.failf("server.listeners["+strconv.Itoa(opsIdx)+"].address", ErrInvalidValue,
+			"the port is also bound by server.listeners[%d] and one of the two hosts is a wildcard: both can not be "+
+				"bound (checked conservatively, \"::\" covers IPv4 too)", apiIdx)
+	}
+}
+
+// hostsOverlap reports whether two hosts of one port can not both be bound because one is a wildcard that covers the
+// other: "" and "::" cover every host, "0.0.0.0" covers the IPv4 addresses and the names (which may resolve to one).
+func hostsOverlap(left, right string) bool {
+	return covers(left, right) || covers(right, left)
+}
+
+func covers(wide, other string) bool {
+	switch wide {
+	case "", "::":
+		return true
+	case "0.0.0.0":
+		addr, err := netip.ParseAddr(other)
+
+		return err != nil || addr.Is4() || addr.Is4In6()
+	}
+
+	return false
+}
+
+// plainPort reports whether a port is written as digits only, with no sign and no leading zero: 1031, not +1031 or
+// 01031 (the loader compares the written form, the server binds the number).
+func plainPort(port string) bool {
+	if port == "" || strings.IndexFunc(port, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return false
+	}
+
+	return port == "0" || port[0] != '0'
 }
 
 func (v *validator) address(path, address string, idx int, seen map[string]int) {
 	_, port, err := net.SplitHostPort(address)
 
 	n, perr := strconv.Atoi(port)
-	if err != nil || perr != nil || n < 0 || n > maxPort {
+	if err != nil || perr != nil || !plainPort(port) || n < 0 || n > maxPort {
 		v.failf(path, ErrInvalidValue, "expected host:port such as :1031")
 
 		return
@@ -288,11 +336,12 @@ func (v *validator) httpURL(path, value string) {
 func (v *validator) hostPort(path, value string) {
 	host, port, err := net.SplitHostPort(value)
 	portNumber, portErr := strconv.Atoi(port)
+	signed := !plainPort(port)
 
 	switch {
 	case strings.Contains(value, "@"):
 		v.failf(path, ErrInvalidValue, "credentials in the address are not allowed")
-	case err != nil || host == "" || portErr != nil || portNumber < 1 || portNumber > maxPort:
+	case err != nil || host == "" || portErr != nil || signed || portNumber < 1 || portNumber > maxPort:
 		v.failf(path, ErrInvalidValue, "expected host:port")
 	}
 }

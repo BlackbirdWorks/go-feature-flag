@@ -255,6 +255,17 @@ func WithJitter(source func() float64) Option {
 	}
 }
 
+// WithClock sets the clock that measures how long a wait lasted before a refresh cut it short: the time of the
+// wait that was cut counts in the retry schedule of the failed objects, so no number of refreshes postpones a retry
+// that is due. The default is [clock.Now].
+func WithClock(now func() time.Time) Option {
+	return func(r *Reader) {
+		if now != nil {
+			r.now = now
+		}
+	}
+}
+
 // WithHooks sets the hooks.
 func WithHooks(h Hooks) Option {
 	return func(r *Reader) { r.hooks = h }

@@ -39,6 +39,9 @@ type Content struct {
 	Objects map[string]Object
 	// Generation is the manifest generation of the content, at least 1.
 	Generation uint64
+	// Revision is the sequence number of the snapshot the content comes from, zero when it has none. A caller that
+	// must know when its snapshot was decided waits for it with [Engine.Await].
+	Revision uint64
 }
 
 // Object is one object of a [Content].

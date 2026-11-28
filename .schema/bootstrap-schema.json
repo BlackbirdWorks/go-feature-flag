@@ -1897,7 +1897,7 @@
                 "addresses": {
                     "items": {
                         "type": "string",
-                        "pattern": "^[^\\s@]+:[0-9]+$"
+                        "pattern": "^(\\[[^\\s@\\]]+\\]|[^\\s@:\\[\\]]+):(0|[1-9][0-9]*)$"
                     },
                     "type": "array",
                     "minItems": 1
@@ -2373,7 +2373,7 @@
                 "addresses": {
                     "items": {
                         "type": "string",
-                        "pattern": "^[^\\s@]+:[0-9]+$"
+                        "pattern": "^(\\[[^\\s@\\]]+\\]|[^\\s@:\\[\\]]+):(0|[1-9][0-9]*)$"
                     },
                     "type": "array",
                     "minItems": 1

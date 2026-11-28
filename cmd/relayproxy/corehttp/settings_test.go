@@ -56,14 +56,15 @@ func TestSettingsFrom(t *testing.T) {
 				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "0.0.0.0:2", Role: bootstrap.RoleOps}),
 			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Host: "0.0.0.0", Port: 1, MonitoringPort: 2,
-				Telemetry: opentelemetry.Settings{Version: "v"}},
+				MonitoringHost: new("0.0.0.0"), Telemetry: opentelemetry.Settings{Version: "v"}},
 		},
 		{
 			name: "ops on another host",
 			cfg: listeners(
 				bootstrap.Listener{Name: roleAPI, Address: "0.0.0.0:1", Role: bootstrap.RoleAPI},
 				bootstrap.Listener{Name: "ops", Address: "127.0.0.1:2", Role: bootstrap.RoleOps}),
-			wantErr: true,
+			want: api.Settings{Version: "v", Mode: api.ServerModeHTTP, Host: "0.0.0.0", Port: 1, MonitoringPort: 2,
+				MonitoringHost: new("127.0.0.1"), Telemetry: opentelemetry.Settings{Version: "v"}},
 		},
 		{
 			name: "two api listeners",
@@ -105,16 +106,50 @@ func TestSettingsFrom(t *testing.T) {
 	}
 }
 
-func TestRefreshIsNotSupported(t *testing.T) {
+// The refresh endpoint polls the control plane at once, through the poll of the schedule, and says what it found. Only
+// an admin key may ask.
+func TestRefreshPollsNow(t *testing.T) {
 	t.Parallel()
 
 	rig := newV2(t)
 
-	status, _, body := do(t, http.MethodPost, rig.url+pathRefresh, "", keyHeader(adminKey))
+	tests := []struct {
+		name       string
+		key        string
+		wantBody   string
+		wantStatus int
+		publish    bool
+	}{
+		{
+			name:       "a new generation",
+			publish:    true,
+			key:        adminKey,
+			wantStatus: http.StatusOK,
+			wantBody: `{"result":"updated","generation":2,"refreshed":true,"changed":true,"applied":true,` +
+				`"appliedGeneration":2}`,
+		},
+		{
+			name: "nothing new", key: adminKey, wantStatus: http.StatusOK,
+			wantBody: `{"result":"not_modified","generation":2,"refreshed":true,"applied":true,"appliedGeneration":2}`,
+		},
+		{
+			name:       "a flag set key",
+			key:        tenantKey,
+			wantStatus: http.StatusUnauthorized,
+			wantBody:   `{"message":"Unauthorized"}`,
+		},
+	}
 
-	assert.Equal(t, http.StatusNotImplemented, status)
-	assert.JSONEq(t, `{"message":"refresh on request is not supported: the relay polls the control plane manifest"}`,
-		string(body))
+	for _, tt := range tests {
+		if tt.publish {
+			rig.publish(t)
+		}
+
+		status, _, body := do(t, http.MethodPost, rig.url+pathRefresh, "", keyHeader(tt.key))
+
+		assert.Equal(t, tt.wantStatus, status, tt.name)
+		assert.JSONEq(t, tt.wantBody, string(body), tt.name)
+	}
 }
 
 // The settings of the file reach the HTTP layer: the profiler, the advertised event stream and the validate limits.

@@ -19,7 +19,7 @@ import (
 var ErrListeners = errors.New("corehttp: the listeners of the file are not supported")
 
 // SettingsFrom returns the settings of the HTTP layer from a bootstrap file. The server serves one api listener
-// and at most one ops listener, on the same host; a unix socket is not served yet. version is the version of the
+// and at most one ops listener, on its own address; a unix socket is not served yet. version is the version of the
 // binary.
 func SettingsFrom(cfg *bootstrap.Config, version string) (api.Settings, error) {
 	settings := api.Settings{
@@ -78,11 +78,11 @@ func SettingsFrom(cfg *bootstrap.Config, version string) (api.Settings, error) {
 		}
 	}
 
-	if settings.MonitoringPort != 0 && opsHost != apiHost {
-		return api.Settings{}, fmt.Errorf("%w: the api and ops listeners must share their host", ErrListeners)
-	}
-
 	settings.Host = apiHost
+
+	if settings.MonitoringPort != 0 {
+		settings.MonitoringHost = &opsHost
+	}
 
 	return settings, nil
 }
