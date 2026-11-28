@@ -236,7 +236,7 @@ func (rig *v2) awaitGeneration(tb testing.TB, gen uint64) {
 func newV2(tb testing.TB) *v2 {
 	tb.Helper()
 
-	return newV2With(tb, v2Options{})
+	return newV2With(tb, &v2Options{})
 }
 
 // v2Options shape a v2 rig: a state directory, and a cold start (nothing is published, so the first poll finds no
@@ -250,12 +250,14 @@ type v2Options struct {
 	dir      string
 	// connections are more connections of the bootstrap file, as indented lines of its connections block.
 	connections string
+	// extra is more top-level sections of the bootstrap file.
+	extra       string
 	cold        bool
 	noAdminKeys bool
 }
 
 // newV2With is [newV2] with options.
-func newV2With(tb testing.TB, opts v2Options) *v2 {
+func newV2With(tb testing.TB, opts *v2Options) *v2 {
 	tb.Helper()
 
 	dir := opts.dir
@@ -308,7 +310,7 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" + opts.connections +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n" +
-		adminLine
+		adminLine + opts.extra
 
 	cfg, err := bootstrap.Parse([]byte(doc), nil, bootstrap.LoadOptions{})
 	require.NoError(tb, err)

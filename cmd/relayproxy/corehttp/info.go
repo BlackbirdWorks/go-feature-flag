@@ -40,6 +40,8 @@ func (m monitoring) Info() (model.InfoResponse, error) {
 	status := m.src.Status()
 	cfg := configInfo(&status, clock.Now())
 
+	addSegmentInfo(&cfg, &status.Segments)
+
 	return model.InfoResponse{Flagsets: dates, LatestCacheRefresh: &latest, Config: &cfg}, nil
 }
 

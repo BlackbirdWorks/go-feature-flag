@@ -50,11 +50,6 @@ func New(ctx context.Context, cfg *bootstrap.Config, deps *Deps) (*Core, error) 
 		logger = slog.New(slog.DiscardHandler)
 	}
 
-	if cfg.Segments != nil {
-		logger.LogAttrs(ctx, slog.LevelWarn,
-			"segment stores are configured; segment definitions come from the control plane (not active yet)")
-	}
-
 	core := &Core{
 		log:      logger,
 		factory:  connection.New(append([]connection.Option{connection.WithLogger(logger)}, deps.Connection...)...),
@@ -142,15 +137,30 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 		}
 	}
 
-	c.engine = flagruntime.NewEngine(c.log, c.svc, c.holder,
-		flagruntime.WithHooks(engineHooks),
-		flagruntime.WithSegmentStores(segmentstore.New(cfg)),
-		flagruntime.WithSecretOptions(deps.Secrets),
-		flagruntime.WithInitialBootstrap(cfg),
-	)
+	c.engine = c.newEngine(cfg, deps, engineHooks)
 	c.source = controlsource.New(c.reader, c.engine, c.holder, c.log)
 
 	return c.assembleEvents(ctx, cfg, deps)
+}
+
+// newEngine builds the engine and the stores of the dynamic segments that it binds its generations to.
+func (c *Core) newEngine(cfg *bootstrap.Config, deps *Deps, hooks flagruntime.Hooks) *flagruntime.Engine {
+	c.segWait = deps.SegmentWait
+	if c.segWait == nil {
+		c.segWait = timerWait
+	}
+
+	c.segs = segmentstore.NewConnections(cfg, segmentstore.Options{Logger: c.log, Secrets: deps.Secrets})
+
+	return flagruntime.NewEngine(c.log, c.svc, c.holder,
+		flagruntime.WithHooks(hooks),
+		flagruntime.WithSegmentStores(c.segs),
+		flagruntime.WithSegments(&flagruntime.SegmentEnv{
+			Binder: c.segs, Observer: &c.segCounters, Resolver: resolverSettings(cfg),
+		}),
+		flagruntime.WithSecretOptions(deps.Secrets),
+		flagruntime.WithInitialBootstrap(cfg),
+	)
 }
 
 // assembleEvents builds the exporters and notifiers and the evaluator that feeds them. It is the last step: the
@@ -196,4 +206,13 @@ func (c *Core) assembleEvents(ctx context.Context, cfg *bootstrap.Config, deps *
 	}
 
 	return nil
+}
+
+// resolverSettings is the resolver section of the file, nil when it has no segments section.
+func resolverSettings(cfg *bootstrap.Config) *bootstrap.SegmentResolver {
+	if cfg.Segments == nil {
+		return nil
+	}
+
+	return &cfg.Segments.Resolver
 }

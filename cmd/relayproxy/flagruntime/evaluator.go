@@ -321,6 +321,13 @@ func variation[T model.JSONType](
 		SegmentCatalog:              set.SegmentCatalogFor(flagKey),
 	}
 
+	if set.usesDynamicSegment(flagKey) {
+		// every membership of the flag is fetched in one batch before the rules run
+		if prefetch := set.prefetchFlag(evalCtx, flagCtx.EvaluationContextEnrichment, flagKey); prefetch != nil {
+			flagCtx.Segments = prefetch
+		}
+	}
+
 	res, err := evaluation.Evaluate[T](
 		flag,
 		flagKey,
@@ -484,6 +491,9 @@ func (e *Evaluator) GetFlagStates(
 		Service:                     e.svc,
 	}
 
+	// one batch for the dynamic segments of all the flags of the request
+	prefetch := set.prefetchFlags(evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate)
+
 	states := flagstate.NewAllFlags()
 
 	if len(flagsToEvaluate) != 0 {
@@ -494,6 +504,12 @@ func (e *Evaluator) GetFlagStates(
 			}
 
 			flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
+
+			flagCtx.Segments = nil
+			if prefetch != nil && set.usesServed(key) {
+				flagCtx.Segments = prefetch
+			}
+
 			addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 		}
 
@@ -506,6 +522,12 @@ func (e *Evaluator) GetFlagStates(
 
 	for key, flag := range set.Flags {
 		flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
+
+		flagCtx.Segments = nil
+		if prefetch != nil && set.usesServed(key) {
+			flagCtx.Segments = prefetch
+		}
+
 		addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 	}
 

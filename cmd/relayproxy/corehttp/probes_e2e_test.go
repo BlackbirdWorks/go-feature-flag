@@ -61,7 +61,7 @@ func (rig *v2) wantProbe(tb testing.TB, path string, wantCode int, wantBody stri
 func TestProbes_ColdStartThenManifest(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, v2Options{cold: true})
+	rig := newV2With(t, &v2Options{cold: true})
 
 	rig.wantProbe(t, "/livez", http.StatusOK, `{"live":true}`)
 	rig.wantProbe(t, "/startupz", http.StatusOK, `{"ready":true}`)
@@ -84,7 +84,7 @@ func TestProbes_ColdStartThenManifest(t *testing.T) {
 func TestProbes_ColdStartWithoutAdminKeys(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, v2Options{cold: true, noAdminKeys: true})
+	rig := newV2With(t, &v2Options{cold: true, noAdminKeys: true})
 
 	rig.wantProbe(t, "/startupz", http.StatusOK, `{"ready":true}`)
 	rig.wantProbe(t, "/readyz", http.StatusServiceUnavailable, bodyWaiting)
@@ -145,7 +145,7 @@ func TestProbes_StateDirRestoreWithStoreDownIsReady(t *testing.T) {
 	t.Parallel()
 
 	stateDir := filepath.Join(t.TempDir(), "state")
-	first := newV2With(t, v2Options{stateDir: stateDir})
+	first := newV2With(t, &v2Options{stateDir: stateDir})
 	first.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
 
 	// Shutdown writes the last snapshot before it returns
@@ -155,7 +155,7 @@ func TestProbes_StateDirRestoreWithStoreDownIsReady(t *testing.T) {
 	require.NoError(t, first.core.Shutdown(ctx))
 
 	// the store is empty (down) for the second start
-	second := newV2With(t, v2Options{stateDir: stateDir, cold: true, dir: filepath.Join(t.TempDir(), "empty")})
+	second := newV2With(t, &v2Options{stateDir: stateDir, cold: true, dir: filepath.Join(t.TempDir(), "empty")})
 	second.awaitGeneration(t, 1)
 	second.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
 	assert.Equal(t, manifestreader.RestoreRestored, second.core.Status().Source.Reader.State.Restore)
@@ -189,7 +189,7 @@ func TestInfo_DegradedGolden(t *testing.T) {
 	// a cold start: the bootstrap round ends alone before the first manifest. On a warm start the engine could take the
 	// file and the first manifest in one round (it is latest-wins), and the golden count of applied rounds would be
 	// 3 or 4 depending on the scheduling.
-	rig := newV2With(t, v2Options{cold: true})
+	rig := newV2With(t, &v2Options{cold: true})
 	rig.publish(t)
 	rig.tick(t)
 	rig.awaitGeneration(t, 1)
@@ -249,7 +249,7 @@ func TestMetricsAndInfo_AfterScriptedReloads(t *testing.T) {
 	// a cold start: the bootstrap round ends alone before the first manifest. On a warm start the engine could take the
 	// file and the first manifest in one round (it is latest-wins), and the count of applied rounds below would be
 	// 2 or 3 depending on the scheduling.
-	rig := newV2With(t, v2Options{cold: true, beforeSwap: func(candidate *flagruntime.Runtime) error {
+	rig := newV2With(t, &v2Options{cold: true, beforeSwap: func(candidate *flagruntime.Runtime) error {
 		if candidate.Generation == 3 {
 			return errVeto
 		}

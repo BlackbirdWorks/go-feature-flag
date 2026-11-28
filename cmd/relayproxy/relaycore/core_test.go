@@ -1,9 +1,7 @@
 package relaycore_test
 
 import (
-	"bytes"
 	"context"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +19,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/relaycore"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/segmentstore"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/connection"
 	"github.com/blackbirdworks/semaphore/internal/manifestreader"
@@ -595,8 +594,9 @@ func TestEvaluationSettingsReachTheEvaluator(t *testing.T) {
 		harness.core.Evaluator().EvaluationContextEnrichment(set))
 }
 
-// The segments section is validated and then ignored: the core says so at the start and does not depend on a store.
-func TestSegmentsSectionIsConfiguredNotActive(t *testing.T) {
+// The segments section builds a core that opens nothing until a segment needs a store: the connection is idle, and
+// the core stops cleanly.
+func TestSegmentsSectionIsServedLazily(t *testing.T) {
 	t.Parallel()
 
 	opts := secretOptions(map[string]string{hookEnv: deadURL})
@@ -604,17 +604,10 @@ func TestSegmentsSectionIsConfiguredNotActive(t *testing.T) {
 		"  segstore: {type: valkey, addresses: [\"127.0.0.1:1\"]}\n" + controlDoc(connName, "") +
 		"segments: {resolver: {callTimeout: 2s}}\n"
 
-	var logs bytes.Buffer
-
-	logger := slog.New(slog.NewTextHandler(&logs, nil))
-
-	core, err := relaycore.New(t.Context(), parse(t, doc, opts), &relaycore.Deps{Secrets: opts, Logger: logger})
+	core, err := relaycore.New(t.Context(), parse(t, doc, opts), &relaycore.Deps{Secrets: opts})
 	require.NoError(t, err)
 
-	assert.Contains(
-		t,
-		logs.String(),
-		"segment stores are configured; segment definitions come from the control plane (not active yet)",
-	)
+	assert.Equal(t, []segmentstore.ConnectionState{{Name: "segstore", Kind: "valkey", State: "idle"}},
+		core.Status().Segments.Stores)
 	require.NoError(t, core.Shutdown(t.Context()))
 }

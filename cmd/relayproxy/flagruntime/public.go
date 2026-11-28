@@ -94,6 +94,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	if len(sources) == 1 {
 		fset.Flags, fset.Hash, fset.State = sources[0].Flags, sources[0].Hash, sources[0].State
 		fset.Segments, fset.flagSigs, fset.uses = sources[0].Segments, sources[0].flagSigs, sources[0].uses
+		fset.dynTerms = sources[0].dynTerms
 
 		return fset, nil
 	}

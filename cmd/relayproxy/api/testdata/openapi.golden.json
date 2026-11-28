@@ -124,6 +124,15 @@
             },
             "type": "object"
           },
+          "segmentStores": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentStoreInfo"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "snapshot": {
             "format": "int64",
             "minimum": 0,
@@ -202,7 +211,15 @@
       "DynamicStatesInfo": {
         "additionalProperties": false,
         "properties": {
+          "healthy": {
+            "format": "int64",
+            "type": "integer"
+          },
           "rejected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "storeError": {
             "format": "int64",
             "type": "integer"
           },
@@ -213,7 +230,9 @@
         },
         "required": [
           "valid",
-          "rejected"
+          "rejected",
+          "storeError",
+          "healthy"
         ],
         "type": "object"
       },
@@ -971,6 +990,26 @@
         "required": [
           "static",
           "dynamic"
+        ],
+        "type": "object"
+      },
+      "SegmentStoreInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "kind",
+          "state"
         ],
         "type": "object"
       },
