@@ -12,7 +12,18 @@ import (
 
 // commonExporterKeys returns the keys that are valid for every exporter kind.
 func commonExporterKeys() []string {
-	return []string{keyKind, keyMeta, "flushInterval", "maxEventInMemory", "eventType"}
+	return []string{
+		keyKind,
+		keyMeta,
+		"flushInterval",
+		"maxEventInMemory",
+		"eventType",
+		"overflowPolicy",
+		"blockTimeout",
+		"maxBytes",
+		"drainTimeout",
+		"retry",
+	}
 }
 
 type exporterSpec struct {
@@ -126,6 +137,8 @@ func (v *validator) exporter(path string, exp *Exporter) {
 	if exp.MaxEventInMemory != nil && *exp.MaxEventInMemory < 1 {
 		v.failf(path+".maxEventInMemory", ErrInvalidValue, "expected an integer of 1 or more")
 	}
+
+	v.pipeline(path, exp)
 
 	if exp.Kafka != nil {
 		for i, address := range exp.Kafka.Addresses {
@@ -316,3 +329,63 @@ func (v *validator) pollingBounds(manifest Manifest) {
 			manifestreader.MinPollInterval)
 	}
 }
+
+// maxRetryAttempts is the largest number of attempts of the retry of an exporter.
+const maxRetryAttempts = 20
+
+// pipeline checks the settings of the event pipeline of an exporter: the overflow policy, the limits of a batch,
+// the drain and the retry.
+func (v *validator) pipeline(path string, exp *Exporter) {
+	v.oneOf(path+".overflowPolicy", exp.OverflowPolicy, OverflowDropNewest, OverflowDropOldest, OverflowBlock)
+
+	if exp.BlockTimeout != nil && time.Duration(*exp.BlockTimeout) > MaxBlockTimeout {
+		v.failf(path+".blockTimeout", ErrInvalidValue, "expected at most %s", MaxBlockTimeout)
+	}
+
+	if exp.DrainTimeout != nil && time.Duration(*exp.DrainTimeout) > MaxShutdownDuration {
+		v.failf(path+".drainTimeout", ErrInvalidValue, "expected at most %s", MaxShutdownDuration)
+	}
+
+	if exp.MaxBytes != nil && int64(*exp.MaxBytes) > MaxBatchBytes {
+		v.failf(path+".maxBytes", ErrInvalidValue, "expected at most %d bytes", MaxBatchBytes)
+	}
+
+	retry := exp.Retry
+	if retry == nil {
+		return
+	}
+
+	v.retryBounds(path+".retry", retry)
+}
+
+// retryBounds checks the retry of an exporter: what becomes of an exhausted batch, and the upper bound of its times.
+func (v *validator) retryBounds(path string, retry *ExporterRetry) {
+	v.oneOf(path+".onExhausted", retry.OnExhausted, RetryKeep, RetryDrop)
+
+	if retry.MaxAttempts != nil && (*retry.MaxAttempts < 1 || *retry.MaxAttempts > maxRetryAttempts) {
+		v.failf(path+".maxAttempts", ErrInvalidValue, "expected an integer from 1 to %d", maxRetryAttempts)
+	}
+
+	if retry.InitialBackoff != nil && retry.MaxBackoff != nil && *retry.InitialBackoff > *retry.MaxBackoff {
+		v.failf(path+"."+keyInitialBackoff, ErrInvalidValue, "expected at most maxBackoff (%s)", retry.MaxBackoff)
+	}
+
+	for _, bound := range []struct {
+		value *Duration
+		key   string
+		limit time.Duration
+	}{
+		{retry.InitialBackoff, keyInitialBackoff, MaxRetryBackoff}, {retry.MaxBackoff, keyMaxBackoff, MaxRetryBackoff},
+		{retry.MaxElapsed, "maxElapsed", MaxRetryElapsed},
+	} {
+		if bound.value != nil && time.Duration(*bound.value) > bound.limit {
+			v.failf(path+"."+bound.key, ErrInvalidValue, "expected at most %s", bound.limit)
+		}
+	}
+}
+
+// The keys of the retry of an exporter that the checks and the schema name.
+const (
+	keyInitialBackoff = "initialBackoff"
+	keyMaxBackoff     = "maxBackoff"
+)

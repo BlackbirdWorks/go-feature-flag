@@ -210,10 +210,11 @@ func TestDispatcher_CutDrainReconcilesWhenTheExporterFinishesLate(t *testing.T) 
 		wantExported   uint64
 		wantDrain      uint64
 	}{
-		{name: "the late flush succeeds", wantExported: 4, wantDrain: 0, wantLastErrors: events.ErrorNone},
+		// the exporter was cut: its late flush starts no attempt, whatever the exporter would have answered
+		{name: "the late flush would succeed", wantExported: 0, wantDrain: 4, wantLastErrors: events.ErrorNone},
 		{
-			name: "the late flush fails", flushErr: assert.AnError, wantExported: 0, wantDrain: 4,
-			wantLastErrors: events.ErrorOther,
+			name: "the late flush would fail", flushErr: assert.AnError, wantExported: 0, wantDrain: 4,
+			wantLastErrors: events.ErrorNone,
 		},
 	}
 
@@ -286,7 +287,7 @@ func TestDispatcher_CutDrainWithTheEngineManager(t *testing.T) {
 	t.Parallel()
 
 	gate := newGate(t)
-	slow := &gatedExporter{gate: gate}
+	slow := &gatedExporter{gate: gate, entered: make(chan struct{})}
 
 	newManager, tap := tapped()
 	disp := newDispatcher(t, &events.DispatcherConfig{NewManager: newManager, DrainTimeout: time.Nanosecond})
@@ -298,7 +299,7 @@ func TestDispatcher_CutDrainWithTheEngineManager(t *testing.T) {
 			"file",
 			"v1",
 			slow,
-			exporter.Config{FlushInterval: time.Hour, MaxEventInMemory: 1000},
+			exporter.Config{FlushInterval: time.Hour, MaxEventInMemory: 10},
 		),
 	})
 	require.NoError(t, err)
@@ -310,6 +311,9 @@ func TestDispatcher_CutDrainWithTheEngineManager(t *testing.T) {
 	for range 10 {
 		await(t, tap, "the events to reach the engine manager")
 	}
+
+	// the flush of the ten events is in flight (held by the gate) when the deadline passes: it may finish
+	await(t, slow.entered, "the flush to be in flight")
 
 	set, err := disp.Apply(context.Background(), nil)
 	require.NoError(t, err)
@@ -668,8 +672,8 @@ func TestDispatcher_ShutdownPastDeadlineCutsTheFlushAndReconcilesLater(t *testin
 
 	late := disp.Status()
 	assert.Equal(t, events.StateStopped, late.Exporters[0].State)
-	assert.Equal(t, uint64(6), late.Exporters[0].Exported, "delivered after all, and counted once")
-	assert.Zero(t, late.Exporters[0].Dropped.Drain)
+	assert.Zero(t, late.Exporters[0].Exported, "no attempt starts after the deadline")
+	assert.Equal(t, uint64(6), late.Exporters[0].Dropped.Drain, "counted once, as drained")
 	assertExporterAccounting(t, &late, "after the late completion")
 	assertGlobalAccounting(t, &late, late.Exporters[0].Handed, "after the late completion")
 }

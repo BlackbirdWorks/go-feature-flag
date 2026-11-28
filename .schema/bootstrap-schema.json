@@ -1025,6 +1025,23 @@
                     "minimum": 1,
                     "default": 100000
                 },
+                "retry": {
+                    "$ref": "#/$defs/ExporterRetry"
+                },
+                "maxBytes": {
+                    "$ref": "#/$defs/ByteSize",
+                    "description": "Largest batch handed to the exporter, in bytes of its events as JSON. A batch is cut when this or maxEventInMemory is reached; an event larger than this goes alone. Unset or zero: no byte limit."
+                },
+                "blockTimeout": {
+                    "$ref": "#/$defs/Duration",
+                    "description": "With overflowPolicy block: the longest wait for room in the queue of the exporter before the event is dropped. At most 10s.",
+                    "default": "50ms"
+                },
+                "drainTimeout": {
+                    "$ref": "#/$defs/Duration",
+                    "description": "The longest the exporter flushes what it holds when it is removed, changed or the relay shuts down; what is left is dropped and counted.",
+                    "default": "10s"
+                },
                 "kafka": {
                     "$ref": "#/$defs/KafkaSettings"
                 },
@@ -1045,6 +1062,17 @@
                         "parquet",
                         ""
                     ]
+                },
+                "overflowPolicy": {
+                    "type": "string",
+                    "enum": [
+                        "dropNewest",
+                        "dropOldest",
+                        "block",
+                        ""
+                    ],
+                    "description": "What a full queue of the exporter does: dropNewest drops the new event, dropOldest drops the oldest queued one, block waits up to blockTimeout for room and then drops the new event. An empty value is the default.",
+                    "default": "dropNewest"
                 },
                 "filename": {
                     "type": "string"
@@ -1148,6 +1176,44 @@
             "required": [
                 "kind"
             ]
+        },
+        "ExporterRetry": {
+            "properties": {
+                "maxAttempts": {
+                    "type": "integer",
+                    "maximum": 20,
+                    "minimum": 1,
+                    "description": "Attempts of one batch, the first included: 1 means no retry.",
+                    "default": 5
+                },
+                "initialBackoff": {
+                    "$ref": "#/$defs/Duration",
+                    "description": "Retry of a failed export, with exponential backoff and jitter.",
+                    "default": "200ms"
+                },
+                "maxBackoff": {
+                    "$ref": "#/$defs/Duration",
+                    "description": "Retry of a failed export, with exponential backoff and jitter.",
+                    "default": "5s"
+                },
+                "maxElapsed": {
+                    "$ref": "#/$defs/Duration",
+                    "description": "Retry of a failed export, with exponential backoff and jitter.",
+                    "default": "30s"
+                },
+                "onExhausted": {
+                    "type": "string",
+                    "enum": [
+                        "keep",
+                        "drop",
+                        ""
+                    ],
+                    "description": "What becomes of a batch that fails every attempt: keep hands it back to be sent again at the next flush (nothing is lost until the store of the exporter overflows), drop drops it and counts it. An empty value is the default.",
+                    "default": "keep"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object"
         },
         "FileConnection": {
             "properties": {

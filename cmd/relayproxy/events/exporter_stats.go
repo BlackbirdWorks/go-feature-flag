@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/exporter"
@@ -93,12 +94,15 @@ func (l *lastError) get() ErrorClass { return classOf(l.v.Load()) }
 // nameStats are the cumulative counters of one exporter name. They live as long as the dispatcher: a reload that
 // replaces the instance of the name does not reset them.
 type nameStats struct {
-	last       lastError
-	handed     atomic.Uint64
-	exported   atomic.Uint64
-	handoff    atomic.Uint64
-	drain      atomic.Uint64
-	failures   atomic.Uint64
+	last     lastError
+	handed   atomic.Uint64
+	exported atomic.Uint64
+	handoff  atomic.Uint64
+	drain    atomic.Uint64
+	failures atomic.Uint64
+	// blocked and exhausted count the events dropped by the block deadline and by the spent retry.
+	blocked    atomic.Uint64
+	exhausted  atomic.Uint64
 	flushes    atomic.Uint64
 	flushNanos atomic.Int64
 	// mu guards the fold of the drops of a finished manager into mgrDropped, against a reader that adds the
@@ -113,17 +117,33 @@ type instanceStats struct {
 	handed   atomic.Uint64
 	exported atomic.Uint64
 	handoff  atomic.Uint64
+	// blocked and exhausted are the drops of the block deadline and of the spent retry.
+	blocked   atomic.Uint64
+	exhausted atomic.Uint64
 }
 
 // countingExporter wraps an exporter to count what it exports, to hide its secrets from its errors, and to keep a
 // panic of it from killing the relay. It is an [exporter.Exporter], the interface every engine exporter implements.
 type countingExporter struct {
-	inner    exporter.Exporter
+	// flushAt is when the flush number flushID made its first attempt.
+	flushAt time.Time
+	inner   exporter.Exporter
+	// rnd is the source of the jitter of the retry waits, injected; set with the fields below when the instance is
+	// launched, before the manager runs.
+	rnd func() float64
+	// halt is closed when the drain deadline of the exporter passed: it ends the retries.
+	halt <-chan struct{}
+	// after is the timer of the retry waits and now the clock of their budget, injected.
+	after func(time.Duration) <-chan time.Time
+	now   func() time.Time
+	name  *nameStats
+	// instance counts what this instance exported.
 	instance *instanceStats
-	// name is set when the instance is launched.
-	name *nameStats
 	// secrets are the forms of the secret values the errors of the exporter must not show.
 	secrets     []string
+	pipe        Pipeline
+	flushID     uint64
+	flushMu     sync.Mutex
 	panicLogged atomic.Bool
 }
 
@@ -139,8 +159,14 @@ func (*countingExporter) GoString() string { return bootstrap.RedactedValue }
 // Format implements [fmt.Formatter].
 func (*countingExporter) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte(bootstrap.RedactedValue)) }
 
-// Export implements [exporter.Exporter].
+// Export implements [exporter.Exporter]: it exports the batch, retrying a failure (see exportBatch). The byte limit is
+// the engine manager's: it hands the exporter batches that respect it.
 func (c *countingExporter) Export(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
+	return c.exportBatch(ctx, logger, events)
+}
+
+// attempt makes one call of the exporter and counts it.
+func (c *countingExporter) attempt(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
 	start := clock.Now()
 	err := c.call(ctx, logger, events)
 	elapsed := clock.Now().Sub(start)

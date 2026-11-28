@@ -2,6 +2,7 @@ package corehttp
 
 import (
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,7 +52,9 @@ type summary struct {
 // needs no invalidation.
 type summaries struct {
 	last atomic.Pointer[cachedSummary]
-	// computed counts the summaries made (tests pin that a scrape does not make one).
+	// build serialises the construction: readers that miss together wait for one build (single flight).
+	build sync.Mutex
+	// computed counts the summaries made; the collector exports it, so a scrape that makes one shows.
 	computed atomic.Uint64
 }
 
@@ -94,6 +97,14 @@ func (c *summaries) of(status *flagruntime.Status) *summary {
 		}
 	}
 
+	if cached := c.last.Load(); cached != nil && cached.status == status {
+		return cached.sum
+	}
+
+	c.build.Lock()
+	defer c.build.Unlock()
+
+	// a reader that waited finds the summary the first one made
 	if cached := c.last.Load(); cached != nil && cached.status == status {
 		return cached.sum
 	}

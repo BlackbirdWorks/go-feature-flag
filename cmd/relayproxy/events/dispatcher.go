@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"maps"
+	"math/rand/v2"
 	"slices"
 	"sync"
 	"sync/atomic"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/exporter"
 	"github.com/blackbirdworks/semaphore/internal"
+	"github.com/blackbirdworks/semaphore/modules/core/clock"
 )
 
 // Defaults of the dispatcher.
@@ -43,6 +45,12 @@ type DispatcherConfig struct {
 	Logger       *slog.Logger
 	NewManager   NewManagerFunc
 	drainContext func(parent context.Context) (context.Context, context.CancelFunc)
+	// After is the timer of the block deadline and of the retry waits, Now the clock of the time budget of a retry
+	// and Rand the source of the jitter of the waits (a value in [0, 1)). The defaults are [time.After],
+	// [clock.Now] and [rand.Float64]; a test injects them.
+	After        func(time.Duration) <-chan time.Time
+	Now          func() time.Time
+	Rand         func() float64
 	Builder      Builder
 	QueueSize    int
 	Workers      int
@@ -58,6 +66,18 @@ func (c *DispatcherConfig) defaults() {
 		c.NewManager = func(_ string, cfg exporter.Config, logger *slog.Logger) FeatureManager {
 			return exporter.NewManager[*exporter.FeatureEvent]([]exporter.Config{cfg}, 0, logger)
 		}
+	}
+
+	if c.After == nil {
+		c.After = time.After
+	}
+
+	if c.Now == nil {
+		c.Now = clock.Now
+	}
+
+	if c.Rand == nil {
+		c.Rand = rand.Float64
 	}
 
 	if c.QueueSize <= 0 {
@@ -215,7 +235,7 @@ func (d *Dispatcher) Start(ctx context.Context) error {
 
 	// no goroutine waits for the end of the context: the function runs once, when it ends
 	d.unwatch = context.AfterFunc(ctx, func() {
-		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.DrainTimeout)
+		drain, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.longestDrain())
 		defer cancel()
 
 		_, _ = d.Shutdown(drain)
@@ -282,10 +302,14 @@ func (e *nameEntry) status(running []*managed) ExporterStatus {
 	handed, exported, drain := stats.handed.Load(), stats.exported.Load(), stats.drain.Load()
 	stats.mu.Unlock()
 
+	blocked, exhausted := stats.blocked.Load(), stats.exhausted.Load()
+
 	status := ExporterStatus{
-		Name:          e.name,
-		LastError:     stats.last.get(),
-		Dropped:       Drops{Overflow: overflow, Drain: drain},
+		Name:      e.name,
+		LastError: stats.last.get(),
+		Dropped: Drops{
+			Overflow: overflow, Drain: drain, BlockTimeout: blocked, RetryExhausted: exhausted,
+		},
 		Handed:        handed,
 		Exported:      exported,
 		FlushFailures: stats.failures.Load(),
@@ -293,12 +317,13 @@ func (e *nameEntry) status(running []*managed) ExporterStatus {
 		FlushSeconds:  float64(stats.flushNanos.Load()) / 1e9, //nolint:mnd // nanoseconds per second
 	}
 
-	if gone := exported + overflow + drain; handed > gone {
+	if gone := exported + overflow + drain + blocked + exhausted; handed > gone {
 		status.Queued = int64(handed - gone) //nolint:gosec // event counts do not reach 2^63
 	}
 
 	if latest := e.latest.Load(); latest != nil {
 		status.Kind = latest.def.Kind
+		status.OverflowPolicy = latest.pipe.policy()
 		status.State = stateName(latest.state.Load())
 	}
 
@@ -344,7 +369,8 @@ func (d *Dispatcher) fill(batch []Event) []Event {
 }
 
 // deliver offers the batch to every exporter of the current set, without waiting for any of them. A batch taken
-// while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter.
+// while the set is empty (a reload to no exporter) is counted as dropped, with the reason no_exporter. An exporter
+// with the block policy that has no room parks its events in a waiting room of its own: no worker waits for it.
 func (d *Dispatcher) deliver(batch []Event) {
 	if d.aborted.Load() {
 		d.dropDrain.Add(uint64(len(batch)))

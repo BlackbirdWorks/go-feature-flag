@@ -449,12 +449,14 @@ func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*
 		}
 	}
 
+	prior := e.disabledAdminKeys()
+
 	// the one store: a reader sees the old Runtime or the new one, never a mix
 	e.holder.store(candidate)
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
 	e.heldByKey, e.heldSets, e.heldAdmin = e.nextByKey, e.nextSets, e.nextAdmin
-	e.logCollisions(ctx, candidate.Generation, e.nextCollided, candidate.Status.DisabledAdminKeys)
+	e.logCollisions(ctx, candidate.Generation, e.nextCollided, candidate.Status.DisabledAdminKeys, prior)
 
 	if e.hooks.AfterSwap != nil {
 		e.hooks.AfterSwap(candidate)

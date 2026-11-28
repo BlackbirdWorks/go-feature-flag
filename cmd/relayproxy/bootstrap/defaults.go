@@ -22,6 +22,26 @@ const (
 	DefaultExportFormat   = "json"
 	// DefaultShutdownTimeout bounds the stop that follows the drain delay.
 	DefaultShutdownTimeout = 15 * time.Second
+	// DefaultBlockTimeout is the wait of the block overflow policy of an exporter for room in its queue.
+	DefaultBlockTimeout = 50 * time.Millisecond
+	// MaxBlockTimeout is the upper bound of the wait of the block overflow policy.
+	MaxBlockTimeout = 10 * time.Second
+	// DefaultExporterDrainTimeout is the deadline of the final flush of an exporter that leaves.
+	DefaultExporterDrainTimeout = 10 * time.Second
+	// DefaultRetryAttempts is the attempts of a batch of an exporter, the first included.
+	DefaultRetryAttempts = 5
+	// DefaultRetryInitialBackoff is the wait before the first retry of an export.
+	DefaultRetryInitialBackoff = 200 * time.Millisecond
+	// DefaultRetryMaxBackoff caps one wait of the retry of an export.
+	DefaultRetryMaxBackoff = 5 * time.Second
+	// DefaultRetryMaxElapsed caps the time of the retry of one flush.
+	DefaultRetryMaxElapsed = 30 * time.Second
+	// MaxRetryBackoff is the upper bound of the backoff settings of the retry of an exporter.
+	MaxRetryBackoff = 10 * time.Minute
+	// MaxRetryElapsed is the upper bound of the time of the retry of one flush.
+	MaxRetryElapsed = time.Hour
+	// MaxBatchBytes is the upper bound of the byte limit of a batch of an exporter.
+	MaxBatchBytes = 1 << 30
 	// MaxShutdownDuration is the upper bound of the drain delay and of the shutdown timeout.
 	MaxShutdownDuration = 10 * time.Minute
 )
@@ -159,6 +179,25 @@ func (c Connection) applyDefaults() {
 func (e *Exporter) applyDefaults() {
 	e.FlushInterval = orDefault(e.FlushInterval, Duration(DefaultFlushInterval))
 	e.MaxEventInMemory = orDefault(e.MaxEventInMemory, DefaultMaxEvents)
+	e.BlockTimeout = orDefault(e.BlockTimeout, Duration(DefaultBlockTimeout))
+	e.DrainTimeout = orDefault(e.DrainTimeout, Duration(DefaultExporterDrainTimeout))
+
+	if e.OverflowPolicy == "" {
+		e.OverflowPolicy = OverflowDropNewest
+	}
+
+	if e.Retry == nil {
+		e.Retry = &ExporterRetry{}
+	}
+
+	e.Retry.MaxAttempts = orDefault(e.Retry.MaxAttempts, DefaultRetryAttempts)
+	e.Retry.InitialBackoff = orDefault(e.Retry.InitialBackoff, Duration(DefaultRetryInitialBackoff))
+	e.Retry.MaxBackoff = orDefault(e.Retry.MaxBackoff, Duration(DefaultRetryMaxBackoff))
+	e.Retry.MaxElapsed = orDefault(e.Retry.MaxElapsed, Duration(DefaultRetryMaxElapsed))
+
+	if e.Retry.OnExhausted == "" {
+		e.Retry.OnExhausted = RetryKeep
+	}
 
 	switch e.Kind {
 	case ExporterFile, ExporterS3, ExporterGoogleStorage, ExporterAzure:
