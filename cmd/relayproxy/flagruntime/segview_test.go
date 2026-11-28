@@ -381,7 +381,7 @@ func TestRunSegmentVersions(t *testing.T) {
 	}
 
 	for _, step := range steps {
-		tick.tick(t, 1)
+		tick.joined(t, 1)
 		assert.Equal(t, step.wantFailures, failures.Load(), step.name)
 	}
 

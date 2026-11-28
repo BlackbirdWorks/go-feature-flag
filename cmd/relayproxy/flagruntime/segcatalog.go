@@ -383,6 +383,15 @@ func (st *stage) bindView(
 			continue
 		}
 
+		if refusal, refused := b.refused[name]; refused {
+			problems = append(problems, Problem{
+				Code: controlplane.CodeUnresolvedSource, Subject: name,
+				Reason: fmt.Sprintf("the dynamic segment %q is not served: %v", name, refusal),
+			})
+
+			continue
+		}
+
 		bindings[name] = b
 	}
 

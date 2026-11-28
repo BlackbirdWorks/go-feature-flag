@@ -39,18 +39,26 @@ type segBinding struct {
 	// ids is the identity of each definition that the binding serves, see [defIdentity]. The next generation of the
 	// object takes over what an unchanged identity built.
 	ids map[string]string
+	// refused holds, for a definition that this binding cannot serve, why; the others of the binding are served.
+	refused map[string]error
 	// lastClass is the class of the last failure of each holder that was reported, so a state is reported once. Only the
 	// loop that polls touches it.
-	lastClass  map[string]snapshot.Class
-	connection string
+	lastClass map[string]snapshot.Class
 	// lastOK is, for each holder, the time (of the loop) of its last refresh that worked.
-	lastOK map[string]time.Time
+	lastOK     map[string]time.Time
+	connection string
 	// lookupID is the identity of the lookup definitions together.
 	lookupID  string
 	lookups   []string
 	snapshots []string
 	next      atomic.Int64 // unix nanoseconds of the next poll
-	interval  time.Duration
+	// lookupNext and snapNext are the next version read of the lookups and the next refresh of the snapshot sets.
+	lookupNext atomic.Int64
+	snapNext   atomic.Int64
+	// lookupInterval is the interval of the version reads of the lookups, snapInterval the one of the snapshot sets: each
+	// is its own budget, and the binding wakes at the shortest.
+	lookupInterval time.Duration
+	snapInterval   time.Duration
 	// pullTimeout is the deadline of the refresh of one holder.
 	pullTimeout time.Duration
 	armed       atomic.Bool
@@ -97,6 +105,10 @@ func defIdentity(def *controlplane.SegmentDefinition) string {
 	same.Name, same.OnError = "", ""
 	same.Mode = string(segment.Mode(def.Mode).Effective())
 	same.MissingKey = string(segment.MissingKey(def.MissingKey).Effective())
+
+	if same.Layout == "" {
+		same.Layout = string(segment.LayoutSet) // an omitted layout is the set layout
+	}
 
 	if isSnapshot(def) {
 		same.Cache = nil
@@ -195,8 +207,11 @@ func newBindCache(
 	}
 
 	keys := make(map[bindKey]struct{}, len(cache.defs))
-	for key := range cache.defs {
-		keys[key] = struct{}{}
+
+	for key, defs := range cache.defs {
+		if slices.ContainsFunc(defs, func(def *controlplane.SegmentDefinition) bool { return !isSnapshot(def) }) {
+			keys[key] = struct{}{}
+		}
 	}
 
 	cache.carry = carryOf(prev, snapshots, keys)
@@ -244,6 +259,7 @@ func (e *SegmentEnv) bindObject(
 		connection:  key.connection,
 		holders:     map[string]*snapshot.Holder{},
 		ids:         map[string]string{},
+		refused:     map[string]error{},
 		lastOK:      map[string]time.Time{},
 		pullTimeout: cmp.Or(e.PullTimeout, DefaultPullTimeout),
 	}
@@ -266,7 +282,7 @@ func (e *SegmentEnv) bindObject(
 
 		if isSnapshot(def) {
 			out.snapshots = append(out.snapshots, def.Name)
-			out.interval = minInterval(out.interval, interval)
+			out.snapInterval = minInterval(out.snapInterval, interval)
 
 			if old, ok := carried.holders[def.Name]; ok && old.id == id {
 				reuse[def.Name] = old.holder
@@ -284,7 +300,7 @@ func (e *SegmentEnv) bindObject(
 
 		if opts.Versioned {
 			out.versioned = true
-			out.interval = minInterval(out.interval, interval)
+			out.lookupInterval = minInterval(out.lookupInterval, interval)
 		}
 
 		if def.Version != nil && def.Version.Value != "" {
@@ -300,13 +316,10 @@ func (e *SegmentEnv) bindObject(
 	slices.Sort(lookupIDs)
 	out.lookupID = strings.Join(lookupIDs, "\n")
 
-	err = out.build(e, binding, key, segs, values, &buildCarry{holders: reuse, lookup: carried.lookups[key]})
-	if err != nil {
-		return nil, err
-	}
-
 	slices.Sort(out.lookups)
 	slices.Sort(out.snapshots)
+
+	out.build(e, binding, key, segs, values, &buildCarry{holders: reuse, lookup: carried.lookups[key]})
 
 	return out, nil
 }
@@ -320,7 +333,7 @@ type buildCarry struct {
 func (b *segBinding) build(
 	env *SegmentEnv, binding *Binding, key bindKey, segs map[string]resolver.SegmentOptions, values map[string]string,
 	take *buildCarry,
-) error {
+) {
 	if len(segs) > 0 && take.lookup.res != nil && take.lookup.id == b.lookupID {
 		b.res, b.versioner, b.versioned = take.lookup.res, take.lookup.versioner, take.lookup.versioned
 	} else if len(segs) > 0 {
@@ -329,40 +342,52 @@ func (b *segBinding) build(
 
 		res, err := resolver.New(binding.Provider, opts)
 		if err != nil {
-			return fmt.Errorf("the resolver of connection %q: %w", key.connection, err)
+			// the lookups of the connection are refused; its snapshot definitions are served on their own
+			for _, name := range b.lookups {
+				b.refused[name] = fmt.Errorf("the resolver of connection %q: %w", key.connection, err)
+			}
+
+			b.versioned = false
+		} else {
+			for name, value := range values {
+				res.SetVersion(name, value)
+			}
+
+			b.res, b.versioner = res, binding.Versioner
+			b.versioned = b.versioned && binding.Versioner != nil
 		}
-
-		for name, value := range values {
-			res.SetVersion(name, value)
-		}
-
-		b.res, b.versioner = res, binding.Versioner
-		b.versioned = b.versioned && binding.Versioner != nil
-	}
-
-	if len(b.snapshots) == 0 {
-		return nil
 	}
 
 	b.lastClass = map[string]snapshot.Class{}
+	served := b.snapshots[:0:0]
 
 	for _, name := range b.snapshots {
 		if held, ok := take.holders[name]; ok {
 			b.holders[name] = held
 			b.lastClass[name] = held.Status().LastError
+			served = append(served, name)
 
 			continue
 		}
 
 		holder, err := snapshot.New(name, binding.Source, snapshot.Options{Missing: key.missing})
 		if err != nil {
-			return fmt.Errorf("the segments of connection %q: %w: %w", key.connection, ErrNoSnapshotSource, err)
+			// a store that cannot list members refuses its snapshot definitions alone: its lookups keep working
+			b.refused[name] = fmt.Errorf(
+				"the segments of connection %q: %w: %w",
+				key.connection,
+				ErrNoSnapshotSource,
+				err,
+			)
+
+			continue
 		}
 
 		b.holders[name] = holder
+		served = append(served, name)
 	}
 
-	return nil
+	b.snapshots = served
 }
 
 func minInterval(cur, other time.Duration) time.Duration {
@@ -372,6 +397,9 @@ func minInterval(cur, other time.Duration) time.Duration {
 
 	return cur
 }
+
+// interval is the shortest interval of the binding: it wakes then, and each part reads when its own is due.
+func (b *segBinding) interval() time.Duration { return minInterval(b.lookupInterval, b.snapInterval) }
 
 // polls reports whether the binding has anything to read off the request path.
 func (b *segBinding) polls() bool { return b.versioned || len(b.holders) > 0 }
@@ -401,7 +429,7 @@ func (b *segBinding) due(now time.Time, jitter func(time.Duration) time.Duration
 	if !b.armed.Load() {
 		var spread time.Duration
 		if jitter != nil {
-			spread = jitter(min(b.interval, firstPollSpread))
+			spread = jitter(min(b.interval(), firstPollSpread))
 		}
 
 		b.next.Store(now.Add(spread).UnixNano())
@@ -432,16 +460,37 @@ const overdueAfter = 3
 func (b *segBinding) poll(ctx context.Context, now time.Time) []error {
 	var errs []error
 
-	if b.versioned && b.res != nil {
-		call, cancel := context.WithTimeout(ctx, b.interval)
+	if b.versioned && b.res != nil && now.UnixNano() >= b.lookupNext.Load() {
+		call, cancel := context.WithTimeout(ctx, b.lookupInterval)
 		err := b.res.RefreshVersions(call, b.versioner)
 
 		cancel()
+
+		b.lookupNext.Store(now.Add(b.lookupInterval).UnixNano())
 
 		if err != nil {
 			errs = append(errs, fmt.Errorf("connection %q: %w", b.connection, err))
 		}
 	}
+
+	if now.UnixNano() >= b.snapNext.Load() || !b.loaded() {
+		errs = append(errs, b.refreshHolders(ctx, now)...)
+		b.snapNext.Store(now.Add(b.snapInterval).UnixNano())
+	}
+
+	wait := b.interval()
+	if !b.loaded() {
+		wait = min(wait, firstPollSpread)
+	}
+
+	b.next.Store(now.Add(wait).UnixNano())
+
+	return errs
+}
+
+// refreshHolders refreshes every holder, each under a deadline of its own.
+func (b *segBinding) refreshHolders(ctx context.Context, now time.Time) []error {
+	var errs []error
 
 	for _, name := range b.snapshots {
 		holder := b.holders[name]
@@ -465,13 +514,6 @@ func (b *segBinding) poll(ctx context.Context, now time.Time) []error {
 			break
 		}
 	}
-
-	wait := b.interval
-	if !b.loaded() {
-		wait = min(wait, firstPollSpread)
-	}
-
-	b.next.Store(now.Add(wait).UnixNano())
 
 	return errs
 }
@@ -508,7 +550,7 @@ func (b *segBinding) checkOverdue(now time.Time) {
 			continue
 		}
 
-		if now.Sub(last) > overdueAfter*b.interval {
+		if now.Sub(last) > overdueAfter*b.snapInterval {
 			holder.SetOverdue(true)
 		}
 	}

@@ -32,7 +32,8 @@ type SegmentPoll struct {
 	// ends: for a test or a metric, never on the request path.
 	OnPass func(connection string, running bool)
 	// OnConnection (optional) is called when the store of a connection starts failing (down) or works again, never
-	// for each evaluation or poll.
+	// for each evaluation or poll. It is the only place that commits that state and runs on the loop, in order, from the
+	// current bindings: like Logger it must return promptly.
 	OnConnection func(connection string, down bool)
 	// Tick is the resolution of the loop: a binding is polled when its interval is due.
 	Tick time.Duration
@@ -71,7 +72,7 @@ const DefaultJoinTimeout = 5 * time.Second
 // of the relay; the passes end with it, and it returns after them, or after [SegmentPoll.JoinTimeout] for a pass that
 // does not end.
 func RunSegmentVersions(ctx context.Context, holder *Holder, poll *SegmentPoll) {
-	run := &passRunner{poll: poll, running: map[string]*passState{}, hung: map[string]bool{}}
+	run := &passRunner{poll: poll, running: map[string]*passState{}, hung: map[string]bool{}, down: map[string]bool{}}
 	known := map[*segBinding]struct{}{}
 	now := time.Unix(0, 0)
 
@@ -128,10 +129,9 @@ type passState struct {
 type passRunner struct {
 	poll    *SegmentPoll
 	running map[string]*passState // only the loop touches the map
-	hung    map[string]bool
+	hung    map[string]bool       // only the loop touches hung and down: it is the one place that commits the state
 	down    map[string]bool
 	passes  sync.WaitGroup
-	mu      sync.Mutex // guards hung and down
 }
 
 func (r *passRunner) busy(connection string) bool {
@@ -190,9 +190,7 @@ func (r *passRunner) checkHung(ctx context.Context, connection string, bindings 
 		state.warned = false
 	}
 
-	r.mu.Lock()
 	r.hung[connection] = hung
-	r.mu.Unlock()
 }
 
 // start runs the pass of a connection: its due bindings in order, one after the other.
@@ -214,11 +212,12 @@ func (r *passRunner) start(
 
 	r.passes.Go(func() {
 		defer func() {
-			state.running.Store(false)
-
+			// the end is told before the connection is free to start another pass
 			if r.poll.OnPass != nil {
 				r.poll.OnPass(connection, false)
 			}
+
+			state.running.Store(false)
 		}()
 
 		errs := make([]error, 0, len(list))
@@ -228,7 +227,6 @@ func (r *passRunner) start(
 		}
 
 		r.reportErrors(ctx, all, errs)
-		r.report(ctx, connection, all)
 	})
 }
 
@@ -263,16 +261,10 @@ func (r *passRunner) reportErrors(ctx context.Context, all []*segBinding, errs [
 }
 
 // report logs and reports the connection when its state changed since the last call: down when its store fails or its
-// pass is hung.
+// pass is hung. Only the loop calls it, from the current bindings, so the state is committed in one place and in order;
+// the result of a pass is seen at the next tick.
 func (r *passRunner) report(ctx context.Context, name string, bindings []*segBinding) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	down := r.hung[name] || connectionDown(bindings)
-
-	if r.down == nil {
-		r.down = map[string]bool{}
-	}
 
 	if down == r.down[name] {
 		return

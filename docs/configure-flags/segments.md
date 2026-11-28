@@ -207,6 +207,5 @@ client, err := ffclient.New(&ffclient.Config{
 
 ## What is not available yet
 
-- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments - dynamic](segments-dynamic.md)).
-- The segment lookups in a store on the relay proxy evaluation endpoints (the `lookup` and `snapshot` modes), their refresh and their `STORE_ERROR` and `STALE` statuses. The cacheable marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration` are available, see [Segments - dynamic](segments-dynamic.md#cacheable-and-flag-configuration).
+- Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling).
 - Tools to import and swap members.

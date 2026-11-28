@@ -612,3 +612,62 @@ func TestSegmentsSectionIsServedLazily(t *testing.T) {
 		core.Status().Segments.Stores)
 	require.NoError(t, core.Shutdown(t.Context()))
 }
+
+// A source of jitter is drawn from by the reader and by the poll of the segments, from two goroutines: the serialized
+// source lets a plain counter count every draw.
+func TestSerializeJitter(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workers = 8
+		draws   = 200
+	)
+
+	tests := []struct {
+		source    func() float64
+		name      string
+		wantDraws int
+		wantNil   bool
+	}{
+		{name: "no source", wantNil: true},
+		{name: "a plain counter", wantDraws: workers * draws},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			count := 0 // not atomic: only the serialization keeps it from racing
+
+			source := tt.source
+			if !tt.wantNil {
+				source = func() float64 {
+					count++
+
+					return 0.5
+				}
+			}
+
+			serial := relaycore.SerializeJitter(source)
+			if tt.wantNil {
+				assert.Nil(t, serial)
+
+				return
+			}
+
+			var wg sync.WaitGroup
+
+			for range workers {
+				wg.Go(func() {
+					for range draws {
+						assert.InDelta(t, 0.5, serial(), 0)
+					}
+				})
+			}
+
+			wg.Wait()
+
+			assert.Equal(t, tt.wantDraws, count)
+		})
+	}
+}

@@ -199,8 +199,17 @@ func (k *ticker) step(t *testing.T, n int) {
 	k.entered <- struct{}{}
 }
 
-// tick is step, then waits for the end of every pass that the ticks started.
+// tick is step, then waits for the end of every pass that the ticks started. The loop commits the state of a connection
+// only on a tick, from the current bindings, so tick gives it one more tick to see the result of the passes.
 func (k *ticker) tick(t *testing.T, n int) {
+	t.Helper()
+
+	k.joined(t, n)
+	k.joined(t, 1)
+}
+
+// joined is step, then waits for the passes that it started.
+func (k *ticker) joined(t *testing.T, n int) {
 	t.Helper()
 
 	k.step(t, n)
@@ -428,13 +437,14 @@ type gateSource struct {
 	membersErr map[string]error
 	hang       chan struct{}
 	entered    chan string
+	blocked    chan string
 	mu         sync.Mutex
 }
 
 func newGateSource(source *segment.MemorySource, gated ...string) *gateSource {
 	out := &gateSource{
 		MemorySource: source, gates: map[string]chan struct{}{}, deadlines: map[string][]time.Time{},
-		asks: map[string]int{}, entered: make(chan string, 256),
+		asks: map[string]int{}, entered: make(chan string, 256), blocked: make(chan string, 64),
 		versionErr: map[string]error{}, membersErr: map[string]error{},
 	}
 
@@ -494,6 +504,11 @@ func (g *gateSource) Members(ctx context.Context, name string) iter.Seq2[string,
 
 		if gate != nil {
 			select {
+			case g.blocked <- name:
+			default:
+			}
+
+			select {
 			case <-gate:
 			case <-ctx.Done():
 				yield("", fmt.Errorf("members: %w", ctx.Err()))
@@ -537,6 +552,22 @@ func (g *gateSource) hangVersions() func() {
 	return func() { close(release) }
 }
 
+// awaitBlocked waits until the pull of the set entered its gate.
+func (g *gateSource) awaitBlocked(t *testing.T, name string) {
+	t.Helper()
+
+	for {
+		select {
+		case got := <-g.blocked:
+			if got == name {
+				return
+			}
+		case <-time.After(5 * time.Second):
+			require.Fail(t, "the pull did not reach its gate", name)
+		}
+	}
+}
+
 // awaitAsk waits until the source was asked for the version of the set.
 func (g *gateSource) awaitAsk(t *testing.T, name string) {
 	t.Helper()
@@ -555,11 +586,11 @@ func (g *gateSource) awaitAsk(t *testing.T, name string) {
 
 func (g *gateSource) open(name string) { close(g.gates[name]) }
 
-func (g *gateSource) deadline(name string, n int) time.Time {
+func (g *gateSource) firstDeadline(name string) time.Time {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	return g.deadlines[name][n]
+	return g.deadlines[name][0]
 }
 
 func (g *gateSource) asked(name string) int {
@@ -661,7 +692,7 @@ func TestSegmentPollPasses(t *testing.T) {
 	}, 0)
 
 	// the first tick arms both bindings with half a second of spread: none is due yet
-	tick.tick(t, 1)
+	tick.step(t, 1)
 	assert.EqualValues(t, 2, spreads.Load())
 	assert.Zero(t, good.Calls(segment.OpVersion))
 
@@ -711,8 +742,9 @@ func TestSegmentPullDeadlines(t *testing.T) {
 	)
 
 	// the pull of the first set is held for twelve ticks, more than twice the interval: no second pass starts
-	tick.step(t, 12)
-	source.awaitAsk(t, audienceSegmentName)
+	tick.step(t, 1)
+	source.awaitBlocked(t, audienceSegmentName)
+	tick.step(t, 11)
 	assert.Equal(t, 1, source.asked(audienceSegmentName))
 	assert.Zero(t, source.asked("second"))
 
@@ -723,7 +755,7 @@ func TestSegmentPullDeadlines(t *testing.T) {
 		Live: 1, Connections: []flagruntime.ConnectionSnapshots{{Connection: connAudiences, Loaded: 2, Members: 2}},
 	}, rig.holder.Load().SegmentBindings())
 
-	assert.True(t, source.deadline("second", 0).After(source.deadline(audienceSegmentName, 0)),
+	assert.True(t, source.firstDeadline("second").After(source.firstDeadline(audienceSegmentName)),
 		"the second set has a deadline of its own, started after the first")
 }
 
@@ -926,6 +958,7 @@ func TestMissingSegmentWithUnknownPolicyIsHealthy(t *testing.T) {
 }
 
 const (
+	freshName  = "fresh"
 	interval10 = "10s"
 	manyNames  = 50
 	ttl30      = "30s"
@@ -939,6 +972,7 @@ type manyDoc struct {
 	interval   string
 	changedKey int
 	extra      bool
+	layout     bool // write layout: set on seg5
 }
 
 func (d manyDoc) String() string {
@@ -953,6 +987,10 @@ func (d manyDoc) String() string {
 
 		if i == d.changedKey {
 			doc.WriteString("    key: moved\n")
+		}
+
+		if i == 5 && d.layout {
+			doc.WriteString("    layout: set\n")
 		}
 
 		if i == 3 && d.interval != "" {
@@ -994,6 +1032,13 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 			wantMembers: manyNames, wantContains: 1,
 		},
 		{
+			name: "a layout written that is the default",
+			next: manyDoc{
+				beta: memberAlice, lookupTTL: ttl30, changedKey: -1, interval: interval10, layout: true,
+			},
+			wantMembers: manyNames, wantContains: 1,
+		},
+		{
 			name:         "one snapshot definition changed",
 			next:         manyDoc{beta: memberAlice, lookupTTL: ttl30, changedKey: 7, interval: interval10},
 			wantCold:     []string{"seg7"},
@@ -1015,7 +1060,7 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 				extra:      true,
 				interval:   interval10,
 			},
-			wantCold:     []string{"fresh"},
+			wantCold:     []string{freshName},
 			wantMembers:  manyNames + 1,
 			wantContains: 1,
 		},
@@ -1025,7 +1070,7 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			sets := map[string][]string{audienceSegmentName: {memberAlice}, "fresh": {memberAlice}}
+			sets := map[string][]string{audienceSegmentName: {memberAlice}, freshName: {memberAlice}}
 			for i := range manyNames {
 				sets[fmt.Sprintf("seg%d", i)] = []string{memberAlice}
 			}
@@ -1055,13 +1100,17 @@ func TestBindingsCarryOverUnchangedDefinitions(t *testing.T) {
 				names = append(names, fmt.Sprintf("seg%d", i))
 			}
 
-			names = append(names, "fresh")
+			names = append(names, freshName)
 
 			for _, name := range names {
 				state, status, ok := set.Segments.Catalog.Answer(name, memberAlice)
-				if !ok {
+				if name == freshName && !tt.next.extra {
+					assert.False(t, ok, name)
+
 					continue
 				}
+
+				require.True(t, ok, name) // an unchanged definition still answers for its segment
 
 				if status == segment.StatusStoreError {
 					cold = append(cold, name)
@@ -1135,7 +1184,7 @@ func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
 	rig := startPoll(t, binder, audienceDoc(connAudiences, "")+threeDoc,
 		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second}, 50*time.Millisecond)
 
-	tick.tick(t, 1)
+	tick.joined(t, 1)
 
 	want := flagruntime.SegmentBindingsStatus{
 		Live: 1, Connections: []flagruntime.ConnectionSnapshots{
@@ -1145,7 +1194,7 @@ func TestSegmentPassContinuesPastATimedOutHolder(t *testing.T) {
 	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
 
 	// the next poll (a second later, as one set is not loaded) tries the first one again and reaches the others again
-	tick.tick(t, 2)
+	tick.joined(t, 2)
 	assert.Equal(t, 2, source.asked(audienceSegmentName))
 	assert.Equal(t, 2, source.asked("third"))
 	assert.Equal(t, want, rig.holder.Load().SegmentBindings())
@@ -1427,3 +1476,120 @@ type answeredError string
 func (e answeredError) Error() string { return string(e) }
 
 func (answeredError) StoreAnswered() bool { return true }
+
+// lookupOnlyBinder binds a connection that has a provider and a versioner but cannot list members.
+type lookupOnlyBinder struct{ source *segment.MemorySource }
+
+func (b *lookupOnlyBinder) Bind(
+	string, segment.MissingKey, []flagruntime.BoundDefinition,
+) (*flagruntime.Binding, error) {
+	return &flagruntime.Binding{Provider: b.source, Versioner: b.source}, nil
+}
+
+// A snapshot definition that cannot be served is refused alone: the lookups of its connection keep working.
+func TestRefusedSnapshotDoesNotTakeTheLookupsDown(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+	doc := lookupDoc + "  - name: snap\n    connection: audiences\n"
+
+	built := buildAndCommit(t, viewBuilder(t, &lookupOnlyBinder{source: source}), viewContent(t, doc))
+	set := built.Runtime.FlagSets["a"]
+	eval := flagruntime.NewEvaluator(newService(t), nil)
+
+	require.NotNil(t, set.Segments.View)
+	assert.True(t, set.Segments.View.Serves(audienceSegmentName))
+
+	got, err := eval.BoolVariationDetails(set, audienceFlag, ffcontext.NewEvaluationContext(memberAlice), false)
+	require.NoError(t, err)
+	assert.True(t, got.Value)
+	assert.Equal(t, segment.StatusHealthy, got.SegmentStatus)
+
+	_, _, served := set.Segments.Catalog.Answer("snap", memberAlice)
+	assert.False(t, served, "the refused snapshot is answered by no one")
+}
+
+// The version read of a lookup has the budget of its own interval, not the shortest interval of the binding: a
+// snapshot that is read every second does not cut the two seconds of a lookup.
+func TestLookupVersionBudgetIsItsOwnInterval(t *testing.T) {
+	t.Parallel()
+
+	source := newGateSource(
+		segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}, "snap": {memberAlice}}),
+	)
+	doc := segHeader + "  - name: audience\n    connection: audiences\n    mode: lookup\n" +
+		"    version: {key: v, interval: 2s}\n" +
+		"  - name: snap\n    connection: audiences\n    version: {key: w, interval: 1s}\n"
+	binder := &gateBinder{source: source}
+	tick := newTicker()
+
+	startPoll(
+		t,
+		binder,
+		doc,
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: tick.onPass, Tick: time.Second},
+		3*time.Second,
+	)
+
+	tick.joined(t, 1)
+
+	// both reads happen in one pass, a moment apart: the deadlines differ by the difference of the budgets
+	gap := source.firstDeadline("snap").Sub(source.firstDeadline(audienceSegmentName))
+
+	assert.Greater(t, gap, 500*time.Millisecond)
+	assert.Less(t, gap, 1500*time.Millisecond)
+}
+
+// gateBinder binds one gate source as provider, versioner and source of the members.
+type gateBinder struct{ source *gateSource }
+
+func (b *gateBinder) Bind(
+	string, segment.MissingKey, []flagruntime.BoundDefinition,
+) (*flagruntime.Binding, error) {
+	return &flagruntime.Binding{Provider: b.source, Versioner: b.source, Source: b.source}, nil
+}
+
+// The end of a pass is told before the connection is free to start the next one: while the hook of the end of the first
+// pass is held, the loop starts no second pass for the connection.
+func TestPassEndIsToldBeforeTheConnectionIsFree(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(nil)
+	source.Fail(segment.OpVersion, errStoreDown) // never loaded: a pass on every tick
+
+	var (
+		once    sync.Once
+		reached = make(chan struct{})
+		release = make(chan struct{})
+		tick    = newTicker()
+	)
+
+	record := func(connection string, running bool) {
+		tick.onPass(connection, running)
+
+		if !running {
+			once.Do(func() {
+				close(reached)
+				<-release
+			})
+		}
+	}
+
+	t.Cleanup(func() { once.Do(func() {}) })
+
+	startPoll(t, &memBinder{source: source}, audienceDoc(connAudiences, ""),
+		&flagruntime.SegmentPoll{Wait: tick.wait, OnPass: record, Tick: time.Second}, 0)
+
+	tick.step(t, 1)
+
+	select {
+	case <-reached:
+	case <-time.After(5 * time.Second):
+		require.Fail(t, "the pass did not end")
+	}
+
+	tick.step(t, 3)
+	assert.Equal(t, 1, tick.passes(connAudiences), "the connection is busy until its end was told")
+
+	close(release)
+}
