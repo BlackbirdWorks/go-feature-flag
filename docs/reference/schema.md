@@ -212,7 +212,9 @@ The file of the relay proxy, `version: 2`. File: `.schema/bootstrap-schema.json`
 | `observability.metrics` | object |  |  |  |  |
 | `observability.metrics.enabled` | boolean |  | `true` |  |  |
 | `observability.metrics.legacyNames` | boolean |  |  |  |  |
+| `observability.metrics.maxSegmentLabels` | integer |  |  |  |  |
 | `observability.metrics.perFlagLabels` | boolean |  |  |  |  |
+| `observability.metrics.perSegmentLabels` | boolean |  |  |  |  |
 | `observability.tracing` | object |  |  |  |  |
 | `observability.tracing.otlpEndpoint` | string |  |  |  |  |
 | `observability.tracing.sampler` | string |  | `parentbased_always_off` | one of `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |  |
