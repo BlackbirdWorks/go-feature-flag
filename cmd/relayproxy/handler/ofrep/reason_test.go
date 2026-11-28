@@ -188,6 +188,8 @@ func Test_OFREPReasonMapping_AllEngineReasons(t *testing.T) {
 
 				if tt.wantOmitValue {
 					assert.NotContains(t, rawSingle, "value")
+				} else {
+					assert.Equal(t, true, rawSingle["value"])
 				}
 			} else {
 				var errResp model.OFREPEvaluateResponseError
@@ -216,6 +218,8 @@ func Test_OFREPReasonMapping_AllEngineReasons(t *testing.T) {
 
 			if tt.wantOmitValue {
 				assert.NotContains(t, bulkRaw.Flags[0], "value")
+			} else {
+				assert.Equal(t, true, bulkRaw.Flags[0]["value"])
 			}
 
 			if tt.wantBulkErrorCode != "" {
