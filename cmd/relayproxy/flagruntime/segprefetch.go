@@ -42,13 +42,15 @@ func (p *prefetched) Contains(ctx context.Context, lookups []segment.Lookup) err
 		return nil
 	}
 
-	err := p.view.Contains(ctx, miss)
+	// an error leaves the lookups Unknown, and the evaluation reports STORE_ERROR: it is not returned, for the engine
+	// would write a line for every evaluation of an outage (the connection logs it once, the metrics count it)
+	_ = p.view.Contains(ctx, miss)
 
 	for n, i := range idx {
 		lookups[i].State = miss[n].State
 	}
 
-	return err
+	return nil
 }
 
 // batch collects the memberships that the flags of an evaluation need.
@@ -167,4 +169,12 @@ func (f *FlagSet) prefetchFlags(evalCtx ffcontext.Context, enrich map[string]any
 	}
 
 	return b.provider()
+}
+
+// usesServed reports whether the flag uses a segment that the view serves: only such a flag gets the prefetched
+// answers, so that a flag has the same status in a bulk evaluation as in a single one.
+func (f *FlagSet) usesServed(key string) bool {
+	_, ok := f.dynTerms[key]
+
+	return ok
 }

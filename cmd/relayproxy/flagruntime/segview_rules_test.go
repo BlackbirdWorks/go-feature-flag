@@ -1,6 +1,9 @@
 package flagruntime_test
 
 import (
+	"context"
+	"log/slog"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -10,10 +13,14 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
-const tenantAttribute = "tenant"
+const (
+	tenantAttribute = "tenant"
+	audienceFlag    = "audience-flag"
+)
 
 // The interval of a group is the shortest effective interval of its definitions: the default of five seconds only
 // stands for a definition that gives none, so an explicit minute alone is a minute.
@@ -174,6 +181,111 @@ func TestSnapshotIsRefusedWithoutKnownConnections(t *testing.T) {
 
 			assert.Len(t, built.SegmentRejections, tt.wantRejections)
 			assert.Equal(t, tt.wantServed, built.Runtime.FlagSets["a"].Segments.View != nil)
+		})
+	}
+}
+
+// A flag whose segment is not served has the same status and cacheability on every endpoint, whatever the other flags
+// of the set use: NOT_CONFIGURED, not cacheable, on a single evaluation and in a bulk one.
+func TestUnservedSegmentHasOneStatusOnEveryEndpoint(t *testing.T) {
+	t.Parallel()
+
+	const doc = lookupDoc + "  - name: ghost\n    connection: nowhere\n    mode: lookup\n"
+
+	tests := []struct {
+		name       string
+		flag       string
+		wantStatus segment.Status
+	}{
+		{name: "rejected", flag: "ghost-flag", wantStatus: segment.StatusNotConfigured},
+		{name: "served", flag: audienceFlag, wantStatus: segment.StatusHealthy},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+			set := viewSet(t, &memBinder{source: source}, doc)
+			eval := flagruntime.NewEvaluator(newService(t), nil)
+			evalCtx := ffcontext.NewEvaluationContext(memberAlice)
+
+			single, err := eval.BoolVariationDetails(set, tt.flag, evalCtx, false)
+			require.NoError(t, err)
+
+			all := eval.AllFlagsState(set, evalCtx)
+			one := eval.GetFlagStates(set, evalCtx, []string{tt.flag})
+			bulk, listed := all.GetFlags()[tt.flag], one.GetFlags()[tt.flag]
+
+			assert.Equal(t, tt.wantStatus, single.SegmentStatus, "single")
+			assert.Equal(t, tt.wantStatus, bulk.SegmentStatus, "bulk")
+			assert.Equal(t, tt.wantStatus, listed.SegmentStatus, "bulk of listed flags")
+
+			_, bulkCacheable := bulk.Metadata[flagruntime.MetadataCacheable]
+
+			assert.Equal(t, single.Cacheable, bulkCacheable)
+		})
+	}
+}
+
+// countingHandler counts the records it gets.
+type countingHandler struct{ records *atomic.Int64 }
+
+func (countingHandler) Enabled(context.Context, slog.Level) bool { return true }
+
+func (h countingHandler) Handle(context.Context, slog.Record) error {
+	h.records.Add(1)
+
+	return nil
+}
+
+func (h countingHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
+
+func (h countingHandler) WithGroup(string) slog.Handler { return h }
+
+// A store that is down does not write a line for every evaluation: the evaluations answer STORE_ERROR and the
+// outage is told by the log of the connection (once, when it goes down) and by the metrics.
+func TestAnOutageDoesNotLogForEveryEvaluation(t *testing.T) {
+	t.Parallel()
+
+	const evaluations = 1_000
+
+	tests := []struct {
+		ctx  ffcontext.Context
+		name string
+		flag string
+	}{
+		{name: "read by the batch", flag: audienceFlag, ctx: ffcontext.NewEvaluationContext(memberAlice)},
+		{
+			name: "read by the rule", flag: "typed-flag",
+			ctx: ffcontext.NewEvaluationContextBuilder("k").AddCustom("user", struct {
+				ID string `json:"id"`
+			}{ID: memberAlice}).Build(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var records atomic.Int64
+
+			svc := flagdef.NewService(flagdef.WithLogger(slog.New(countingHandler{records: &records})))
+			t.Cleanup(svc.Close)
+
+			source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+			source.Fail(segment.OpContains, errStoreDown)
+
+			set := viewSet(t, &memBinder{source: source}, lookupDoc)
+			eval := flagruntime.NewEvaluator(svc, nil)
+
+			for range evaluations {
+				got, err := eval.BoolVariationDetails(set, tt.flag, tt.ctx, false)
+				require.NoError(t, err)
+				require.Equal(t, segment.StatusStoreError, got.SegmentStatus)
+			}
+
+			assert.Zero(t, records.Load())
 		})
 	}
 }

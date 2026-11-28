@@ -24,6 +24,7 @@ import (
 )
 
 const (
+	connFast       = "fast"
 	kindRedis      = "redis"
 	segAudience    = "audience"
 	connCache      = "cache"
@@ -247,7 +248,7 @@ func TestConnectionsRun(t *testing.T) {
 	require.NoError(t, conns.Shutdown(t.Context()))
 	assert.True(t, handle.closed.Load(), "the client is closed by Shutdown")
 	assert.Equal(t, "closed", stateOf(conns, connCache), "the client is gone after Shutdown")
-	assert.Equal(t, "closed", stateOf(conns, "fast"))
+	assert.Equal(t, "closed", stateOf(conns, connFast))
 }
 
 // The real dialers of the kinds: go-redis connects on the first command, so a redis connection is up at once and its
@@ -262,7 +263,7 @@ func TestConnectionsDialKinds(t *testing.T) {
 		wantState string
 	}{
 		{name: kindRedis, conn: connCache, wantState: stateConnected},
-		{name: "valkey unreachable", conn: "fast", wantState: stateError},
+		{name: "valkey unreachable", conn: connFast, wantState: stateError},
 		{name: "unreadable CA bundle", conn: "badca", wantState: stateError},
 		{name: "redis with settings", conn: "tuned", wantState: stateConnected},
 		{name: "unset password", conn: "nopass", wantState: stateError},
@@ -431,6 +432,16 @@ func TestConnectionsBindingEdges(t *testing.T) {
 			},
 		},
 		{
+			name: "no traffic yet", handle: &fakeHandle{},
+			check: func(t *testing.T, binding *flagruntime.Binding) {
+				t.Helper()
+
+				reporter, ok := binding.Provider.(segment.HealthReporter)
+				require.True(t, ok)
+				assert.Equal(t, segment.Health{Ready: true}, reporter.Health(), "a connected store is not failing")
+			},
+		},
+		{
 			name: "bind fails", handle: &fakeHandle{bindErr: errDial},
 			check: func(t *testing.T, binding *flagruntime.Binding) {
 				t.Helper()
@@ -489,5 +500,69 @@ func TestConnectionsBindingEdges(t *testing.T) {
 				require.NoError(t, err)
 			}
 		})
+	}
+}
+
+// The connections are dialled apart: a store that does not answer does not delay the others.
+func TestConnectionsDialInParallel(t *testing.T) {
+	t.Parallel()
+
+	var (
+		release = make(chan struct{})
+		entered = make(chan struct{})
+		fast    = &fakeHandle{source: segment.NewMemorySource(nil)}
+		slow    = &fakeHandle{source: segment.NewMemorySource(nil)}
+	)
+
+	conns := segmentstore.NewConnections(parseDoc(t), segmentstore.Options{
+		RetryInterval: tick,
+		Dialers: map[string]segmentstore.Dialer{
+			connCache: func(ctx context.Context) (segmentstore.Handle, error) {
+				close(entered)
+
+				select {
+				case <-release:
+					return slow, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			},
+			connFast: func(context.Context) (segmentstore.Handle, error) { return fast, nil },
+		},
+	})
+
+	for _, name := range []string{connCache, connFast} {
+		_, err := conns.Bind(name, segment.MissingNotMember, nil)
+		require.NoError(t, err)
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		conns.Run(ctx)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(waitFor):
+		require.FailNow(t, "the slow dial did not start")
+	}
+
+	require.Eventually(t, func() bool { return stateOf(conns, connFast) == stateConnected }, waitFor, tick,
+		"the healthy connection connects while the other dial is blocked")
+	assert.Equal(t, "connecting", stateOf(conns, connCache))
+
+	close(release)
+
+	require.Eventually(t, func() bool { return stateOf(conns, connCache) == stateConnected }, waitFor, tick)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(waitFor):
+		require.FailNow(t, "the loop did not stop")
 	}
 }

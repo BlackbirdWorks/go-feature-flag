@@ -84,6 +84,7 @@ type connection struct {
 	kind    string
 	closeMu sync.Mutex
 	failed  atomic.Bool
+	dialing atomic.Bool
 	needed  atomic.Bool
 	closed  bool
 }
@@ -148,8 +149,13 @@ func (c *Connections) Run(ctx context.Context) {
 	ticker := time.NewTicker(c.retry)
 	defer ticker.Stop()
 
+	var dials sync.WaitGroup
+
+	// the dials end with the context (see dialUntil): Run leaves nothing behind
+	defer dials.Wait()
+
 	for {
-		c.connect(ctx)
+		c.connect(ctx, &dials)
 
 		select {
 		case <-ctx.Done():
@@ -265,46 +271,60 @@ func (l *lazyBinding) Health() segment.Health {
 		return segment.Health{Ready: true}
 	}
 
+	if l.conn.handle.Load() != nil {
+		return segment.Health{Ready: true} // connected, and nothing has asked it yet
+	}
+
 	return segment.Health{Failure: "unavailable"}
 }
 
-func (c *Connections) connect(ctx context.Context) {
+func (c *Connections) connect(ctx context.Context, dials *sync.WaitGroup) {
 	for _, name := range c.names() {
 		conn := c.conns[name]
 		if !conn.needed.Load() || conn.handle.Load() != nil || ctx.Err() != nil {
 			continue
 		}
 
-		res := dialUntil(ctx, conn.dial)
-
-		if res.err != nil {
-			if ctx.Err() != nil {
-				return // the relay is stopping: it is not a store that is down
-			}
-
-			if conn.failed.CompareAndSwap(false, true) {
-				c.log.LogAttrs(ctx, slog.LevelWarn, "a segment store is not reachable: its segments answer STORE_ERROR",
-					slog.String("connection", name), slog.String("kind", conn.kind), slog.Any("error", res.err))
-			}
-
+		// one dial in flight for each connection, apart from the others: a store that does not answer delays no other
+		if !conn.dialing.CompareAndSwap(false, true) {
 			continue
 		}
 
-		conn.closeMu.Lock()
-		if conn.closed {
-			conn.closeMu.Unlock()
+		dials.Go(func() {
+			defer conn.dialing.Store(false)
 
-			_ = res.handle.Close()
-
-			continue
-		}
-
-		conn.handle.Store(&handleBox{h: res.handle})
-		conn.closeMu.Unlock()
-		conn.failed.Store(false)
-		c.log.LogAttrs(ctx, slog.LevelInfo, "a segment store is connected",
-			slog.String("connection", name), slog.String("kind", conn.kind))
+			c.dial(ctx, name, conn)
+		})
 	}
+}
+
+// dial connects one connection and keeps the client.
+func (c *Connections) dial(ctx context.Context, name string, conn *connection) {
+	res := dialUntil(ctx, conn.dial)
+
+	if res.err != nil {
+		if ctx.Err() == nil && conn.failed.CompareAndSwap(false, true) {
+			c.log.LogAttrs(ctx, slog.LevelWarn, "a segment store is not reachable: its segments answer STORE_ERROR",
+				slog.String("connection", name), slog.String("kind", conn.kind), slog.Any("error", res.err))
+		}
+
+		return
+	}
+
+	conn.closeMu.Lock()
+	if conn.closed {
+		conn.closeMu.Unlock()
+
+		_ = res.handle.Close()
+
+		return
+	}
+
+	conn.handle.Store(&handleBox{h: res.handle})
+	conn.closeMu.Unlock()
+	conn.failed.Store(false)
+	c.log.LogAttrs(ctx, slog.LevelInfo, "a segment store is connected",
+		slog.String("connection", name), slog.String("kind", conn.kind))
 }
 
 // dialed is the result of a dial that runs apart from the loop.
@@ -321,17 +341,18 @@ func dialUntil(ctx context.Context, dial Dialer) dialed {
 
 	go func() {
 		handle, err := dial(ctx)
-		if err == nil && ctx.Err() != nil {
-			_ = handle.Close()
-
-			handle, err = nil, fmt.Errorf("the dial ended after the context: %w", context.Cause(ctx))
-		}
-
 		result <- dialed{handle: handle, err: err}
 	}()
 
 	select {
 	case <-ctx.Done():
+		// whatever the dial gives, now or later, is closed: nothing is left open
+		go func() {
+			if res := <-result; res.handle != nil {
+				_ = res.handle.Close()
+			}
+		}()
+
 		return dialed{err: fmt.Errorf("dial: %w", context.Cause(ctx))}
 	case res := <-result:
 		return res

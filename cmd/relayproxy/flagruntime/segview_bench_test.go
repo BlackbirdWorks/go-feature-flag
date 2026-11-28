@@ -24,7 +24,7 @@ func BenchmarkDynamicSegments(b *testing.B) {
 	eval := flagruntime.NewEvaluator(newService(b), nil)
 	evalCtx := ffcontext.NewEvaluationContext(memberAlice)
 
-	for _, flag := range []string{"plain-flag", "audience-flag"} {
+	for _, flag := range []string{"plain-flag", audienceFlag} {
 		b.Run(flag, func(b *testing.B) {
 			b.ReportAllocs()
 

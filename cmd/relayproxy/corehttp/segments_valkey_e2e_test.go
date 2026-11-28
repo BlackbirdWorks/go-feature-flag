@@ -226,26 +226,26 @@ var errNotOK = errors.New("the status is not 200")
 func awaitEval(t *testing.T, rig *v2, key string, want func(evalBody) bool, msg string) evalBody {
 	t.Helper()
 
-	deadline := time.Now().Add(eventually)
+	var last atomic.Pointer[evalBody]
 
-	var (
-		last    evalBody
-		lastErr error
-	)
-
-	for time.Now().Before(deadline) {
-		last, lastErr = tryEval(rig, "dyn-flag", key)
-		if lastErr == nil && want(last) {
-			return last
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		got, err := tryEval(rig, "dyn-flag", key)
+		if !assert.NoError(collect, err, msg) {
+			return
 		}
 
-		time.Sleep(poll)
-	}
+		last.Store(&got)
+		assert.True(
+			collect,
+			want(got),
+			"%s: last answer %+v, resolver %+v",
+			msg,
+			got,
+			rig.core.Status().Segments.Resolver,
+		)
+	}, eventually, poll, msg)
 
-	require.FailNow(t, msg, "last answer %+v, error %v, resolver %+v", last, lastErr,
-		rig.core.Status().Segments.Resolver)
-
-	return last
+	return *last.Load()
 }
 
 func isMember(b evalBody) bool {

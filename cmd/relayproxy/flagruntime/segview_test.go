@@ -84,6 +84,11 @@ tenant-twin:
   targeting:
     - {name: tenant, query: 'tenant in segment("audience")', variation: on}
   defaultRule: {name: default, variation: off}
+ghost-flag:
+  variations: {on: true, off: false}
+  targeting:
+    - {name: ghost, query: 'targetingKey in segment("ghost")', variation: on}
+  defaultRule: {name: default, variation: off}
 plain-flag:
   variations: {on: true, off: false}
   defaultRule: {name: default, variation: on}

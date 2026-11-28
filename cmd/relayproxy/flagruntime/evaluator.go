@@ -492,9 +492,7 @@ func (e *Evaluator) GetFlagStates(
 	}
 
 	// one batch for the dynamic segments of all the flags of the request
-	if prefetch := set.prefetchFlags(evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate); prefetch != nil {
-		flagCtx.Segments = prefetch
-	}
+	prefetch := set.prefetchFlags(evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate)
 
 	states := flagstate.NewAllFlags()
 
@@ -506,6 +504,12 @@ func (e *Evaluator) GetFlagStates(
 			}
 
 			flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
+
+			flagCtx.Segments = nil
+			if prefetch != nil && set.usesServed(key) {
+				flagCtx.Segments = prefetch
+			}
+
 			addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 		}
 
@@ -518,6 +522,12 @@ func (e *Evaluator) GetFlagStates(
 
 	for key, flag := range set.Flags {
 		flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
+
+		flagCtx.Segments = nil
+		if prefetch != nil && set.usesServed(key) {
+			flagCtx.Segments = prefetch
+		}
+
 		addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 	}
 

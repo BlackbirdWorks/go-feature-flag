@@ -38,7 +38,7 @@ connections:
 		wantNoStore  bool
 	}{
 		{name: kindRedis, conn: connCache, wantKind: kindRedis, wantLookup: true, wantSnapshot: true},
-		{name: "valkey", conn: "fast", wantKind: "valkey", wantLookup: true, wantSnapshot: true},
+		{name: "valkey", conn: connFast, wantKind: "valkey", wantLookup: true, wantSnapshot: true},
 		{name: kindFile, conn: "control", wantKind: kindFile, wantNoStore: true},
 	}
 
