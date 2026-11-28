@@ -15,6 +15,7 @@ type ValkeyStore struct {
 	stage  *valkey.Lua
 	commit *valkey.Lua
 	unlock *valkey.Lua
+	edit   *valkey.Lua
 }
 
 var _ Store = (*ValkeyStore)(nil)
@@ -23,7 +24,7 @@ var _ Store = (*ValkeyStore)(nil)
 func NewValkey(client valkey.Client) *ValkeyStore {
 	return &ValkeyStore{
 		client: client, stage: valkey.NewLuaScript(stageScript), commit: valkey.NewLuaScript(commitScript),
-		unlock: valkey.NewLuaScript(unlockScript),
+		unlock: valkey.NewLuaScript(unlockScript), edit: valkey.NewLuaScript(editScript),
 	}
 }
 
@@ -117,8 +118,8 @@ func (s *ValkeyStore) Lock(ctx context.Context, key, token string, ttl time.Dura
 }
 
 // Unlock implements [Store].
-func (s *ValkeyStore) Unlock(ctx context.Context, lock, last, token string) error {
-	err := s.unlock.Exec(ctx, s.client, []string{lock, last}, []string{token}).Error()
+func (s *ValkeyStore) Unlock(ctx context.Context, lock, last, committed, token string) error {
+	err := s.unlock.Exec(ctx, s.client, []string{lock, last, committed}, []string{token}).Error()
 	if err != nil {
 		return storeErr("EVAL", err)
 	}
@@ -128,26 +129,41 @@ func (s *ValkeyStore) Unlock(ctx context.Context, lock, last, token string) erro
 
 // StageAdd implements [Store].
 func (s *ValkeyStore) StageAdd(
-	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
-) (int64, bool, error) {
-	args := append([]string{token, strconv.FormatInt(ttl.Milliseconds(), 10)}, members...)
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration, first bool,
+) (int64, StageResult, error) {
+	args := append([]string{token, strconv.FormatInt(ttl.Milliseconds(), 10), flag(first)}, members...)
 
 	added, err := s.stage.Exec(ctx, s.client, []string{lock, tmp}, args).AsInt64()
+	if err != nil {
+		return 0, Staged, storeErr("EVAL", err)
+	}
+
+	return stageOf(added)
+}
+
+// EditSet implements [Store].
+func (s *ValkeyStore) EditSet(
+	ctx context.Context, lock, key string, members []string, remove bool,
+) (int64, bool, error) {
+	args := append([]string{editVerb(remove)}, members...)
+
+	changed, err := s.edit.Exec(ctx, s.client, []string{lock, key}, args).AsInt64()
 	if err != nil {
 		return 0, false, storeErr("EVAL", err)
 	}
 
-	return max(added, 0), added >= 0, nil
+	return max(changed, 0), changed < 0, nil
 }
 
 // Commit implements [Store].
 func (s *ValkeyStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
 	args := []string{
 		commit.Token, strconv.FormatInt(commit.Want, 10), strconv.FormatInt(commit.OldTTL.Milliseconds(), 10),
+		flag(commit.Empty),
 	}
+	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed}
 
-	code, err := s.commit.Exec(ctx, s.client, []string{commit.Lock, commit.Tmp, commit.Live, commit.Old}, args).
-		AsInt64()
+	code, err := s.commit.Exec(ctx, s.client, keys, args).AsInt64()
 	if err != nil {
 		return LockLost, false, storeErr("EVAL", err)
 	}

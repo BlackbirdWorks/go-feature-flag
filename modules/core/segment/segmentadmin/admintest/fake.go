@@ -17,6 +17,9 @@ import (
 // ErrInjected is the failure that [Fake.Fail] returns.
 var ErrInjected = errors.New("injected failure")
 
+// ErrLostReply is the failure of a call that was applied and whose reply was lost.
+var ErrLostReply = errors.New("the reply was lost")
+
 // ErrCrossSlot is the failure of a swap whose keys are not in one cluster slot.
 var ErrCrossSlot = errors.New("CROSSSLOT keys in request don't hash to the same slot")
 
@@ -26,6 +29,10 @@ type Fake struct {
 	strs     map[string]string
 	ttls     map[string]time.Duration
 	failures map[string]int
+	failFrom map[string]int
+	lost     map[string]int
+	lostAll  map[string]bool
+	seen     map[string]int
 	calls    []string
 	mu       sync.Mutex
 	noUnlink bool
@@ -37,7 +44,8 @@ var _ segmentadmin.Store = (*Fake)(nil)
 func New() *Fake {
 	return &Fake{
 		sets: map[string]map[string]struct{}{}, strs: map[string]string{}, ttls: map[string]time.Duration{},
-		failures: map[string]int{},
+		failures: map[string]int{}, failFrom: map[string]int{}, lost: map[string]int{}, lostAll: map[string]bool{},
+		seen: map[string]int{},
 	}
 }
 
@@ -48,6 +56,23 @@ func (f *Fake) Fail(op string, nth int) {
 	defer f.mu.Unlock()
 
 	f.failures[op] = nth
+}
+
+// FailFrom makes every call of an operation from the nth on fail with [ErrInjected], as a store that stays down does.
+func (f *Fake) FailFrom(op string, nth int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.failFrom[op] = f.seen[op] + nth
+}
+
+// LoseReply makes the nth call of an operation ("SADD" of a batch, "SWAP", "EDIT") apply and then fail with
+// [ErrLostReply], as a call whose reply never came back. With always, every call from the nth on does.
+func (f *Fake) LoseReply(op string, nth int, always bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.lost[op], f.lostAll[op] = f.seen[op]+nth, always
 }
 
 // WithoutUnlink makes UNLINK an unknown command, as on a server that predates it.
@@ -216,7 +241,7 @@ func (f *Fake) Lock(ctx context.Context, key, token string, ttl time.Duration) (
 }
 
 // Unlock implements [segmentadmin.Store]: the compare and delete.
-func (f *Fake) Unlock(ctx context.Context, lock, last, token string) error {
+func (f *Fake) Unlock(ctx context.Context, lock, last, committed, token string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -231,26 +256,35 @@ func (f *Fake) Unlock(ctx context.Context, lock, last, token string) error {
 		delete(f.ttls, lock)
 	}
 
+	if f.strs[committed] == token {
+		delete(f.strs, committed)
+	}
+
 	return nil
 }
 
-// StageAdd implements [segmentadmin.Store]: the batch is written only while the lock holds the token.
+// StageAdd implements [segmentadmin.Store]: the batch is written only while the lock holds the token, and only the
+// first batch may create the temporary key.
 func (f *Fake) StageAdd(
-	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
-) (int64, bool, error) {
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration, first bool,
+) (int64, segmentadmin.StageResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	err := f.enter(ctx, "SADD", tmp)
 	if err != nil {
-		return 0, false, err
+		return 0, segmentadmin.Staged, err
 	}
 
 	if f.strs[lock] != token {
-		return 0, false, nil
+		return 0, segmentadmin.StageLockLost, nil
 	}
 
 	set := f.sets[tmp]
+	if set == nil && !first {
+		return 0, segmentadmin.StageTempGone, nil
+	}
+
 	if set == nil {
 		set = map[string]struct{}{}
 		f.sets[tmp] = set
@@ -267,7 +301,51 @@ func (f *Fake) StageAdd(
 
 	f.ttls[tmp], f.ttls[lock] = ttl, ttl
 
-	return added, true, nil
+	return added, segmentadmin.Staged, f.lose("SADD")
+}
+
+// EditSet implements [segmentadmin.Store]: refused while the import lock exists.
+func (f *Fake) EditSet(ctx context.Context, lock, key string, members []string, remove bool) (int64, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	err := f.enter(ctx, "EDIT", key)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if _, held := f.strs[lock]; held {
+		return 0, true, nil
+	}
+
+	set := f.sets[key]
+	if set == nil && !remove {
+		set = map[string]struct{}{}
+		f.sets[key] = set
+	}
+
+	var changed int64
+
+	for _, member := range members {
+		_, present := set[member]
+
+		switch {
+		case remove && present:
+			delete(set, member)
+
+			changed++
+		case !remove && !present:
+			set[member] = struct{}{}
+
+			changed++
+		}
+	}
+
+	if len(set) == 0 {
+		delete(f.sets, key)
+	}
+
+	return changed, false, f.lose("EDIT")
 }
 
 // Commit implements [segmentadmin.Store]: the conditional swap, in one step as the script does it.
@@ -280,42 +358,12 @@ func (f *Fake) Commit(ctx context.Context, commit *segmentadmin.Commit) (segment
 		return segmentadmin.LockLost, false, err
 	}
 
-	for _, key := range []string{commit.Tmp, commit.Old, commit.Lock} {
-		if segmentadmin.Slot(key) != segmentadmin.Slot(commit.Live) {
-			return segmentadmin.LockLost, false, ErrCrossSlot
-		}
+	result, fell, err := f.commitLocked(commit)
+	if err != nil {
+		return result, fell, err
 	}
 
-	switch {
-	case f.strs[commit.Lock] != commit.Token:
-		return segmentadmin.LockLost, false, nil
-	case commit.Want == 0:
-		delete(f.sets, commit.Live)
-		delete(f.ttls, commit.Live)
-
-		return segmentadmin.Committed, f.noUnlink, nil
-	}
-
-	set, ok := f.sets[commit.Tmp]
-
-	switch {
-	case !ok:
-		return segmentadmin.TempGone, false, nil
-	case int64(len(set)) != commit.Want:
-		return segmentadmin.CountMismatch, false, nil
-	}
-
-	if live, exists := f.sets[commit.Live]; exists {
-		f.sets[commit.Old] = live
-		f.ttls[commit.Old] = commit.OldTTL
-	}
-
-	f.sets[commit.Live] = set
-	delete(f.sets, commit.Tmp)
-	delete(f.ttls, commit.Tmp)
-	delete(f.ttls, commit.Live) // PERSIST
-
-	return segmentadmin.Committed, false, nil
+	return result, fell, f.lose("SWAP")
 }
 
 // Delete removes keys without a command and without a record, as an expiry would.
@@ -459,6 +507,12 @@ func (f *Fake) enter(ctx context.Context, command, key string) error {
 		return fmt.Errorf("fake store: %w", err)
 	}
 
+	f.seen[command]++
+
+	if from := f.failFrom[command]; from > 0 && f.seen[command] >= from {
+		return fmt.Errorf("%w: %s: %w", segmentadmin.ErrStore, command, ErrInjected)
+	}
+
 	if left := f.failures[command]; left > 0 {
 		f.failures[command] = left - 1
 		if left == 1 {
@@ -467,4 +521,59 @@ func (f *Fake) enter(ctx context.Context, command, key string) error {
 	}
 
 	return nil
+}
+
+// lose tells whether the reply of the call that just ran is lost. The caller holds the lock and has applied the call.
+func (f *Fake) lose(command string) error {
+	nth := f.lost[command]
+	if nth == 0 || f.seen[command] < nth || (!f.lostAll[command] && f.seen[command] > nth) {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %s: %w", segmentadmin.ErrStore, command, ErrLostReply)
+}
+
+// commitLocked applies the swap. The caller holds the lock.
+func (f *Fake) commitLocked(commit *segmentadmin.Commit) (segmentadmin.CommitResult, bool, error) {
+	for _, key := range []string{commit.Tmp, commit.Old, commit.Lock, commit.Committed} {
+		if segmentadmin.Slot(key) != segmentadmin.Slot(commit.Live) {
+			return segmentadmin.LockLost, false, ErrCrossSlot
+		}
+	}
+
+	switch {
+	case f.strs[commit.Committed] == commit.Token:
+		return segmentadmin.AlreadyCommitted, false, nil
+	case f.strs[commit.Lock] != commit.Token:
+		return segmentadmin.LockLost, false, nil
+	case commit.Empty:
+		delete(f.sets, commit.Live)
+		delete(f.ttls, commit.Live)
+		f.strs[commit.Committed] = commit.Token
+
+		return segmentadmin.Committed, f.noUnlink, nil
+	}
+
+	set, ok := f.sets[commit.Tmp]
+
+	switch {
+	case !ok:
+		return segmentadmin.TempGone, false, nil
+	case int64(len(set)) < commit.Want:
+		return segmentadmin.CountMismatch, false, nil
+	}
+
+	if live, exists := f.sets[commit.Live]; exists {
+		f.sets[commit.Old] = live
+		f.ttls[commit.Old] = commit.OldTTL
+	}
+
+	f.sets[commit.Live] = set
+	delete(f.sets, commit.Tmp)
+	delete(f.ttls, commit.Tmp)
+	delete(f.ttls, commit.Live) // PERSIST
+
+	f.strs[commit.Committed] = commit.Token
+
+	return segmentadmin.Committed, false, nil
 }

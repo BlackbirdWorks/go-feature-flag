@@ -13,20 +13,28 @@ import (
 )
 
 const (
-	member1 = "k:1"
-	member2 = "k:2"
-	live    = "p:{s}"
-	tmp     = "p:{s}:import:t:new"
-	old     = "p:{s}:import:t:old"
-	lock    = "p:{s}:import:lock"
-	last    = "p:{s}:import:last"
-	token   = "t"
+	member1   = "k:1"
+	member2   = "k:2"
+	live      = "p:{s}"
+	tmp       = "p:{s}:import:t:new"
+	old       = "p:{s}:import:t:old"
+	lock      = "p:{s}:import:lock"
+	last      = "p:{s}:import:last"
+	committed = "p:{s}:import:committed"
+	token     = "t"
 )
 
 func commitOf(want int64) *segmentadmin.Commit {
 	return &segmentadmin.Commit{
-		Lock: lock, Tmp: tmp, Live: live, Old: old, Last: last, Token: token, Want: want, OldTTL: time.Minute,
+		Lock: lock, Tmp: tmp, Live: live, Old: old, Committed: committed, Token: token, Want: want, OldTTL: time.Minute,
 	}
+}
+
+func commitEmpty() *segmentadmin.Commit {
+	commit := commitOf(0)
+	commit.Empty = true
+
+	return commit
 }
 
 func TestFake_commit(t *testing.T) {
@@ -46,7 +54,7 @@ func TestFake_commit(t *testing.T) {
 			prepare: func(ctx context.Context, store *admintest.Fake) {
 				_, _ = store.SAdd(ctx, live, []string{"a"}, 0)
 				_, _ = store.Lock(ctx, lock, token, time.Hour)
-				_, _, _ = store.StageAdd(ctx, lock, tmp, token, []string{"b", "c"}, time.Hour)
+				_, _, _ = store.StageAdd(ctx, lock, tmp, token, []string{"b", "c"}, time.Hour, true)
 			},
 			commit: commitOf(2), wantLive: []string{"b", "c"}, wantOld: []string{"a"},
 		},
@@ -71,7 +79,7 @@ func TestFake_commit(t *testing.T) {
 			prepare: func(ctx context.Context, store *admintest.Fake) {
 				_, _ = store.SAdd(ctx, live, []string{"a"}, 0)
 				_, _ = store.Lock(ctx, lock, token, time.Hour)
-				_, _, _ = store.StageAdd(ctx, lock, tmp, token, []string{"b"}, time.Hour)
+				_, _, _ = store.StageAdd(ctx, lock, tmp, token, []string{"b"}, time.Hour, true)
 			},
 			commit: commitOf(2), wantResult: segmentadmin.CountMismatch, wantLive: []string{"a"},
 		},
@@ -81,7 +89,7 @@ func TestFake_commit(t *testing.T) {
 				_, _ = store.SAdd(ctx, live, []string{"a"}, 0)
 				_, _ = store.Lock(ctx, lock, token, time.Hour)
 			},
-			commit: commitOf(0),
+			commit: commitEmpty(),
 		},
 		{
 			name:    "keys of two slots are refused as a cluster refuses them",
@@ -128,12 +136,12 @@ func TestFake_lock(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, store.SetValue(ctx, last, tmp))
-	require.NoError(t, store.Unlock(ctx, lock, last, "other"))
+	require.NoError(t, store.Unlock(ctx, lock, last, committed, "other"))
 
 	holder, held, err := store.Value(ctx, lock)
 	require.NoError(t, err)
 
-	require.NoError(t, store.Unlock(ctx, lock, last, token))
+	require.NoError(t, store.Unlock(ctx, lock, last, committed, token))
 
 	_, afterLock, _ := store.Value(ctx, lock)
 	_, afterLast, _ := store.Value(ctx, last)
@@ -150,13 +158,17 @@ func TestFake_stageAdd(t *testing.T) {
 
 	_, _ = store.Lock(ctx, lock, token, time.Hour)
 
-	added, held, err := store.StageAdd(ctx, lock, tmp, token, []string{"a", "a", "b"}, time.Minute)
+	added, held, err := store.StageAdd(ctx, lock, tmp, token, []string{"a", "a", "b"}, time.Minute, true)
 	require.NoError(t, err)
-	assert.Equal(t, []any{int64(2), true, time.Minute}, []any{added, held, store.TTLOf(tmp)})
+	assert.Equal(t, []any{int64(2), segmentadmin.Staged, time.Minute}, []any{added, held, store.TTLOf(tmp)})
 
-	added, held, err = store.StageAdd(ctx, lock, tmp, "other", []string{"c"}, time.Minute)
+	added, held, err = store.StageAdd(ctx, lock, tmp, "other", []string{"c"}, time.Minute, true)
 	require.NoError(t, err)
-	assert.Equal(t, []any{int64(0), false, []string{"a", "b"}}, []any{added, held, store.Members(tmp)})
+	assert.Equal(
+		t,
+		[]any{int64(0), segmentadmin.StageLockLost, []string{"a", "b"}},
+		[]any{added, held, store.Members(tmp)},
+	)
 }
 
 func TestFake_commands(t *testing.T) {

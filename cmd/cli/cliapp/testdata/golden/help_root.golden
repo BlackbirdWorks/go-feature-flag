@@ -40,6 +40,9 @@ Commands:
     Show whether the segment exists, how many members it has, its version and
     its ttl
 
+  segment bump --segments=STRING --segment=STRING [flags]
+    Bump the version key of the segment only, so that the relays read it again
+
   segment import --segments=STRING --segment=STRING --from=STRING [flags]
     Replace the members of a segment from a file or standard input, with an
     atomic swap (a temporary key, then RENAME)

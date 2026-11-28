@@ -28,8 +28,14 @@ var (
 	// ErrImportRunning is returned when another import of the segment holds the lock. A lock that a dead run left
 	// expires after its ttl.
 	ErrImportRunning = errors.New("another import of this segment is running (a dead run's lock expires by its ttl)")
-	// ErrPartial is returned when an add or a remove applied only a part of the ids.
-	ErrPartial = errors.New("partially applied")
+	// ErrPartial is returned when an add or a remove applied only a part of the ids, or may have applied a batch whose
+	// reply was lost. The version key was bumped (or the error says that it could not be).
+	ErrPartial = errors.New("partially or possibly applied")
+	// ErrSwapUnknown is returned when the swap was sent and no definite answer came back: the live set may or may not
+	// be the new one.
+	ErrSwapUnknown = errors.New("swap state unknown: run `semaphore-cli segment stat`, then import again")
+	// ErrNotBumped is returned when the swap worked and the version key could not be bumped.
+	ErrNotBumped = errors.New("set replaced, version not bumped: run `semaphore-cli segment bump` with the same flags")
 	// ErrNoSlotTag is returned for a key that cannot get a temporary key in its cluster slot.
 	ErrNoSlotTag = errors.New("the key has a hash tag that cannot be shared by a temporary key")
 	// ErrBadOptions is returned for options out of their bounds.
@@ -46,6 +52,9 @@ const (
 	// ttlMissing and ttlNone are the replies of PTTL for a missing key and a key without expiry.
 	ttlMissing = -2
 	ttlNone    = -1
+	// stageLockLost and stageTempGone are the codes of the stage script.
+	stageLockLost = -1
+	stageTempGone = -2
 )
 
 // pttlOf reads the reply of PTTL in milliseconds: whether the key exists, and its ttl (zero for none).
@@ -99,33 +108,62 @@ const (
 	LockLost
 	// TempGone means that the temporary key does not exist: nothing changed.
 	TempGone
-	// CountMismatch means that the temporary key does not hold the members that were written: nothing changed.
+	// CountMismatch means that the temporary key holds fewer members than were written: nothing changed.
 	CountMismatch
+	// AlreadyCommitted means that this run's swap was applied before (the reply of the first call was lost): the new
+	// set is live.
+	AlreadyCommitted
+)
+
+// StageResult is what a batch of the temporary key did.
+type StageResult int
+
+const (
+	// Staged means that the batch was written.
+	Staged StageResult = iota
+	// StageLockLost means that the lock did not hold the token: nothing was written.
+	StageLockLost
+	// StageTempGone means that a batch after the first found no temporary key (it expired or was removed): nothing
+	// was written, because recreating it would hide the members that are lost.
+	StageTempGone
 )
 
 // Commit is the conditional swap of an import. Every key must be in one cluster slot.
 type Commit struct {
-	// Lock, Tmp, Live and Old are the keys. Last is the key that names the temporary key.
-	Lock, Tmp, Live, Old, Last string
+	// Lock, Tmp, Live and Old are the keys. Committed holds the token of the run once its swap is applied, so that
+	// a second call with the same token (after a lost reply) is answered AlreadyCommitted.
+	Lock, Tmp, Live, Old, Committed string
 	// Token is the token of the run.
 	Token string
-	// Want is the cardinality that the temporary key must have. Zero is the explicit empty import: the live key is
-	// removed, if the lock still holds the token.
+	// Want is the least cardinality that the temporary key must have: the members that the run saw added (a batch
+	// that was sent twice counts once, so the key may hold more).
 	Want int64
 	// OldTTL is the expiry of the replaced set.
 	OldTTL time.Duration
+	// Empty is the explicit empty import: the live key is removed, if the lock still holds the token.
+	Empty bool
 }
 
 // Locker is the commands of the lock and of the conditional swap of an import.
 type Locker interface {
 	// Lock takes the lock key with the token for ttl (SET NX PX) and tells whether it was free.
 	Lock(ctx context.Context, key, token string, ttl time.Duration) (bool, error)
-	// Unlock removes the lock and the last key if, and only if, the lock still holds the token.
-	Unlock(ctx context.Context, lock, last, token string) error
+	// Unlock removes the lock and the last key if, and only if, the lock still holds the token, and the committed key
+	// if it holds the token.
+	Unlock(ctx context.Context, lock, last, committed, token string) error
 	// StageAdd adds members to the temporary key, and refreshes its expiry and the one of the lock, if, and only if,
-	// the lock holds the token (held is false otherwise, and nothing was written).
-	StageAdd(ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration) (
-		added int64, held bool, err error)
+	// the lock holds the token. Only the first batch (first is true) may create the temporary key; a later batch that
+	// finds it missing writes nothing. A batch can be sent again: the members are a set.
+	StageAdd(ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration, first bool) (
+		added int64, result StageResult, err error)
+	// EditSet adds members to (or removes them from) the live set, if, and only if, no import holds the lock; locked
+	// is true when one does, and nothing was written. It is one step on the server.
+	EditSet(
+		ctx context.Context,
+		lock, key string,
+		members []string,
+		remove bool,
+	) (changed int64, locked bool, err error)
 	// Commit swaps in one step on the server: if the lock holds the token, the temporary key exists and has Want
 	// members, the live key moves to Old (with its expiry), the temporary key becomes the live key and loses its
 	// expiry. Otherwise nothing changes. fellBack is true when the empty path had to use DEL.
@@ -170,3 +208,33 @@ func globEscape(prefix string) string {
 
 // ScanPattern is the SCAN MATCH pattern of the keys that start with prefix.
 func ScanPattern(prefix string) string { return globEscape(prefix) + "*" }
+
+// flag is the script argument of a boolean.
+func flag(on bool) string {
+	if on {
+		return "1"
+	}
+
+	return "0"
+}
+
+// editVerb is the first argument of the edit script.
+func editVerb(remove bool) string {
+	if remove {
+		return "rem"
+	}
+
+	return "add"
+}
+
+// stageOf reads what the stage script returns.
+func stageOf(code int64) (int64, StageResult, error) {
+	switch code {
+	case stageLockLost:
+		return 0, StageLockLost, nil
+	case stageTempGone:
+		return 0, StageTempGone, nil
+	}
+
+	return code, Staged, nil
+}

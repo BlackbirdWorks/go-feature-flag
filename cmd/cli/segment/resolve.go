@@ -105,13 +105,11 @@ func targetOf(cfg *bootstrap.Config, def *controlplane.SegmentDefinition, prefix
 		target.VersionKey = def.Version.Key
 	}
 
-	if cfg.Segments != nil {
-		res := &cfg.Segments.Resolver
-		target.Normalize = resolver.Normalization(res.Default.Normalize)
+	res := cfg.EffectiveResolver()
+	target.Normalize = resolver.Normalization(res.Default.Normalize)
 
-		if res.MaxIDBytes != nil {
-			target.MaxIDBytes = *res.MaxIDBytes
-		}
+	if res.MaxIDBytes != nil {
+		target.MaxIDBytes = *res.MaxIDBytes
 	}
 
 	return target

@@ -4,11 +4,13 @@ package segmentadmin
 // declared in KEYS, so they work on a cluster. The batch of a stage and the swap are the only scripts; none of them
 // walks a set.
 const (
-	// stageScript: KEYS lock, tmp. ARGV token, ttl in ms, members. Returns -1 when the lock is not the run's.
+	// stageScript: KEYS lock, tmp. ARGV token, ttl in ms, first ("1" for the first batch), members. Returns -1 when the
+	// lock is not the run's, -2 when a batch after the first finds no temporary key, else the members that were new.
 	stageScript = `
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return -1 end
+if ARGV[3] ~= '1' and redis.call('EXISTS', KEYS[2]) == 0 then return -2 end
 local added = 0
-local first = 3
+local first = 4
 while first <= #ARGV do
   local last = math.min(first + 999, #ARGV)
   added = added + redis.call('SADD', KEYS[2], unpack(ARGV, first, last))
@@ -19,36 +21,64 @@ redis.call('PEXPIRE', KEYS[1], ARGV[2])
 return added
 `
 
-	// commitScript: KEYS lock, tmp, live, old. ARGV token, want, old ttl in ms. Returns the codes below.
+	// commitScript: KEYS lock, tmp, live, old, committed. ARGV token, want, ttl in ms, empty ("1" for the explicit
+	// empty import). Returns the codes below. A run that was swapped in once is answered 5 when it asks again.
 	commitScript = `
+if redis.call('GET', KEYS[5]) == ARGV[1] then return 5 end
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 1 end
 local want = tonumber(ARGV[2])
-if want == 0 then
-  if pcall(redis.call, 'UNLINK', KEYS[3]) then return 0 end
-  redis.call('DEL', KEYS[3])
-  return 4
+if ARGV[4] == '1' then
+  local code = 0
+  if not pcall(redis.call, 'UNLINK', KEYS[3]) then
+    redis.call('DEL', KEYS[3])
+    code = 4
+  end
+  redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
+  return code
 end
 if redis.call('EXISTS', KEYS[2]) == 0 then return 2 end
-if redis.call('SCARD', KEYS[2]) ~= want then return 3 end
+if redis.call('SCARD', KEYS[2]) < want then return 3 end
 if redis.call('EXISTS', KEYS[3]) == 1 then
   redis.call('RENAME', KEYS[3], KEYS[4])
   redis.call('PEXPIRE', KEYS[4], ARGV[3])
 end
 redis.call('RENAME', KEYS[2], KEYS[3])
 redis.call('PERSIST', KEYS[3])
+redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
 return 0
 `
 
-	// unlockScript: KEYS lock, last. ARGV token. Removes both when the lock is the run's.
+	// editScript: KEYS lock, key. ARGV "add" or "rem", members. Returns -1 when an import holds the lock.
+	editScript = `
+if redis.call('EXISTS', KEYS[1]) == 1 then return -1 end
+local changed = 0
+local first = 2
+while first <= #ARGV do
+  local last = math.min(first + 999, #ARGV)
+  if ARGV[1] == 'add' then
+    changed = changed + redis.call('SADD', KEYS[2], unpack(ARGV, first, last))
+  else
+    changed = changed + redis.call('SREM', KEYS[2], unpack(ARGV, first, last))
+  end
+  first = last + 1
+end
+return changed
+`
+
+	// unlockScript: KEYS lock, last, committed. ARGV token. Removes the lock and the last key when the lock is the
+	// run's, and the committed key when it is.
 	unlockScript = `
-if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1], KEYS[2]) end
-return 0
+local removed = 0
+if redis.call('GET', KEYS[1]) == ARGV[1] then removed = redis.call('DEL', KEYS[1], KEYS[2]) end
+if redis.call('GET', KEYS[3]) == ARGV[1] then removed = removed + redis.call('DEL', KEYS[3]) end
+return removed
 `
 
 	codeCommitted    = 0
 	codeLockLost     = 1
 	codeTempGone     = 2
 	codeCountOff     = 3
+	codeAlready      = 5
 	codeCommittedDel = 4
 )
 
@@ -61,6 +91,8 @@ func commitResult(code int64) (CommitResult, bool) {
 		return TempGone, false
 	case codeCountOff:
 		return CountMismatch, false
+	case codeAlready:
+		return AlreadyCommitted, false
 	case codeCommittedDel:
 		return Committed, true
 	}

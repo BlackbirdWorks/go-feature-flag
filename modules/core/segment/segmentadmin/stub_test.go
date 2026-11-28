@@ -21,15 +21,19 @@ const (
 // stubServer is a loopback server that speaks the RESP of the commands that the write side sends, over a small
 // keyspace. Its listener is open from the start. It lets the two client implementations run without a container.
 type stubServer struct {
-	ln        net.Listener
-	sets      map[string]map[string]bool
-	strs      map[string]string
-	ttl       map[string]string
-	conns     map[net.Conn]struct{}
-	noUnlink  bool
-	wg        sync.WaitGroup
-	accepting sync.WaitGroup
-	mu        sync.Mutex
+	ln          net.Listener
+	writeCounts map[string]int
+	sets        map[string]map[string]bool
+	strs        map[string]string
+	ttl         map[string]string
+	conns       map[net.Conn]struct{}
+	accepting   sync.WaitGroup
+	wg          sync.WaitGroup
+	dropAt      int
+	evals       int
+	mu          sync.Mutex
+	dropped     bool
+	noUnlink    bool
 }
 
 func startStub(t *testing.T, noUnlink bool) *stubServer {
@@ -40,7 +44,7 @@ func startStub(t *testing.T, noUnlink bool) *stubServer {
 
 	srv := &stubServer{
 		ln: lis, sets: map[string]map[string]bool{}, strs: map[string]string{}, ttl: map[string]string{},
-		conns: map[net.Conn]struct{}{}, noUnlink: noUnlink,
+		conns: map[net.Conn]struct{}{}, noUnlink: noUnlink, writeCounts: map[string]int{},
 	}
 
 	srv.accepting.Add(1)
@@ -154,12 +158,43 @@ func (s *stubServer) serve(conn net.Conn) {
 			reply = s.run(name, args)
 		}
 
+		if s.takeDrop() {
+			return // the command was applied and the reply is lost: the connection ends
+		}
+
 		_, _ = writer.WriteString(reply)
 
 		if reader.Buffered() == 0 && writer.Flush() != nil {
 			return
 		}
 	}
+}
+
+// takeDrop tells whether the reply of the command that just ran must be dropped.
+func (s *stubServer) takeDrop() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	drop := s.dropped
+	s.dropped = false
+
+	return drop
+}
+
+// dropReplyOfEval makes the server apply the nth EVAL and then close the connection without answering.
+func (s *stubServer) dropReplyOfEval(nth int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.dropAt = nth
+}
+
+// writes is how many times SET wrote a key.
+func (s *stubServer) writes(key string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return s.writeCounts[key]
 }
 
 func integer(n int) string { return ":" + strconv.Itoa(n) + "\r\n" }
@@ -188,8 +223,8 @@ func (s *stubServer) run(name string, args []string) string {
 func (s *stubServer) runData(name string, args []string) string {
 	switch name {
 	case opSADD:
-		return s.sadd(args)
-	case "SREM":
+		return s.sadd(args, false)
+	case opSREM:
 		return s.srem(args)
 	case opSET:
 		return s.set(args)
@@ -253,7 +288,11 @@ func (s *stubServer) exists(key string) bool {
 	return set || str
 }
 
-func (s *stubServer) sadd(args []string) string {
+func (s *stubServer) sadd(args []string, remove bool) string {
+	if remove {
+		return s.srem(args)
+	}
+
 	set := s.sets[args[1]]
 	if set == nil {
 		set = map[string]bool{}
@@ -287,6 +326,8 @@ func (s *stubServer) srem(args []string) string {
 }
 
 func (s *stubServer) set(args []string) string {
+	s.writeCounts[args[1]]++
+
 	if slices.ContainsFunc(args[3:], func(arg string) bool { return strings.EqualFold(arg, "NX") }) &&
 		s.exists(args[1]) {
 		return "$-1\r\n"
@@ -368,54 +409,92 @@ func (s *stubServer) scan(args []string) string {
 	return out
 }
 
-// eval runs, natively, the three scripts of the write side: they are told apart by what they call.
+// eval runs, natively, the scripts of the write side: they are told apart by what they call.
 func (s *stubServer) eval(args []string) string {
 	count, _ := strconv.Atoi(args[2])
 	keys, argv := args[3:3+count], args[3+count:]
 
+	var reply string
+
 	switch {
+	case strings.Contains(args[1], opSREM):
+		reply = s.evalEdit(keys, argv)
 	case strings.Contains(args[1], "UNLINK"):
-		return s.evalCommit(keys, argv)
+		reply = s.evalCommit(keys, argv)
 	case strings.Contains(args[1], "SADD"):
-		return s.evalStage(keys, argv)
+		reply = s.evalStage(keys, argv)
+	default:
+		reply = s.evalUnlock(keys, argv)
 	}
 
-	if s.strs[keys[0]] != argv[0] {
-		return integer(0)
-	}
+	s.evals++
+	s.dropped = s.dropAt == s.evals
 
-	s.del(keys[0])
-	s.del(keys[1])
-
-	return integer(1)
+	return reply
 }
 
-func (s *stubServer) evalStage(keys, argv []string) string {
-	if s.strs[keys[0]] != argv[0] {
+func (s *stubServer) evalUnlock(keys, argv []string) string {
+	removed := 0
+
+	if s.strs[keys[0]] == argv[0] {
+		s.del(keys[0])
+		s.del(keys[1])
+
+		removed = 2
+	}
+
+	if s.strs[keys[2]] == argv[0] {
+		s.del(keys[2])
+
+		removed++
+	}
+
+	return integer(removed)
+}
+
+func (s *stubServer) evalEdit(keys, argv []string) string {
+	if s.exists(keys[0]) {
 		return integer(-1)
 	}
 
-	added, _ := strconv.Atoi(
-		strings.TrimPrefix(strings.TrimSuffix(s.sadd(append([]string{"SADD", keys[1]}, argv[2:]...)), "\r\n"), ":"),
-	)
+	verb := "SADD"
+	if argv[0] == "rem" {
+		verb = opSREM
+	}
+
+	return s.sadd(append([]string{verb, keys[1]}, argv[1:]...), verb == opSREM)
+}
+
+func (s *stubServer) evalStage(keys, argv []string) string {
+	switch {
+	case s.strs[keys[0]] != argv[0]:
+		return integer(-1)
+	case argv[2] != "1" && !s.exists(keys[1]):
+		return integer(-2)
+	}
+
+	reply := s.sadd(append([]string{"SADD", keys[1]}, argv[3:]...), false)
 	s.ttl[keys[1]], s.ttl[keys[0]] = argv[1], argv[1]
 
-	return integer(added)
+	return reply
 }
 
 func (s *stubServer) evalCommit(keys, argv []string) string {
 	want, _ := strconv.Atoi(argv[1])
 
 	switch {
+	case s.strs[keys[4]] == argv[0]:
+		return integer(5)
 	case s.strs[keys[0]] != argv[0]:
 		return integer(1)
-	case want == 0:
+	case argv[3] == "1":
 		s.del(keys[2])
+		s.strs[keys[4]] = argv[0]
 
 		return integer(0)
 	case !s.exists(keys[1]):
 		return integer(2)
-	case len(s.sets[keys[1]]) != want:
+	case len(s.sets[keys[1]]) < want:
 		return integer(3)
 	}
 
@@ -426,6 +505,8 @@ func (s *stubServer) evalCommit(keys, argv []string) string {
 
 	s.rename(keys[1], keys[2])
 	delete(s.ttl, keys[2])
+
+	s.strs[keys[4]] = argv[0]
 
 	return integer(0)
 }

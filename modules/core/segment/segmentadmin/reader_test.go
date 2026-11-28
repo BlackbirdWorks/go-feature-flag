@@ -93,6 +93,19 @@ func TestReader_Next(t *testing.T) {
 			opts: segmentadmin.ReaderOptions{Format: segmentadmin.FormatCSV},
 			want: []wantRecord{{id: "a", line: 1}, {id: "x\"y,z", line: 2}},
 		},
+		{
+			name: "a byte order mark at the start is not part of the first id", input: "\xef\xbb\xbfa\nb\n",
+			want: []wantRecord{{id: "a", line: 1}, {id: "b", line: 2}},
+		},
+		{
+			name: "a byte order mark at the start of a csv", input: "\xef\xbb\xbf1,a\n",
+			opts: segmentadmin.ReaderOptions{Format: segmentadmin.FormatCSV, Column: 2},
+			want: []wantRecord{{id: "a", line: 1}},
+		},
+		{
+			name: "a byte order mark on the second line stays", input: "a\n\xef\xbb\xbfb\n",
+			want: []wantRecord{{id: "a", line: 1}, {id: "\xef\xbb\xbfb", line: 2}},
+		},
 		{name: "empty input"},
 	}
 

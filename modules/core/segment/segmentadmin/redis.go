@@ -16,6 +16,7 @@ type RedisStore struct {
 	stage  *redis.Script
 	commit *redis.Script
 	unlock *redis.Script
+	edit   *redis.Script
 }
 
 var _ Store = (*RedisStore)(nil)
@@ -24,7 +25,7 @@ var _ Store = (*RedisStore)(nil)
 func NewRedis(client redis.UniversalClient) *RedisStore {
 	return &RedisStore{
 		client: client, stage: redis.NewScript(stageScript), commit: redis.NewScript(commitScript),
-		unlock: redis.NewScript(unlockScript),
+		unlock: redis.NewScript(unlockScript), edit: redis.NewScript(editScript),
 	}
 }
 
@@ -113,8 +114,8 @@ func (s *RedisStore) Lock(ctx context.Context, key, token string, ttl time.Durat
 }
 
 // Unlock implements [Store].
-func (s *RedisStore) Unlock(ctx context.Context, lock, last, token string) error {
-	err := s.unlock.Run(ctx, s.client, []string{lock, last}, token).Err()
+func (s *RedisStore) Unlock(ctx context.Context, lock, last, committed, token string) error {
+	err := s.unlock.Run(ctx, s.client, []string{lock, last, committed}, token).Err()
 	if err != nil {
 		return storeErr("EVAL", err)
 	}
@@ -124,22 +125,38 @@ func (s *RedisStore) Unlock(ctx context.Context, lock, last, token string) error
 
 // StageAdd implements [Store].
 func (s *RedisStore) StageAdd(
-	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration,
-) (int64, bool, error) {
-	args := append([]any{token, ttl.Milliseconds()}, toAny(members)...)
+	ctx context.Context, lock, tmp, token string, members []string, ttl time.Duration, first bool,
+) (int64, StageResult, error) {
+	args := append([]any{token, ttl.Milliseconds(), flag(first)}, toAny(members)...)
 
 	added, err := s.stage.Run(ctx, s.client, []string{lock, tmp}, args...).Int64()
+	if err != nil {
+		return 0, Staged, storeErr("EVAL", err)
+	}
+
+	return stageOf(added)
+}
+
+// EditSet implements [Store].
+func (s *RedisStore) EditSet(
+	ctx context.Context, lock, key string, members []string, remove bool,
+) (int64, bool, error) {
+	args := append([]any{editVerb(remove)}, toAny(members)...)
+
+	changed, err := s.edit.Run(ctx, s.client, []string{lock, key}, args...).Int64()
 	if err != nil {
 		return 0, false, storeErr("EVAL", err)
 	}
 
-	return max(added, 0), added >= 0, nil
+	return max(changed, 0), changed < 0, nil
 }
 
 // Commit implements [Store].
 func (s *RedisStore) Commit(ctx context.Context, commit *Commit) (CommitResult, bool, error) {
-	code, err := s.commit.Run(ctx, s.client, []string{commit.Lock, commit.Tmp, commit.Live, commit.Old},
-		commit.Token, commit.Want, commit.OldTTL.Milliseconds()).Int64()
+	keys := []string{commit.Lock, commit.Tmp, commit.Live, commit.Old, commit.Committed}
+
+	code, err := s.commit.Run(ctx, s.client, keys, commit.Token, commit.Want, commit.OldTTL.Milliseconds(),
+		flag(commit.Empty)).Int64()
 	if err != nil {
 		return LockLost, false, storeErr("EVAL", err)
 	}

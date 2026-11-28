@@ -2,6 +2,7 @@ package segmentadmin
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/csv"
 	"errors"
@@ -62,6 +63,9 @@ func (r *Rejections) Add(reason Reason) {
 
 // DefaultMaxLineBytes is the longest line that is read when ReaderOptions.MaxLineBytes is zero.
 const DefaultMaxLineBytes = 64 << 10
+
+// byteOrderMark is the UTF-8 mark that some tools write at the start of a file.
+const byteOrderMark = "\xef\xbb\xbf"
 
 // minLineBuffer is the smallest buffer of the line reader.
 const minLineBuffer = 16
@@ -206,6 +210,13 @@ func (r *Reader) Next() (Record, error) {
 
 	r.line++
 	rec := Record{Line: r.line}
+
+	if r.line == 1 {
+		raw = bytes.TrimPrefix(
+			raw,
+			[]byte(byteOrderMark),
+		) // a file saved by a spreadsheet or an editor may start with one
+	}
 
 	switch {
 	case tooLong:

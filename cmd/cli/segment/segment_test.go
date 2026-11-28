@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"maps"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,22 +22,27 @@ import (
 )
 
 const (
-	wantAdded1    = "added: 1"
-	flagSegments  = "--segments"
-	flagSegment   = "--segment"
-	cmdImport     = "import"
-	flagFrom      = "--from"
-	flagDebug     = "--debug"
-	flagConfig    = "--config"
-	cmdAdd        = "add"
-	cmdRemove     = "remove"
-	cmdStat       = "stat"
-	memberOld     = "old"
-	bootstrapFile = "relay.yaml"
-	segmentsFile  = "segments.yaml"
-	liveKey       = "semaphore:segment:{vip}"
-	versionKey    = "vip:version"
-	canary        = "CANARY-Id-123"
+	wantVersionLine = "version: "
+	wantAdded2      = "added: 2"
+	segVIP          = "vip"
+	cmdBump         = "bump"
+	opSET           = "SET"
+	wantAdded1      = "added: 1"
+	flagSegments    = "--segments"
+	flagSegment     = "--segment"
+	cmdImport       = "import"
+	flagFrom        = "--from"
+	flagDebug       = "--debug"
+	flagConfig      = "--config"
+	cmdAdd          = "add"
+	cmdRemove       = "remove"
+	cmdStat         = "stat"
+	memberOld       = "old"
+	bootstrapFile   = "relay.yaml"
+	segmentsFile    = "segments.yaml"
+	liveKey         = "semaphore:segment:{vip}"
+	versionKey      = "vip:version"
+	canary          = "CANARY-Id-123"
 
 	bootstrapDoc = `version: 2
 connections:
@@ -47,6 +53,10 @@ segments:
   resolver:
     maxIdBytes: 40
     default: {normalize: trimLower}
+`
+	bareDoc = `version: 2
+connections:
+  fast: {type: valkey, addresses: ["127.0.0.1:6380"]}
 `
 	segmentsDoc = `apiVersion: semaphore/v1
 kind: Segments
@@ -129,45 +139,57 @@ func runWith(
 }
 
 func files() map[string]string {
-	return map[string]string{bootstrapFile: bootstrapDoc, segmentsFile: segmentsDoc}
+	return map[string]string{bootstrapFile: bootstrapDoc, segmentsFile: segmentsDoc, "bare.yaml": bareDoc}
 }
 
 func common(name string) []string {
 	return []string{flagConfig, bootstrapFile, flagSegments, segmentsFile, flagSegment, name}
 }
 
-func TestRun(t *testing.T) {
-	t.Parallel()
+// runCase is one row of TestRun.
+type runCase struct {
+	wantErr     error
+	extra       map[string]string
+	failOp      string
+	stdin       string
+	name        string
+	lockedBy    string
+	loseOp      string
+	wantMembers []string
+	preload     []string
+	wantOut     []string
+	args        []string
+	wantCode    int
+	failAll     bool
+	noStore     bool
+	wantVersion bool
+}
 
-	tests := []struct {
-		wantErr      error
-		extra        map[string]string
-		failOp       string
-		stdin        string
-		name         string
-		wantNoOutput string
-		lockedBy     string
-		preload      []string
-		wantOut      []string
-		args         []string
-		wantMembers  []string
-		wantCode     int
-		noStore      bool
-		wantVersion  bool
-	}{
+func runCases1() []runCase {
+	return []runCase{
 		{
-			name: "import from a file", args: append([]string{cmdImport, flagFrom, "ids.txt"}, common("vip")...),
-			extra: map[string]string{"ids.txt": " A\nb\nB\n"}, preload: []string{memberOld},
-			wantOut:     []string{"read: 3", "accepted: 3", "added: 2", "duplicates: 1", "swapped: true", "version: "},
-			wantMembers: []string{"a", "b"}, wantVersion: true,
+			name:    "import from a file",
+			args:    append([]string{cmdImport, flagFrom, "ids.txt"}, common(segVIP)...),
+			extra:   map[string]string{"ids.txt": " A\nb\nB\n"},
+			preload: []string{memberOld},
+			wantOut: []string{
+				"read: 3",
+				"accepted: 3",
+				wantAdded2,
+				"duplicates: 1",
+				"swapped: true",
+				wantVersionLine,
+			},
+			wantMembers: []string{"a", "b"},
+			wantVersion: true,
 		},
 		{
-			name: "import from standard input", args: append([]string{cmdImport, flagFrom, "-"}, common("vip")...),
+			name: "import from standard input", args: append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...),
 			stdin: "x\n", wantOut: []string{wantAdded1}, wantMembers: []string{"x"}, wantVersion: true,
 		},
 		{
 			name:  "import csv with rejected lines",
-			args:  append([]string{cmdImport, flagFrom, "-", "--format", "csv", "--column", "2"}, common("vip")...),
+			args:  append([]string{cmdImport, flagFrom, "-", "--format", "csv", "--column", "2"}, common(segVIP)...),
 			stdin: "1,a\n2\n3,\n4," + strings.Repeat("z", 50) + "\n",
 			wantOut: []string{
 				"rejected empty: 1",
@@ -179,7 +201,7 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:  "dry run",
-			args:  append([]string{cmdImport, flagFrom, "-", "--dry-run"}, common("vip")...),
+			args:  append([]string{cmdImport, flagFrom, "-", "--dry-run"}, common(segVIP)...),
 			stdin: "a\n",
 			preload: []string{
 				memberOld,
@@ -191,7 +213,7 @@ func TestRun(t *testing.T) {
 			name: "empty input is refused with the invalid exit code",
 			args: append(
 				[]string{cmdImport, flagFrom, "-"},
-				common("vip")...),
+				common(segVIP)...),
 			stdin:       "\n",
 			preload:     []string{memberOld},
 			wantErr:     segmentadmin.ErrEmptyInput,
@@ -199,7 +221,7 @@ func TestRun(t *testing.T) {
 			wantMembers: []string{memberOld},
 		},
 		{
-			name: "allow empty", args: append([]string{cmdImport, flagFrom, "-", "--allow-empty"}, common("vip")...),
+			name: "allow empty", args: append([]string{cmdImport, flagFrom, "-", "--allow-empty"}, common(segVIP)...),
 			preload: []string{memberOld}, wantOut: []string{"swapped: true"}, wantVersion: true,
 		},
 		{
@@ -207,53 +229,114 @@ func TestRun(t *testing.T) {
 			stdin: "a\n", wantErr: segmentadmin.ErrKeysLayout, wantCode: helper.ExitInvalid,
 		},
 		{
-			name: "a store failure has the transport exit code", failOp: "SADD",
-			args: append([]string{cmdImport, flagFrom, "-"}, common("vip")...), stdin: "a\n",
+			name: "a store failure has the transport exit code", failOp: "SADD", failAll: true,
+			args: append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...), stdin: "a\n",
 			wantErr: segmentadmin.ErrStore, wantCode: helper.ExitTransport,
 		},
 		{
-			name: "missing input file", args: append([]string{cmdImport, flagFrom, "nope.txt"}, common("vip")...),
+			name: "missing input file", args: append([]string{cmdImport, flagFrom, "nope.txt"}, common(segVIP)...),
 			wantErr: io.ErrUnexpectedEOF,
 		},
 		{
-			name: cmdAdd, args: append([]string{cmdAdd, "X", " y "}, common("vip")...), preload: []string{"a"},
-			wantOut: []string{"added: 2", "version: "}, wantMembers: []string{"a", "x", "y"}, wantVersion: true,
+			name: cmdAdd, args: append([]string{cmdAdd, "X", " y "}, common(segVIP)...), preload: []string{"a"},
+			wantOut: []string{wantAdded2, wantVersionLine}, wantMembers: []string{"a", "x", "y"}, wantVersion: true,
 		},
 		{
 			name:        "add from standard input",
-			args:        append([]string{cmdAdd, flagFrom, "-"}, common("vip")...),
+			args:        append([]string{cmdAdd, flagFrom, "-"}, common(segVIP)...),
 			stdin:       "q\n",
 			wantOut:     []string{wantAdded1},
 			wantMembers: []string{"q"},
 			wantVersion: true,
 		},
+	}
+}
+
+func runCases2() []runCase {
+	return []runCase{
 		{
-			name: cmdRemove, args: append([]string{cmdRemove, "A"}, common("vip")...), preload: []string{"a", "b"},
+			name: cmdRemove, args: append([]string{cmdRemove, "A"}, common(segVIP)...), preload: []string{"a", "b"},
 			wantOut: []string{"removed: 1"}, wantMembers: []string{"b"}, wantVersion: true,
 		},
 		{
 			name: "a line bound under the minimum is invalid input",
-			args: append([]string{cmdImport, flagFrom, "-", "--max-line-bytes", "4"}, common("vip")...), stdin: "a\n",
+			args: append([]string{cmdImport, flagFrom, "-", "--max-line-bytes", "4"}, common(segVIP)...), stdin: "a\n",
 			wantErr: segmentadmin.ErrBadOptions, wantCode: helper.ExitInvalid,
 		},
 		{
-			name: "an import that finds the lock taken is a conflict", lockedBy: "other", preload: []string{"old"},
-			args: append([]string{cmdImport, flagFrom, "-"}, common("vip")...), stdin: "a\n",
-			wantErr: segmentadmin.ErrImportRunning, wantCode: helper.ExitConflict, wantMembers: []string{"old"},
+			name: "an import that finds the lock taken is a conflict", lockedBy: "other", preload: []string{memberOld},
+			args: append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...), stdin: "a\n",
+			wantErr: segmentadmin.ErrImportRunning, wantCode: helper.ExitConflict, wantMembers: []string{memberOld},
 		},
 		{
 			name:        "an id with a line break is rejected, not split",
-			args:        append([]string{cmdAdd, "a\nb", "ok"}, common("vip")...),
+			args:        append([]string{cmdAdd, "a\nb", "ok"}, common(segVIP)...),
 			wantOut:     []string{wantAdded1, "rejected invalid: 1"},
 			wantMembers: []string{"ok"},
 			wantVersion: true,
 		},
 		{
-			name: "add without an id", args: append([]string{cmdAdd}, common("vip")...),
+			name: "no segments section: the relay defaults apply, a 513 byte id is rejected",
+			args: []string{
+				cmdImport,
+				flagFrom,
+				"-",
+				flagConfig,
+				"bare.yaml",
+				flagSegments,
+				segmentsFile,
+				flagSegment,
+				segVIP,
+			},
+			stdin:       "ok\n" + strings.Repeat("z", 513) + "\n",
+			wantOut:     []string{"rejected tooLong: 1", wantAdded1},
+			wantMembers: []string{"ok"},
+			wantVersion: true,
+		},
+		{
+			name:        "a byte order mark is not part of the first id",
+			args:        append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...),
+			stdin:       "\xef\xbb\xbfFirst\nsecond\n",
+			wantOut:     []string{wantAdded2},
+			wantMembers: []string{"first", "second"},
+			wantVersion: true,
+		},
+		{
+			name: "no answer from the swap exits with the unknown code", loseOp: "SWAP",
+			args: append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...), stdin: "a\n",
+			wantErr: segmentadmin.ErrSwapUnknown, wantCode: helper.ExitUnknown,
+		},
+		{
+			name: "an add while an import runs is a conflict", lockedBy: "other", preload: []string{memberOld},
+			args: append([]string{cmdAdd, "a"}, common(segVIP)...), wantErr: segmentadmin.ErrImportRunning,
+			wantCode: helper.ExitConflict, wantMembers: []string{memberOld},
+		},
+		{
+			name: cmdBump, args: append([]string{cmdBump}, common(segVIP)...), wantOut: []string{wantVersionLine},
+			wantVersion: true,
+		},
+		{
+			name: "bump needs a version key", args: append([]string{cmdBump}, common("plain")...),
+			wantErr: segment.ErrNoVersionKey,
+		},
+		{
+			name:    "bump that cannot write says so",
+			failOp:  opSET,
+			failAll: true,
+			args:    append([]string{cmdBump}, common(segVIP)...),
+			wantErr: segmentadmin.ErrNotBumped,
+		},
+	}
+}
+
+func runCases3() []runCase {
+	return []runCase{
+		{
+			name: "add without an id", args: append([]string{cmdAdd}, common(segVIP)...),
 			wantErr: segment.ErrNoInput, wantCode: helper.ExitFailure,
 		},
 		{
-			name: cmdStat, args: append([]string{cmdStat}, common("vip")...), preload: []string{"a", "b"},
+			name: cmdStat, args: append([]string{cmdStat}, common(segVIP)...), preload: []string{"a", "b"},
 			wantOut: []string{"exists: true", "members: 2", "version: none"}, wantMembers: []string{"a", "b"},
 		},
 		{
@@ -261,7 +344,7 @@ func TestRun(t *testing.T) {
 			wantOut: []string{"exists: false", "members: 0"},
 		},
 		{
-			name: "stat failure", failOp: "PTTL", args: append([]string{cmdStat}, common("vip")...),
+			name: "stat failure", failOp: "PTTL", args: append([]string{cmdStat}, common(segVIP)...),
 			wantErr: admintest.ErrInjected,
 		},
 		{
@@ -282,27 +365,35 @@ func TestRun(t *testing.T) {
 		},
 		{
 			name:    "connect failure",
-			args:    append([]string{cmdStat}, common("vip")...),
+			args:    append([]string{cmdStat}, common(segVIP)...),
 			noStore: true, wantErr: errConnect,
 		},
 		{
-			name: "ping failure", failOp: "PING", args: append([]string{cmdStat}, common("vip")...),
+			name: "ping failure", failOp: "PING", args: append([]string{cmdStat}, common(segVIP)...),
 			wantErr: admintest.ErrInjected,
 		},
 		{
 			name:    "missing segments document",
-			args:    []string{cmdStat, flagConfig, bootstrapFile, flagSegments, "gone.yaml", flagSegment, "vip"},
+			args:    []string{cmdStat, flagConfig, bootstrapFile, flagSegments, "gone.yaml", flagSegment, segVIP},
 			wantErr: io.ErrUnexpectedEOF,
 		},
 		{
 			name:    "missing bootstrap file",
-			args:    []string{cmdStat, flagConfig, "gone.yaml", flagSegments, segmentsFile, flagSegment, "vip"},
+			args:    []string{cmdStat, flagConfig, "gone.yaml", flagSegments, segmentsFile, flagSegment, segVIP},
 			wantErr: io.ErrUnexpectedEOF,
 		},
 		{name: "usage error", args: []string{cmdStat}, wantErr: helper.ErrUsage},
 	}
+}
 
-	for _, tt := range tests {
+func runCases() []runCase {
+	return slices.Concat(runCases1(), runCases2(), runCases3())
+}
+
+func TestRun(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range runCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -312,8 +403,15 @@ func TestRun(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			if tt.failOp != "" {
+			switch {
+			case tt.failOp != "" && tt.failAll:
+				store.FailFrom(tt.failOp, 1)
+			case tt.failOp != "":
 				store.Fail(tt.failOp, 1)
+			}
+
+			if tt.loseOp != "" {
+				store.LoseReply(tt.loseOp, 1, true)
 			}
 
 			if tt.lockedBy != "" {
@@ -376,32 +474,32 @@ func TestRun_noMemberIdInOutput(t *testing.T) {
 	}{
 		{
 			name:  cmdImport,
-			args:  append([]string{cmdImport, flagFrom, "-", flagDebug}, common("vip")...),
+			args:  append([]string{cmdImport, flagFrom, "-", flagDebug}, common(segVIP)...),
 			stdin: canary + "\n",
 		},
 		{
 			name: "import with a failed batch", failOp: "SADD", stdin: canary + "\n",
-			args: append([]string{cmdImport, flagFrom, "-", flagDebug}, common("vip")...),
+			args: append([]string{cmdImport, flagFrom, "-", flagDebug}, common(segVIP)...),
 		},
 		{
 			name: "import of rejected lines", stdin: canary + canary + canary + "\n",
-			args: append([]string{cmdImport, flagFrom, "-", flagDebug, "--allow-empty"}, common("vip")...),
+			args: append([]string{cmdImport, flagFrom, "-", flagDebug, "--allow-empty"}, common(segVIP)...),
 		},
 		{
 			name:  "import of a csv",
 			stdin: "1," + canary + "\n",
 			args: append(
 				[]string{cmdImport, flagFrom, "-", flagDebug, "--format", "csv", "--column", "2"},
-				common("vip")...),
+				common(segVIP)...),
 		},
-		{name: cmdAdd, args: append([]string{cmdAdd, canary, flagDebug}, common("vip")...)},
+		{name: cmdAdd, args: append([]string{cmdAdd, canary, flagDebug}, common(segVIP)...)},
 		{
 			name:   "add with a failed bump",
 			failOp: "SET",
-			args:   append([]string{cmdAdd, canary, flagDebug}, common("vip")...),
+			args:   append([]string{cmdAdd, canary, flagDebug}, common(segVIP)...),
 		},
-		{name: cmdRemove, args: append([]string{cmdRemove, canary, flagDebug}, common("vip")...)},
-		{name: cmdStat, args: append([]string{cmdStat, flagDebug}, common("vip")...)},
+		{name: cmdRemove, args: append([]string{cmdRemove, canary, flagDebug}, common(segVIP)...)},
+		{name: cmdStat, args: append([]string{cmdStat, flagDebug}, common(segVIP)...)},
 	}
 
 	for _, tt := range tests {
@@ -509,7 +607,7 @@ func TestRun_inputThatNeverEnds(t *testing.T) {
 		var out, errOut bytes.Buffer
 
 		result <- runWith(ctx, store, pipeReader, files(), &helper.Streams{Stdout: &out, Stderr: &errOut},
-			append([]string{cmdImport, flagFrom, "-"}, common("vip")...))
+			append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...))
 	}()
 
 	require.Eventually(t, func() bool { return len(store.Calls()) > 0 }, 10*time.Second, time.Millisecond,
@@ -537,6 +635,6 @@ func TestRun_resultWriteError(t *testing.T) {
 
 	err := runWith(t.Context(), admintest.New(), strings.NewReader("a\n"), files(),
 		&helper.Streams{Stdout: failingWriter{}, Stderr: io.Discard},
-		append([]string{cmdImport, flagFrom, "-"}, common("vip")...))
+		append([]string{cmdImport, flagFrom, "-"}, common(segVIP)...))
 	require.ErrorIs(t, err, errWrite)
 }

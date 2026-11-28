@@ -16,36 +16,92 @@ import (
 
 const lineBreakID = "a\nb"
 
-const memberPrefix = "semaphore:segment:flags:"
+const memberPrefix = "semaphore:segment:members:"
 
-func TestEdit(t *testing.T) {
-	t.Parallel()
+// editCase is one row of TestEdit.
+type editCase struct {
+	wantErr       error
+	name          string
+	wantText      string
+	failOp        string
+	loseOp        string
+	input         string
+	preload       []string
+	wantSet       []string
+	wantKeys      []string
+	args          []string
+	wantRejected  segmentadmin.Rejections
+	wantAdded     int64
+	failNth       int
+	batch         int
+	wantRemoved   int64
+	lockHeld      bool
+	failAll       bool
+	keys          bool
+	remove        bool
+	wantVersioned bool
+}
 
-	tests := []struct {
-		wantErr       error
-		name          string
-		wantText      string
-		failOp        string
-		input         string
-		wantSet       []string
-		wantKeys      []string
-		args          []string
-		preload       []string
-		wantRejected  segmentadmin.Rejections
-		failNth       int
-		batch         int
-		wantAdded     int64
-		wantRemoved   int64
-		keys          bool
-		remove        bool
-		wantVersioned bool
-	}{
+// prepare builds the store, the target and the input of a row.
+func (tt *editCase) prepare(t *testing.T) (*admintest.Fake, *segmentadmin.Target, *testSource) {
+	t.Helper()
+
+	store := admintest.New()
+	if len(tt.preload) > 0 {
+		_, err := store.SAdd(t.Context(), liveKey, tt.preload, 0)
+		require.NoError(t, err)
+	}
+
+	target := vipTarget()
+	target.Normalize = resolver.NormalizeTrimLower
+
+	if tt.keys {
+		target = &segmentadmin.Target{Key: memberPrefix, Layout: redissegment.LayoutKeys, VersionKey: versionKey}
+
+		if tt.remove {
+			_, err := store.SetKeys(t.Context(), []string{memberPrefix + "a"})
+			require.NoError(t, err)
+		}
+	}
+
+	switch {
+	case tt.failOp != "" && tt.failAll:
+		store.FailFrom(tt.failOp, 1)
+	case tt.failOp != "":
+		store.Fail(tt.failOp, max(tt.failNth, 1))
+	}
+
+	if tt.loseOp != "" {
+		store.LoseReply(tt.loseOp, 1, false)
+	}
+
+	if tt.lockHeld {
+		store.Put(lockKey, otherToken)
+	}
+
+	if tt.args != nil {
+		return store, target, &testSource{Source: segmentadmin.NewSliceSource(tt.args)}
+	}
+
+	reader, err := segmentadmin.NewReader(strings.NewReader(tt.input), segmentadmin.ReaderOptions{})
+	require.NoError(t, err)
+
+	return store, target, &testSource{Source: reader}
+}
+
+// testSource is the input of a row: a file or the arguments.
+type testSource struct {
+	segmentadmin.Source
+}
+
+func editCases() []editCase {
+	return []editCase{
 		{
-			name: "add to a set", input: "a\nb\n", preload: []string{"x"}, wantSet: []string{"a", "b", "x"},
+			name: "add to a set", input: inputAB, preload: []string{"x"}, wantSet: []string{"a", "b", "x"},
 			wantAdded: 2, wantRejected: segmentadmin.Rejections{}, wantVersioned: true,
 		},
 		{
-			name: "add in batches", input: "a\nb\nc\n", batch: 2, wantSet: []string{"a", "b", "c"}, wantAdded: 3,
+			name: "add in batches", input: inputABC, batch: 2, wantSet: []string{"a", "b", "c"}, wantAdded: 3,
 			wantRejected: segmentadmin.Rejections{}, wantVersioned: true,
 		},
 		{
@@ -55,7 +111,7 @@ func TestEdit(t *testing.T) {
 		},
 		{
 			name:          "add member keys",
-			input:         "a\nb\n",
+			input:         inputAB,
 			keys:          true,
 			wantKeys:      []string{memberPrefix + "a", memberPrefix + "b"},
 			wantAdded:     2,
@@ -72,11 +128,20 @@ func TestEdit(t *testing.T) {
 			wantRejected: segmentadmin.Rejections{Empty: 1},
 		},
 		{
-			name: "a failed batch is an error", input: "a\n", failOp: opSADD, wantErr: admintest.ErrInjected,
-			wantRejected: segmentadmin.Rejections{},
+			name: "a failed first batch may have been applied: the version is bumped", input: "a\n", failOp: opEDIT,
+			wantErr: segmentadmin.ErrPartial, wantText: "0 of 1 ids confirmed", wantVersioned: true,
 		},
 		{
-			name: "a failed bump is reported", input: "a\n", failOp: opSET, wantErr: segmentadmin.ErrSwapped,
+			name: "a lost reply may hide an applied batch: the version is bumped", input: "a\n", loseOp: opEDIT,
+			wantErr: segmentadmin.ErrPartial, wantSet: []string{"a"}, wantVersioned: true,
+		},
+		{
+			name: "an edit while an import holds the lock is refused and nothing is bumped", input: "a\n",
+			lockHeld: true, preload: []string{"x"}, wantErr: segmentadmin.ErrImportRunning, wantSet: []string{"x"},
+		},
+		{
+			name: "a failed bump is reported", input: "a\n", failOp: opSET, failAll: true,
+			wantErr: segmentadmin.ErrNotBumped,
 			wantSet: []string{"a"}, wantAdded: 1, wantRejected: segmentadmin.Rejections{},
 		},
 		{
@@ -86,75 +151,17 @@ func TestEdit(t *testing.T) {
 		},
 		{
 			name:          "a failure after a batch bumps the version and says how much was applied",
-			input:         "a\nb\nc\n",
+			input:         inputABC,
 			batch:         1,
-			failOp:        opSADD,
+			failOp:        opEDIT,
 			failNth:       2,
 			wantErr:       segmentadmin.ErrPartial,
-			wantText:      "1 of 2 ids applied",
+			wantText:      "1 of 2 ids confirmed",
 			wantSet:       []string{"a"},
 			wantRejected:  segmentadmin.Rejections{},
 			wantVersioned: true,
 		},
 		{name: "bad batch size", input: "a\n", batch: -1, wantErr: segmentadmin.ErrBadOptions},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			store := admintest.New()
-			if len(tt.preload) > 0 {
-				_, err := store.SAdd(t.Context(), liveKey, tt.preload, 0)
-				require.NoError(t, err)
-			}
-
-			target := vipTarget()
-
-			target.Normalize = resolver.NormalizeTrimLower
-			if tt.keys {
-				target = &segmentadmin.Target{
-					Key: memberPrefix, Layout: redissegment.LayoutKeys, VersionKey: versionKey,
-				}
-				if tt.remove {
-					_, err := store.SetKeys(t.Context(), []string{memberPrefix + "a"})
-					require.NoError(t, err)
-				}
-			}
-
-			if tt.failOp != "" {
-				store.Fail(tt.failOp, max(tt.failNth, 1))
-			}
-
-			reader, err := segmentadmin.NewReader(strings.NewReader(tt.input), segmentadmin.ReaderOptions{})
-			require.NoError(t, err)
-
-			var source segmentadmin.Source = reader
-			if tt.args != nil {
-				source = segmentadmin.NewSliceSource(tt.args)
-			}
-
-			rep, err := segmentadmin.Edit(t.Context(), store, target, source, tt.remove, tt.batch)
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-				require.ErrorContains(t, err, tt.wantText)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.wantAdded, rep.Added)
-				assert.Equal(t, tt.wantRemoved, rep.Removed)
-				assert.Equal(t, tt.wantRejected, rep.Rejected)
-			}
-
-			if !tt.keys {
-				assert.Equal(t, tt.wantSet, nonNil(store.Members(liveKey)))
-			}
-
-			if tt.wantKeys != nil {
-				assert.Subset(t, store.Keys(), tt.wantKeys)
-			}
-
-			_, ok, _ := store.Value(t.Context(), versionKey)
-			assert.Equal(t, tt.wantVersioned, ok)
-		})
 	}
 }
 
@@ -220,6 +227,41 @@ func TestStat(t *testing.T) {
 			got, err := segmentadmin.Stat(ctx, store, target, tt.limit)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, *got)
+		})
+	}
+}
+
+func TestEdit(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range editCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			store, target, source := tt.prepare(t)
+
+			rep, err := segmentadmin.Edit(t.Context(), store, target, source, tt.remove,
+				segmentadmin.EditOptions{BatchSize: tt.batch, Wait: instant})
+			if tt.wantErr != nil {
+				require.ErrorIs(t, err, tt.wantErr)
+				require.ErrorContains(t, err, tt.wantText)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, tt.wantAdded, rep.Added)
+				assert.Equal(t, tt.wantRemoved, rep.Removed)
+				assert.Equal(t, tt.wantRejected, rep.Rejected)
+			}
+
+			if !tt.keys {
+				assert.Equal(t, tt.wantSet, nonNil(store.Members(liveKey)))
+			}
+
+			if tt.wantKeys != nil {
+				assert.Subset(t, store.Keys(), tt.wantKeys)
+			}
+
+			_, ok, _ := store.Value(t.Context(), versionKey)
+			assert.Equal(t, tt.wantVersioned, ok)
 		})
 	}
 }

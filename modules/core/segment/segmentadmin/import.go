@@ -26,6 +26,12 @@ const (
 	DefaultTempTTL = time.Hour
 	// cleanupTimeout bounds the removal of the temporary key and the release of the lock after a failure.
 	cleanupTimeout = 10 * time.Second
+	// minTempTTL is the shortest ttl of the temporary key: PEXPIRE with 0 deletes the key.
+	minTempTTL = time.Second
+	// tries is how many times a step whose reply may be lost is sent.
+	tries = 3
+	// retryDelay is the pause before the second try; each next one doubles it.
+	retryDelay = 100 * time.Millisecond
 	// DelWarnMembers is the size of a replaced set above which a DEL (the fallback of a server without UNLINK) may
 	// block the server for a noticeable time, and the report says so.
 	DelWarnMembers = 100_000
@@ -50,11 +56,20 @@ type Target struct {
 
 // ImportOptions set how an import runs.
 type ImportOptions struct {
-	Token      string
-	BatchSize  int
-	TempTTL    time.Duration
+	// Wait pauses between the tries of a step that may have lost its reply. Nil means a timer. A test injects one that
+	// returns at once.
+	Wait func(ctx context.Context, delay time.Duration) error
+	// Token identifies the run in the lock and in the name of its temporary key. Empty means a random token.
+	Token string
+	// BatchSize is the members of one batch. Zero means [DefaultBatchSize].
+	BatchSize int
+	// TempTTL is the life of the temporary key and of the lock, refreshed by every batch. Zero means [DefaultTempTTL];
+	// the least is one second.
+	TempTTL time.Duration
+	// AllowEmpty lets an input without a valid id empty the segment.
 	AllowEmpty bool
-	DryRun     bool
+	// DryRun reads and validates the input and writes nothing.
+	DryRun bool
 }
 
 // Report is what an import did. It holds counts only, never an id.
@@ -100,8 +115,12 @@ func (opts *ImportOptions) fill() error {
 		opts.TempTTL = DefaultTempTTL
 	}
 
-	if opts.TempTTL < 0 {
-		return fmt.Errorf("%w: the temporary key needs a positive ttl", ErrBadOptions)
+	if opts.TempTTL < minTempTTL {
+		return fmt.Errorf("%w: the ttl of the temporary key must be %s or more", ErrBadOptions, minTempTTL)
+	}
+
+	if opts.Wait == nil {
+		opts.Wait = waitTimer
 	}
 
 	return nil
@@ -117,6 +136,8 @@ type importRun struct {
 	batch  []string
 	opts   ImportOptions
 	locked bool
+	staged bool
+	maybe  bool
 }
 
 // Import loads the ids of src into the set of the segment and swaps it in. It is safe by construction:
@@ -171,6 +192,19 @@ func Import(ctx context.Context, store Store, target *Target, src Source, opts I
 	run.release(ctx, err)
 
 	return run.rep, err
+}
+
+// waitTimer waits for delay, or for the end of ctx.
+func waitTimer(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("wait: %w", ctx.Err())
+	}
 }
 
 func newToken() (string, error) {
@@ -238,7 +272,7 @@ func (run *importRun) release(ctx context.Context, failure error) {
 		run.rep.CleanupFailed = err != nil // the ttl removes the key
 	}
 
-	err := run.store.Unlock(cctx, run.keys.Lock, run.keys.Last, run.token)
+	err := run.store.Unlock(cctx, run.keys.Lock, run.keys.Last, run.keys.Committed, run.token)
 	run.rep.CleanupFailed = run.rep.CleanupFailed || err != nil // the ttl removes the lock
 	run.locked = false
 }
@@ -312,20 +346,52 @@ func (run *importRun) flush(ctx context.Context) error {
 		return nil
 	}
 
-	added, held, err := run.store.StageAdd(
-		ctx, run.keys.Lock, run.keys.Tmp, run.token, run.batch, run.opts.TempTTL)
+	added, result, err := run.stage(ctx)
 	if err != nil {
 		return fmt.Errorf("write a batch: %w", err)
 	}
 
-	if !held {
+	switch result {
+	case Staged:
+	case StageLockLost:
 		return ErrLockLost
+	case StageTempGone:
+		return ErrTempGone
 	}
 
+	run.staged = true
 	run.rep.Added += added
 	run.batch = run.batch[:0]
 
 	return nil
+}
+
+// stage sends the batch. A batch is a set insertion, so it can be sent again when its reply is lost: the members that
+// the first send added are not counted again (Added may be low), and the swap asks for at least that many.
+func (run *importRun) stage(ctx context.Context) (int64, StageResult, error) {
+	var (
+		added  int64
+		result StageResult
+		err    error
+	)
+
+	for try := range tries {
+		added, result, err = run.store.StageAdd(
+			ctx, run.keys.Lock, run.keys.Tmp, run.token, run.batch, run.opts.TempTTL, !run.staged)
+		if err == nil || ctx.Err() != nil || try == tries-1 {
+			break
+		}
+
+		if run.opts.Wait(ctx, retryDelay<<try) != nil {
+			break
+		}
+	}
+
+	if err != nil {
+		return added, result, fmt.Errorf("stage: %w", err)
+	}
+
+	return added, result, nil
 }
 
 // finish swaps the new set in, bumps the version and removes the old set.
@@ -338,18 +404,20 @@ func (run *importRun) finish(ctx context.Context) error {
 		return nil
 	}
 
+	err := ctx.Err()
+	if err != nil {
+		return fmt.Errorf("import stopped: %w", err)
+	}
+
 	run.rep.Duplicates = run.rep.Accepted - run.rep.Added
 
-	result, fell, err := run.store.Commit(ctx, &Commit{
-		Lock: run.keys.Lock, Tmp: run.keys.Tmp, Live: run.target.Key, Old: run.keys.Old, Last: run.keys.Last,
-		Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL,
-	})
+	result, fell, err := run.commit(ctx)
 	if err != nil {
-		return fmt.Errorf("swap: %w", err)
+		return err
 	}
 
 	switch result {
-	case Committed:
+	case Committed, AlreadyCommitted:
 	case LockLost:
 		return ErrLockLost
 	case TempGone:
@@ -367,6 +435,42 @@ func (run *importRun) finish(ctx context.Context) error {
 	}
 
 	return run.removeOld(ctx)
+}
+
+// commit sends the swap. The swap is idempotent by the token of the run, so when the reply is lost it is sent again
+// (on a context of its own: the run may have been stopped after the first send) until an answer comes. No answer
+// leaves the state unknown, and the error says so.
+func (run *importRun) commit(ctx context.Context) (CommitResult, bool, error) {
+	commit := &Commit{
+		Lock: run.keys.Lock, Tmp: run.keys.Tmp, Live: run.target.Key, Old: run.keys.Old,
+		Committed: run.keys.Committed, Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL,
+		Empty: run.rep.Accepted == 0,
+	}
+
+	var err error
+
+	for try := range tries {
+		attempt, cancel := ctx, context.CancelFunc(func() {})
+		if try > 0 {
+			attempt, cancel = context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
+		}
+
+		result, fell, sendErr := run.store.Commit(attempt, commit)
+
+		cancel()
+
+		if sendErr == nil {
+			return result, fell, nil
+		}
+
+		err = sendErr
+
+		if try < tries-1 {
+			_ = run.opts.Wait(context.WithoutCancel(ctx), retryDelay<<try)
+		}
+	}
+
+	return LockLost, false, fmt.Errorf("%w: %w", ErrSwapUnknown, err)
 }
 
 // removeOld removes the replaced set without blocking, and tells when the fallback to DEL could have blocked.
@@ -393,11 +497,7 @@ func (run *importRun) removeOld(ctx context.Context) error {
 
 // bump changes the version key, after the swap, so that a relay that sees the new version finds the new set.
 func (run *importRun) bump(ctx context.Context) error {
-	if run.target.VersionKey == "" {
-		return nil
-	}
-
-	return Bump(ctx, run.store, run.target, run.rep)
+	return BumpWithRetry(ctx, run.store, run.target, run.rep, run.opts.Wait)
 }
 
 // Bump writes a new version to the version key of the target, when it has one, and records it in rep.
@@ -410,11 +510,35 @@ func Bump(ctx context.Context, store Store, target *Target, rep *Report) error {
 
 	err := store.SetValue(ctx, target.VersionKey, version)
 	if err != nil {
-		return fmt.Errorf("%w: bump the version key (the relay sees the change at its next full read): %w",
-			ErrSwapped, err)
+		return fmt.Errorf("bump the version key: %w", err)
 	}
 
 	rep.Version = version
 
 	return nil
+}
+
+// BumpWithRetry is [Bump] with three tries and a pause between them (wait nil means a timer). When it gives up, the
+// error is [ErrNotBumped] and [ErrSwapped]: the change is in the store and the relays have not been told.
+func BumpWithRetry(
+	ctx context.Context, store Store, target *Target, rep *Report, wait func(context.Context, time.Duration) error,
+) error {
+	if wait == nil {
+		wait = waitTimer
+	}
+
+	var err error
+
+	for try := range tries {
+		err = Bump(ctx, store, target, rep)
+		if err == nil {
+			return nil
+		}
+
+		if try < tries-1 && wait(ctx, retryDelay<<try) != nil {
+			break
+		}
+	}
+
+	return fmt.Errorf("%w: %w: %w", ErrNotBumped, ErrSwapped, err)
 }

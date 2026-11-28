@@ -26,6 +26,7 @@ func HelpVars() kong.Vars {
 			"(a temporary key, then RENAME)",
 		"helpSegAdd":     "Add ids to the segment and bump its version key",
 		"helpSegRemove":  "Remove ids from the segment and bump its version key",
+		"helpSegBump":    "Bump the version key of the segment only, so that the relays read it again",
 		"helpSegStat":    "Show whether the segment exists, how many members it has, its version and its ttl",
 		"helpSegFrom":    "File of ids, or - for standard input",
 		"helpSegConfig":  "Bootstrap file with the connections (or SEMAPHORE_CONFIG)",
@@ -49,6 +50,7 @@ type Cmd struct {
 	Add    AddCmd    `cmd:""                 help:"${helpSegAdd}"`
 	Remove RemoveCmd `cmd:""                 help:"${helpSegRemove}"`
 	Stat   StatCmd   `cmd:""                 help:"${helpSegStat}"`
+	Bump   BumpCmd   `cmd:""                 help:"${helpSegBump}"`
 	Import ImportCmd `cmd:""                 help:"${helpSegImport}"`
 	Debug  bool      `help:"${helpSegDebug}" name:"debug"`
 }
@@ -151,6 +153,8 @@ func wrapErr(err error) error {
 	case errors.Is(err, segmentadmin.ErrImportRunning), errors.Is(err, segmentadmin.ErrLockLost),
 		errors.Is(err, segmentadmin.ErrTempGone), errors.Is(err, segmentadmin.ErrIncomplete):
 		code = helper.ExitConflict
+	case errors.Is(err, segmentadmin.ErrSwapUnknown):
+		code = helper.ExitUnknown
 	case errors.Is(err, segmentadmin.ErrStore):
 		code = helper.ExitTransport
 	default:

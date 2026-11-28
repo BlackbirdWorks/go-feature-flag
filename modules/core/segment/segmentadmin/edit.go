@@ -13,35 +13,53 @@ import (
 // DefaultScanLimit is the most keys that Stat counts of a keys layout segment.
 const DefaultScanLimit = 100_000
 
-// Edit adds the ids of src to the segment (or removes them), in batches of batchSize, then bumps the version key.
-// Add and remove are for small edits of the live key: there is no temporary key and no swap. When a failure or the end
-// of the context stops the edit after at least one batch was applied, the version key is still bumped (on a context of
-// its own), so that the relays see what was applied, and the error says how much: [ErrPartial].
-func Edit(ctx context.Context, store Store, target *Target, src Source, remove bool, batchSize int) (*Report, error) {
-	if batchSize == 0 {
-		batchSize = DefaultBatchSize
+// EditOptions set how an add or a remove runs.
+type EditOptions struct {
+	// Wait pauses between the tries of the version bump. Nil means a timer.
+	Wait func(ctx context.Context, delay time.Duration) error
+	// BatchSize is the ids of one command. Zero means [DefaultBatchSize].
+	BatchSize int
+}
+
+// Edit adds the ids of src to the segment (or removes them), in batches, then bumps the version key. Add and remove
+// are for small edits of the live key: there is no temporary key and no swap. An edit of a set is refused while an
+// import holds the lock (the check and the write are one step on the server), because the swap would lose it.
+//
+// When a failure or the end of the context stops the edit after a batch was sent (a lost reply may hide that it was
+// applied), the version key is still bumped, on a context of its own, so that the relays see what may have been
+// applied, and the error says how much was confirmed: [ErrPartial].
+func Edit(
+	ctx context.Context,
+	store Store,
+	target *Target,
+	src Source,
+	remove bool,
+	opts EditOptions,
+) (*Report, error) {
+	if opts.BatchSize == 0 {
+		opts.BatchSize = DefaultBatchSize
 	}
 
-	if batchSize < 0 || batchSize > MaxBatchSize {
+	if opts.BatchSize < 0 || opts.BatchSize > MaxBatchSize {
 		return nil, fmt.Errorf("%w: batch size must be 1 to %d", ErrBadOptions, MaxBatchSize)
 	}
 
 	run := &importRun{
-		store: store, target: target, opts: ImportOptions{BatchSize: batchSize}, rep: &Report{},
+		store: store, target: target, opts: ImportOptions{BatchSize: opts.BatchSize, Wait: opts.Wait}, rep: &Report{},
 	}
 
 	err := run.editAll(ctx, src, remove)
 	if err != nil {
-		if run.rep.Applied == 0 {
+		if run.rep.Applied == 0 && !run.maybe {
 			return run.rep, err
 		}
 
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cleanupTimeout)
 		defer cancel()
 
-		bumpErr := Bump(cctx, store, target, run.rep)
+		bumpErr := BumpWithRetry(cctx, store, target, run.rep, opts.Wait)
 
-		return run.rep, fmt.Errorf("%w: %d of %d ids applied: %w", ErrPartial, run.rep.Applied, run.rep.Accepted,
+		return run.rep, fmt.Errorf("%w: %d of %d ids confirmed: %w", ErrPartial, run.rep.Applied, run.rep.Accepted,
 			errors.Join(err, bumpErr))
 	}
 
@@ -49,7 +67,7 @@ func Edit(ctx context.Context, store Store, target *Target, src Source, remove b
 		return run.rep, nil // nothing changed: the relay has nothing to learn
 	}
 
-	return run.rep, Bump(ctx, store, target, run.rep)
+	return run.rep, BumpWithRetry(ctx, store, target, run.rep, opts.Wait)
 }
 
 // editAll reads the input and applies it in batches.
@@ -101,25 +119,37 @@ func (run *importRun) apply(ctx context.Context, remove bool) error {
 	defer func() { run.batch = run.batch[:0] }()
 
 	var (
-		count int64
-		err   error
+		count  int64
+		locked bool
+		err    error
 	)
 
-	keys := run.target.Layout == redissegment.LayoutKeys
+	run.maybe = true // from here on, a lost reply may hide a batch that was applied
 
 	switch {
-	case keys && remove:
+	case run.target.Layout == redissegment.LayoutKeys && remove:
 		count, _, err = run.store.Unlink(ctx, prefixed(run.target.Key, run.batch)...)
-	case keys:
+	case run.target.Layout == redissegment.LayoutKeys:
 		count, err = run.store.SetKeys(ctx, prefixed(run.target.Key, run.batch))
-	case remove:
-		count, err = run.store.SRem(ctx, run.target.Key, run.batch)
 	default:
-		count, err = run.store.SAdd(ctx, run.target.Key, run.batch, 0)
+		keys, keysErr := ImportKeys(run.target.Key, "")
+		if keysErr != nil {
+			run.maybe = false
+
+			return keysErr
+		}
+
+		count, locked, err = run.store.EditSet(ctx, keys.Lock, run.target.Key, run.batch, remove)
 	}
 
 	if err != nil {
 		return fmt.Errorf("write a batch: %w", err)
+	}
+
+	if locked {
+		run.maybe = false // refused: nothing was written
+
+		return ErrImportRunning
 	}
 
 	run.rep.Applied += size

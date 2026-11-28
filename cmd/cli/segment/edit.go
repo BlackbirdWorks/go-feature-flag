@@ -49,7 +49,7 @@ func edit(
 	}
 	defer sess.store.Close()
 
-	rep, err := segmentadmin.Edit(ctx, sess.store, sess.target, src, remove, 0)
+	rep, err := segmentadmin.Edit(ctx, sess.store, sess.target, src, remove, segmentadmin.EditOptions{})
 
 	verb := "add"
 	if remove {

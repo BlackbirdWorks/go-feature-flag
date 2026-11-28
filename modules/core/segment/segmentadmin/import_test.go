@@ -19,20 +19,26 @@ import (
 )
 
 const (
-	opSADD     = "SADD"
-	opSET      = "SET"
-	opUnlink   = "UNLINK"
-	opGET      = "GET"
-	liveKey    = "semaphore:segment:{vip}"
-	versionKey = "semaphore:segment:vip:version"
-	runToken   = "t1"
-	tmpKey     = liveKey + ":import:" + runToken + ":new"
-	oldKey     = liveKey + ":import:" + runToken + ":old"
-	lockKey    = liveKey + ":import:lock"
-	lastKey    = liveKey + ":import:last"
-	otherTmp   = liveKey + ":import:other:new"
-	deadTmp    = liveKey + ":import:dead:new"
-	otherToken = "other"
+	opSADD       = "SADD"
+	opSET        = "SET"
+	opUnlink     = "UNLINK"
+	opGET        = "GET"
+	opEDIT       = "EDIT"
+	opSWAP       = "SWAP"
+	opSREM       = "SREM"
+	inputAB      = "a\nb\n"
+	inputABC     = "a\nb\nc\n"
+	liveKey      = "semaphore:segment:{vip}"
+	versionKey   = "semaphore:segment:vip:version"
+	runToken     = "t1"
+	tmpKey       = liveKey + ":import:" + runToken + ":new"
+	oldKey       = liveKey + ":import:" + runToken + ":old"
+	lockKey      = liveKey + ":import:lock"
+	committedKey = liveKey + ":import:committed"
+	lastKey      = liveKey + ":import:last"
+	otherTmp     = liveKey + ":import:other:new"
+	deadTmp      = liveKey + ":import:dead:new"
+	otherToken   = "other"
 )
 
 func vipTarget() *segmentadmin.Target {
@@ -78,27 +84,32 @@ func (g *genSource) Read(buf []byte) (int, error) {
 // importCase is one row of TestImport.
 type importCase struct {
 	hook           func(store *admintest.Fake, line int)
-	name           string
+	lockedBy       string
 	input          string
 	normalize      resolver.Normalization
 	layout         redissegment.Layout
 	failOp         string
-	lockedBy       string
-	wantOrder      []string
+	name           string
+	lose           string
 	wantKeys       []string
 	wantErrs       []error
 	wantLive       []string
 	preload        []string
+	wantOrder      []string
 	opts           segmentadmin.ImportOptions
 	wantRejected   segmentadmin.Rejections
-	wantAdded      int64
-	wantRead       int64
 	wantDuplicates int64
+	cancelLine     int
 	generate       int
 	failNth        int
-	cancelLine     int
-	maxID          int
+	failFrom       int
+	wantAdded      int64
+	loseNth        int
 	wantSADDCalls  int
+	wantBumps      int
+	wantRead       int64
+	maxID          int
+	loseAlways     bool
 	leftover       bool
 	noVersionKey   bool
 	noUnlink       bool
@@ -131,8 +142,14 @@ func (tt *importCase) prepare(
 		store.WithoutUnlink()
 	}
 
-	if tt.failOp != "" {
+	if tt.failOp != "" && tt.failFrom > 0 {
+		store.FailFrom(tt.failOp, tt.failFrom)
+	} else if tt.failOp != "" {
 		store.Fail(tt.failOp, tt.failNth)
+	}
+
+	if tt.lose != "" {
+		store.LoseReply(tt.lose, tt.loseNth, tt.loseAlways)
 	}
 
 	var src io.Reader = strings.NewReader(tt.input)
@@ -167,6 +184,33 @@ func importCases() []importCase {
 	live := []string{liveKey}
 
 	return []importCase{
+		{
+			name: "a lost reply of a batch is sent again and the swap still happens", input: inputABC,
+			opts: segmentadmin.ImportOptions{BatchSize: 1}, lose: opSADD, loseNth: 2, preload: []string{"x"},
+			wantLive: []string{"a", "b", "c"}, wantKeys: []string{liveKey, versionKey}, wantRead: 3, wantAdded: 2,
+			wantDuplicates: 1, wantSwapped: true, wantBumps: 1,
+		},
+		{
+			name:  "a lost reply of the swap is answered already swapped, and the version is bumped once",
+			input: "a\nb\n", lose: opSWAP, loseNth: 1, preload: []string{"x"}, wantLive: []string{"a", "b"},
+			wantKeys: []string{liveKey, versionKey}, wantRead: 2, wantAdded: 2, wantSwapped: true, wantBumps: 1,
+		},
+		{
+			name: "no answer from the swap leaves the state unknown, with no bump", input: "a\n",
+			lose: opSWAP, loseNth: 1, loseAlways: true, preload: []string{"x"},
+			wantErrs: []error{segmentadmin.ErrSwapUnknown, admintest.ErrLostReply}, wantLive: []string{"a"},
+			wantKeys: []string{liveKey, oldKey}, wantRead: 1, wantAdded: 1,
+		},
+		{
+			name: "a temporary key that lost members is never swapped in", generate: 3, preload: []string{"x"},
+			opts: segmentadmin.ImportOptions{BatchSize: 1}, wantErrs: []error{segmentadmin.ErrIncomplete},
+			hook: func(store *admintest.Fake, line int) {
+				if line == 4 {
+					_, _ = store.SRem(context.Background(), tmpKey, []string{"id-1"})
+				}
+			},
+			wantLive: []string{"x"}, wantKeys: live, wantRead: 3, wantAdded: 3,
+		},
 		{
 			name: "replaces the old set", input: "a\nb\na\n", preload: []string{"old1", "old2"},
 			wantLive: []string{"a", "b"}, wantKeys: []string{liveKey, versionKey}, wantRead: 3, wantAdded: 2,
@@ -223,23 +267,31 @@ func importCases() []importCase {
 		},
 		{
 			name: "a failed batch leaves the live set", input: "a\n", preload: []string{"x"}, failOp: opSADD,
-			failNth: 1, wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live,
+			failFrom: 1, wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live,
 			wantRead: 1,
 		},
 		{
 			name: "a failed second batch removes the temporary key", input: "a\nb\nc\nd\n", preload: []string{"x"},
-			opts: segmentadmin.ImportOptions{BatchSize: 2}, failOp: opSADD, failNth: 2,
+			opts: segmentadmin.ImportOptions{BatchSize: 2}, failOp: opSADD, failFrom: 2,
 			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live, wantRead: 4,
 			wantAdded: 2,
 		},
 		{
-			name: "a failed swap leaves the live set", input: "a\n", preload: []string{"x"}, failOp: "SWAP", failNth: 1,
-			wantErrs: []error{admintest.ErrInjected}, wantLive: []string{"x"}, wantKeys: live, wantRead: 1,
+			name:      "a failed swap leaves the live set",
+			input:     "a\n",
+			preload:   []string{"x"},
+			failOp:    opSWAP,
+			failFrom:  1,
+			wantErrs:  []error{admintest.ErrInjected},
+			wantLive:  []string{"x"},
+			wantKeys:  live,
+			wantRead:  1,
 			wantAdded: 1,
 		},
 		{
 			name: "a failed version bump is reported after the swap", input: "a\n", preload: []string{"x"},
-			failOp: opSET, failNth: 2, wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped},
+			failOp: opSET, failFrom: 2,
+			wantErrs: []error{admintest.ErrInjected, segmentadmin.ErrSwapped, segmentadmin.ErrNotBumped},
 			wantLive: []string{"a"}, wantKeys: []string{liveKey, oldKey}, wantRead: 1, wantAdded: 1, wantSwapped: true,
 		},
 		{
@@ -272,7 +324,7 @@ func importCases() []importCase {
 			generate: 4,
 			preload:  []string{"x"},
 			opts:     segmentadmin.ImportOptions{BatchSize: 1},
-			wantErrs: []error{segmentadmin.ErrIncomplete},
+			wantErrs: []error{segmentadmin.ErrTempGone},
 			hook: func(store *admintest.Fake, line int) {
 				if line == 3 {
 					store.Delete(tmpKey)
@@ -280,8 +332,8 @@ func importCases() []importCase {
 			},
 			wantLive:  []string{"x"},
 			wantKeys:  live,
-			wantRead:  4,
-			wantAdded: 4,
+			wantRead:  3,
+			wantAdded: 2,
 		},
 		{
 			name:     "a temporary key deleted before the swap never moves the live set",
@@ -336,7 +388,7 @@ func TestImport(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 
-			tt.opts.Token = runToken
+			tt.opts.Token, tt.opts.Wait = runToken, instant
 			store, target, reader := tt.prepare(ctx, t, cancel)
 			calls := len(store.Calls())
 
@@ -366,6 +418,10 @@ func TestImport(t *testing.T) {
 			assert.Equal(t, nonNil(slices.Sorted(slices.Values(tt.wantKeys))), nonNil(store.Keys()))
 			assert.Equal(t, tt.wantLive, nonNil(store.Members(liveKey)))
 
+			if tt.wantBumps > 0 {
+				assert.Equal(t, tt.wantBumps, countCalls(store.Calls(), "SET "+versionKey))
+			}
+
 			if tt.wantSADDCalls > 0 {
 				assert.Equal(t, tt.wantSADDCalls, countCalls(store.Calls(), "SADD "+tmpKey))
 			}
@@ -376,6 +432,8 @@ func TestImport(t *testing.T) {
 		})
 	}
 }
+
+func instant(context.Context, time.Duration) error { return nil }
 
 func nonNil(in []string) []string {
 	if len(in) == 0 {
@@ -412,6 +470,7 @@ func TestImport_badOptions(t *testing.T) {
 		{name: "batch too big", opts: segmentadmin.ImportOptions{BatchSize: segmentadmin.MaxBatchSize + 1}},
 		{name: "negative batch", opts: segmentadmin.ImportOptions{BatchSize: -1}},
 		{name: "negative ttl", opts: segmentadmin.ImportOptions{TempTTL: -1}},
+		{name: "ttl under a second", opts: segmentadmin.ImportOptions{TempTTL: 500 * time.Millisecond}},
 	}
 
 	for _, tt := range tests {

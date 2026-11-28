@@ -85,6 +85,10 @@ func TestE2E(t *testing.T) {
 			require.Eventually(t, func() bool { return back.store.Ping(t.Context()) == nil }, 30*time.Second,
 				100*time.Millisecond, "the store does not answer")
 
+			t.Run("the contract of the store", func(t *testing.T) {
+				t.Parallel()
+				e2eContract(t, back)
+			})
 			t.Run("the relay finds what was imported, byte for byte", func(t *testing.T) {
 				t.Parallel()
 				e2eEncoding(t, back)
@@ -116,7 +120,7 @@ func e2eEncoding(t *testing.T, back *backend) {
 	target := e2eTarget(segEnc, redissegment.LayoutSet)
 
 	rep, err := segmentadmin.Import(ctx, back.store, target,
-		newReader(t, stringsReader("  Alice@Example.COM \nBOB\nÜnï\nbob\n\n")), segmentadmin.ImportOptions{})
+		newReader(t, stringsReader("\ufeff  Alice@Example.COM \nBOB\nÜnï\nbob\n\n")), segmentadmin.ImportOptions{})
 	require.NoError(t, err)
 	assert.Equal(t, int64(5), rep.Read)
 	assert.Equal(t, int64(3), rep.Added)
@@ -291,7 +295,14 @@ func e2eEdits(t *testing.T, back *backend) {
 	keys := e2eTarget(segFlags, redissegment.LayoutKeys)
 
 	for _, target := range []*segmentadmin.Target{set, keys} {
-		rep, err := segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("Ann\nBen\nann\n")), false, 0)
+		rep, err := segmentadmin.Edit(
+			ctx,
+			back.store,
+			target,
+			newReader(t, stringsReader("Ann\nBen\nann\n")),
+			false,
+			segmentadmin.EditOptions{},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), rep.Added)
 		assert.NotEmpty(t, rep.Version)
@@ -308,7 +319,14 @@ func e2eEdits(t *testing.T, back *backend) {
 		require.NoError(t, err)
 		assert.Equal(t, int64(2), stat.Count)
 
-		rep, err := segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("ann\nzed\n")), true, 0)
+		rep, err := segmentadmin.Edit(
+			ctx,
+			back.store,
+			target,
+			newReader(t, stringsReader("ann\nzed\n")),
+			true,
+			segmentadmin.EditOptions{},
+		)
 		require.NoError(t, err)
 		assert.Equal(t, int64(1), rep.Removed)
 
@@ -329,6 +347,7 @@ const (
 	rowsTmp   = segRows + ":import:" + rowsToken + ":new"
 	rowsOld   = segRows + ":import:" + rowsToken + ":old"
 	rowsLast  = segRows + ":import:last"
+	rowsDone  = segRows + ":import:committed"
 	rowsTheir = "theirs"
 )
 
@@ -343,7 +362,7 @@ func e2eProtocol(t *testing.T, back *backend) {
 	seed := func(t *testing.T) {
 		t.Helper()
 
-		_, _, err := back.store.Unlink(ctx, segRows, rowsLock, rowsLast, rowsTmp, rowsOld)
+		_, _, err := back.store.Unlink(ctx, segRows, rowsLock, rowsLast, rowsDone, rowsTmp, rowsOld)
 		require.NoError(t, err)
 
 		_, err = back.store.SAdd(ctx, segRows, []string{"x", "y"}, 0)
@@ -384,8 +403,43 @@ func e2eProtocol(t *testing.T, back *backend) {
 				_, _, _ = back.store.Unlink(ctx, rowsTmp)
 			}
 		}, 5, segmentadmin.ImportOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrTempGone, "a batch after the first never recreates the key")
+		liveIntact(t)
+	})
+
+	t.Run("a temporary key that lost members is not swapped in", func(t *testing.T) {
+		seed(t)
+
+		err := run(func(line int) {
+			if line == 6 {
+				_, _ = back.store.SRem(ctx, rowsTmp, []string{"row-0"})
+			}
+		}, 5, segmentadmin.ImportOptions{})
 		require.ErrorIs(t, err, segmentadmin.ErrIncomplete)
 		liveIntact(t)
+	})
+
+	t.Run("an edit is refused while an import holds the lock, and applied after", func(t *testing.T) {
+		seed(t)
+
+		locked, err := back.store.Lock(ctx, rowsLock, rowsToken, time.Hour)
+		require.NoError(t, err)
+		require.True(t, locked)
+
+		_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("added\n")), false,
+			segmentadmin.EditOptions{})
+		require.ErrorIs(t, err, segmentadmin.ErrImportRunning)
+		liveIntact(t)
+
+		require.NoError(t, back.store.Unlock(ctx, rowsLock, rowsLast, rowsDone, rowsToken))
+
+		_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("added\n")), false,
+			segmentadmin.EditOptions{})
+		require.NoError(t, err)
+
+		card, err := back.store.SCard(ctx, segRows)
+		require.NoError(t, err)
+		assert.Equal(t, int64(3), card)
 	})
 
 	t.Run("a temporary key deleted before the swap is not swapped in", func(t *testing.T) {
@@ -524,9 +578,11 @@ func TestE2EWriterACL(t *testing.T) {
 			require.NoError(t, importErr)
 
 			for _, target := range []*segmentadmin.Target{set, keys} {
-				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\ntwo\n")), false, 0)
+				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\ntwo\n")), false,
+					segmentadmin.EditOptions{})
 				require.NoError(t, err)
-				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\n")), true, 0)
+				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\n")), true,
+					segmentadmin.EditOptions{})
 				require.NoError(t, err)
 
 				stat, statErr := segmentadmin.Stat(ctx, back.store, target, 100)
@@ -537,4 +593,28 @@ func TestE2EWriterACL(t *testing.T) {
 			require.NoError(t, back.store.Ping(ctx))
 		})
 	}
+}
+
+// e2eContract runs the cases that every store must pass (the ones of the unit tests, against the stub) on the real
+// store, so that the real scripts answer them too.
+func e2eContract(t *testing.T, back *backend) {
+	t.Helper()
+
+	ctx := t.Context()
+	keys := []string{
+		liveKey, tmpKey, oldKey, lockKey, lastKey, committedKey, versionKey, versionKey + "x",
+		memberPrefix + "a", memberPrefix + "b", memberPrefix + "c",
+	}
+
+	for _, tt := range storeCases() {
+		_, _, err := back.store.Unlink(ctx, keys...)
+		require.NoError(t, err)
+
+		got, err := tt.run(ctx, back.store)
+		require.NoError(t, err, tt.name)
+		assert.Equal(t, tt.want, got, tt.name)
+	}
+
+	_, _, err := back.store.Unlink(ctx, keys...)
+	require.NoError(t, err)
 }

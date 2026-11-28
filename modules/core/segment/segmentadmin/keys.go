@@ -52,6 +52,8 @@ type RunKeys struct {
 	// Last holds the name of the temporary key of the run that holds the lock, so that the next run removes exactly
 	// that key when the run died (no SCAN, no KEYS).
 	Last string
+	// Committed holds the token of the run whose swap was applied.
+	Committed string
 	// Tmp is filled by the run; its name holds the token of the run, so nothing else can recreate or share it.
 	Tmp string
 	// Old holds the replaced set until it is removed.
@@ -70,11 +72,15 @@ func ImportKeys(live, token string) (RunKeys, error) {
 	}
 
 	keys := RunKeys{
-		Lock: base + ":import:lock", Last: base + ":import:last", Tmp: base + ":import:" + token + ":new",
-		Old: base + ":import:" + token + ":old", base: base,
+		Lock:      base + ":import:lock",
+		Last:      base + ":import:last",
+		Committed: base + ":import:committed",
+		Tmp:       base + ":import:" + token + ":new",
+		Old:       base + ":import:" + token + ":old",
+		base:      base,
 	}
 
-	for _, key := range []string{keys.Lock, keys.Last, keys.Tmp, keys.Old} {
+	for _, key := range []string{keys.Lock, keys.Last, keys.Committed, keys.Tmp, keys.Old} {
 		if Slot(key) != Slot(live) {
 			return RunKeys{}, ErrNoSlotTag
 		}
