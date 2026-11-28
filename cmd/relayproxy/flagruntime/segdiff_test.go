@@ -66,10 +66,14 @@ func TestQueuedMembershipChangesCompose(t *testing.T) {
 		name        string
 		third       string
 		wantUpdated []string
+		wantQueued  int
 		wantNone    bool
 	}{
 		{name: "changed then restored is nothing", third: docBetaUnused, wantNone: true},
-		{name: "changed then changed again is one update", third: docBetaThree, wantUpdated: []string{"beta-flag"}},
+		{
+			name: "changed then changed again is one update", third: docBetaThree, wantUpdated: []string{"beta-flag"},
+			wantQueued: 1,
+		},
 	}
 
 	for _, tt := range tests {
@@ -91,7 +95,8 @@ func TestQueuedMembershipChangesCompose(t *testing.T) {
 			harness.nextEmitted()
 
 			harness.feed(content(2, all.with(objs{segObject: segObj(docBetaTwo)})))
-			harness.feed(content(3, all.with(objs{segObject: segObj(tt.third)})))
+			last := harness.feed(content(3, all.with(objs{segObject: segObj(tt.third)})))
+			assert.Equal(t, tt.wantQueued, last.Events, "the flag sets that still wait with a change")
 
 			wantEvents := 3
 			if tt.wantNone {
@@ -108,6 +113,8 @@ func TestQueuedMembershipChangesCompose(t *testing.T) {
 				}
 			}
 
+			assertNoLeftOverChange(t, harness)
+
 			if tt.wantNone {
 				assert.Nil(t, merged, "a membership change that is undone has no event")
 
@@ -116,6 +123,100 @@ func TestQueuedMembershipChangesCompose(t *testing.T) {
 
 			require.NotNil(t, merged)
 			assert.Equal(t, tt.wantUpdated, nilIfEmpty(sortedKeys(merged.Diff.Updated)))
+		})
+	}
+}
+
+// assertNoLeftOverChange stops the engine and reads its channel to the end: a change that was queued and never read
+// is still in it, and fails the test.
+func assertNoLeftOverChange(t *testing.T, harness *rig) {
+	t.Helper()
+
+	harness.stop()
+
+	select {
+	case extra, open := <-harness.eng.Changes():
+		assert.False(t, open, "a change was left in the queue: %+v", extra)
+	default:
+		assert.Fail(t, "the channel of the engine is not closed after the engine stopped")
+	}
+}
+
+// A flag that uses a segment is removed from its flag set and restored while the consumer is stalled: when the segment
+// ends as it began the flag is the same, so there is no change; when its members ended otherwise it is one update.
+func TestQueuedRemovalAndRestoreOfAFlagThatUsesSegments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		final       string
+		wantUpdated []string
+		wantQueued  int
+		wantNone    bool
+	}{
+		{name: "same members is nothing", final: docBetaUnused, wantNone: true},
+		{name: "other members is one update", final: docBetaThree, wantUpdated: []string{"beta-flag"}, wantQueued: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			harness := newRig(t, flagruntime.Hooks{}, flagruntime.WithChangeBuffer(1))
+			harness.start()
+
+			sets := func(sources ...string) flagruntime.Object {
+				return setsObj(t,
+					controlplane.FlagSet{
+						Name: "a", Sources: sources, SegmentSources: []string{segObject}, APIKeys: []string{keyA},
+					},
+					fset("b", src("f2"), keyB),
+				)
+			}
+
+			all := objs{
+				"f1":      flagsObj(1, "x"),
+				"f3":      obj(flagruntime.KindFlags, []byte(betaFlagYAML)),
+				"f2":      flagsObj(1, "z"),
+				segObject: segObj(docBetaUnused),
+				setsName:  sets("f1", "f3"),
+			}
+
+			// the first generation fills the channel with the event of a; b stays pending
+			harness.feed(content(1, all))
+			harness.nextEmitted()
+
+			harness.feed(content(2, all.with(objs{segObject: segObj(docBetaTwo)})))
+			harness.feed(content(3, all.with(objs{segObject: segObj(docBetaTwo), setsName: sets("f1")})))
+			last := harness.feed(content(4, all.with(objs{segObject: segObj(tt.final)})))
+			assert.Equal(t, tt.wantQueued, last.Events, "the flag sets that still wait with a change")
+
+			wantEvents := 3
+			if tt.wantNone {
+				wantEvents = 2
+			}
+
+			events := drain(t, harness, wantEvents)
+			assertNoLeftOverChange(t, harness)
+
+			var merged *flagruntime.Change
+
+			for i := range events {
+				if events[i].FlagSet == "a" && events[i].Generation > 1 {
+					merged = &events[i]
+				}
+			}
+
+			if tt.wantNone {
+				assert.Nil(t, merged, "a flag that is back with its segments has no event")
+
+				return
+			}
+
+			require.NotNil(t, merged)
+			assert.Equal(t, tt.wantUpdated, nilIfEmpty(sortedKeys(merged.Diff.Updated)))
+			assert.Empty(t, merged.Diff.Added)
+			assert.Empty(t, merged.Diff.Deleted)
 		})
 	}
 }
