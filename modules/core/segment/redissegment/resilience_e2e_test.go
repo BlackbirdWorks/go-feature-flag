@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -60,16 +61,25 @@ func seed(
 		prefix := "contract:" + tag + ":" + name + ":"
 		segs[name] = redissegment.SegmentOptions{Layout: redissegment.LayoutKeys, Key: prefix}
 
-		for _, id := range ids {
-			err := srv.client.Set(ctx, prefix+id, "1", 0).Err()
-			if err != nil {
-				return nil, fmt.Errorf("seed %s: %w", prefix+id, err)
+		_, err := srv.client.Pipelined(ctx, func(pipe redis.Pipeliner) error {
+			for _, id := range ids {
+				pipe.Set(ctx, prefix+id, "1", 0)
 			}
+
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("seed %s: %w", prefix, err)
 		}
 	}
 
 	return segs, nil
 }
+
+// conformanceTimeout bounds one lookup under loaded conformance runs: a cold pool in TestE2EConformance can
+// pay DialTimeout (1s) + initConn ReadTimeout (1s) + up to 2 pipelines (2 * ReadTimeout = 2s) = 4s client
+// worst-case, plus 1s scheduling headroom under 51 parallel subtests, strictly below segmenttest's 10s bound.
+const conformanceTimeout = 5 * time.Second
 
 func TestE2EConformance(t *testing.T) {
 	t.Parallel()
@@ -108,6 +118,10 @@ func TestE2EConformance(t *testing.T) {
 					*opts = *tt.opts
 				}
 
+				if opts.Timeout == 0 {
+					opts.Timeout = conformanceTimeout
+				}
+
 				// a key space of its own: the cases run in parallel
 				segs, seedErr := seed(caseSrv, strconv.FormatInt(cases.Add(1), 10), data, tt.layout)
 				if seedErr != nil {
@@ -121,11 +135,16 @@ func TestE2EConformance(t *testing.T) {
 					return segmenttest.Fixture{}, err
 				}
 
+				closeCase := func() {
+					caseSrv.fault.Release()
+					_ = caseSrv.client.Close()
+				}
+
 				return segmenttest.Fixture{
 					Provider: prov,
 					Missing:  segment.MissingUnknown,
 					Backend:  caseSrv.fault,
-					Close:    caseSrv.fault.Release,
+					Close:    closeCase,
 				}, nil
 			}, nil)
 		})
