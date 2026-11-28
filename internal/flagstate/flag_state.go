@@ -1,6 +1,7 @@
 package flagstate
 
 import (
+	"maps"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -26,6 +27,21 @@ type FlagState struct { //nolint:govet // fieldalignment: field order is the key
 
 // MetadataSegmentStatus is the response metadata key of the health of the segment lookups of an evaluation.
 const MetadataSegmentStatus = "semaphore_segmentStatus"
+
+// MetadataWithStatus is the metadata of the state as it is sent: the metadata itself when the segment lookups were
+// healthy or there was none, else a copy with MetadataSegmentStatus set. The metadata of the state is never changed
+// (a flag can have a key of that name of its own, and the metadata can be shared).
+func (f *FlagState) MetadataWithStatus() map[string]any {
+	if !f.SegmentStatus.Reported() {
+		return f.Metadata
+	}
+
+	out := make(map[string]any, len(f.Metadata)+1)
+	maps.Copy(out, f.Metadata)
+	out[MetadataSegmentStatus] = f.SegmentStatus.String()
+
+	return out
+}
 
 // WithSegmentStatus adds the MetadataSegmentStatus key to the metadata of an evaluation whose segment lookups were
 // not healthy (STALE, NOT_CONFIGURED or STORE_ERROR). A healthy evaluation, and one with no segment, get the

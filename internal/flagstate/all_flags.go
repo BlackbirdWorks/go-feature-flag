@@ -31,11 +31,6 @@ func NewAllFlags() AllFlags {
 // AddFlag is adding a flag in the list for the specific user.
 func (a *AllFlags) AddFlag(flagKey string, state *FlagState) {
 	a.flags[flagKey] = *state
-	// the metadata belongs to the evaluation: a segment status that is not healthy joins it
-	stored := a.flags[flagKey]
-	stored.Metadata = WithSegmentStatus(stored.Metadata, stored.SegmentStatus)
-
-	a.flags[flagKey] = stored
 	if a.valid && state.Failed {
 		a.valid = false
 	}
@@ -47,7 +42,7 @@ func (a AllFlags) MarshalJSON() ([]byte, error) {
 		Flags map[string]FlagState `json:"flags,omitempty"`
 		Valid bool                 `json:"valid"`
 	}{
-		Flags: a.flags,
+		Flags: a.sent(),
 		Valid: a.IsValid(),
 	}
 
@@ -67,4 +62,31 @@ func (a *AllFlags) IsValid() bool {
 // GetFlags returns the state of every flag by name.
 func (a *AllFlags) GetFlags() map[string]FlagState {
 	return a.flags
+}
+
+// sent is the flags as they are sent: the flags themselves when no status is to be reported (no allocation), else a
+// copy where the flags of an unhealthy segment status carry it in their metadata. A map of a flag is never changed.
+func (a AllFlags) sent() map[string]FlagState {
+	reported := false
+
+	for key := range a.flags {
+		if a.flags[key].SegmentStatus.Reported() {
+			reported = true
+
+			break
+		}
+	}
+
+	if !reported {
+		return a.flags
+	}
+
+	out := make(map[string]FlagState, len(a.flags))
+
+	for key, state := range a.flags {
+		state.Metadata = state.MetadataWithStatus()
+		out[key] = state
+	}
+
+	return out
 }
