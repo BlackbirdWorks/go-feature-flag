@@ -84,13 +84,13 @@ const sampleSchema = `{
     "Item": {
       "type": "object",
       "required": ["name"],
-      "properties": {"name": {"type": "string"}, "size": {"type": typeInteger, "minimum": 1, "default": 4}}
+      "properties": {"name": {"type": "string"}, "size": {"type": "integer", "minimum": 1, "default": 4}}
     },
     "Root": {
       "type": "object",
       "required": ["version"],
       "properties": {
-        "version": {"type": typeInteger, "enum": [2]},
+        "version": {"type": "integer", "enum": [2]},
         "wait": {"$ref": "#/$defs/Duration", "default": "5s"},
         "items": {"type": "array", "items": {"$ref": "#/$defs/Item"}},
         "named": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Item"}},
