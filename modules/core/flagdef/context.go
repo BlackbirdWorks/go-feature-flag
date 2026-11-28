@@ -25,9 +25,10 @@ type Context struct {
 	// does. It is required: InternalFlag.Value returns an error resolution when it is nil.
 	Service *Service `json:"-"`
 
-	// Segments answers the membership questions of the segment() terms of the rules. Without one, a rule that
-	// depends on a segment has an unknown result (it does not match, unless the rule says onError: match) and the
-	// evaluation reports segment.StatusNotConfigured. The provider is called from the evaluating goroutine.
+	// Segments answers the membership questions of the segment() terms of the rules. Without one, the lookups
+	// are not answered: a segment is not a member by default (unknown for a segment with OnErrorUnknown, then the
+	// rule does not match unless it says onError: match) and the evaluation reports segment.StatusNotConfigured.
+	// The provider is called from the evaluating goroutine.
 	Segments segment.Provider `json:"-"`
 
 	// RequestContext is the context of the request that is evaluated: the membership lookups honour its

@@ -129,6 +129,7 @@ const (
 	bufferedEvents     = 64
 	idSpan             = 2 * largeMembers
 	defaultBound       = 10 * time.Second
+	leakFloor          = 2 * time.Second // the least that a goroutine that is winding down is given to end
 	largeMembers       = 100
 	largeLookups       = 400
 	workers            = 8
@@ -497,7 +498,9 @@ func runCase(tcase testCase, prep *prepared) []string {
 
 	closeFixture(prep.fixture)
 
-	if leaked := waitForLeaks(label, prep.bound()); leaked > 0 {
+	// a goroutine that is winding down needs the scheduler, not the bound of a call that never answers: on a loaded
+	// machine a short bound made a goroutine that was about to end a failure
+	if leaked := waitForLeaks(label, max(prep.bound(), leakFloor)); leaked > 0 {
 		rep.Errorf("goroutine leak: %d goroutines started by the case are still running", leaked)
 	}
 

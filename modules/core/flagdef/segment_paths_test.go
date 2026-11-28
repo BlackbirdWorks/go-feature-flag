@@ -78,6 +78,7 @@ func TestSegmentRuleEvaluatedWithoutValidation(t *testing.T) {
 		name        string
 		query       string
 		wantMatched bool
+		defaults    bool // the default policy: no provider means not a member, whatever onError says
 	}{
 		{name: "nikunjy, no provider: unknown, skipped", query: nikunjyInclude},
 		{
@@ -85,6 +86,18 @@ func TestSegmentRuleEvaluatedWithoutValidation(t *testing.T) {
 			query:       nikunjyInclude,
 			onError:     new("match"),
 			wantMatched: true,
+		},
+		{
+			name:  "nikunjy, no provider, default policy: not a member, onError match has nothing to decide",
+			query: nikunjyInclude, onError: new("match"), defaults: true,
+		},
+		{
+			name:  "json, no provider, default policy: not a member, onError match has nothing to decide",
+			query: jsonInclude, onError: new("match"), defaults: true,
+		},
+		{
+			name: "nikunjy, no provider, default policy: not (member) matches", query: nikunjyExclude,
+			defaults: true, wantMatched: true,
 		},
 		{name: "json, no provider: unknown, skipped", query: jsonInclude},
 		{
@@ -108,8 +121,13 @@ func TestSegmentRuleEvaluatedWithoutValidation(t *testing.T) {
 			rule := queryRule("r", tt.query)
 			rule.OnError = tt.onError
 
+			var opts []flagdef.ServiceOption
+			if tt.onError != nil && !tt.defaults {
+				opts = append(opts, flagdef.WithSegments(optInCatalog(t, "beta"))) // the three-valued path is an opt-in
+			}
+
 			variant, err := rule.Evaluate(
-				flagdef.NewService(),
+				flagdef.NewService(opts...),
 				keyAlice,
 				ffcontext.NewEvaluationContext(keyAlice),
 				"f",

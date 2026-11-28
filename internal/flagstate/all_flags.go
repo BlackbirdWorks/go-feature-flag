@@ -31,6 +31,11 @@ func NewAllFlags() AllFlags {
 // AddFlag is adding a flag in the list for the specific user.
 func (a *AllFlags) AddFlag(flagKey string, state *FlagState) {
 	a.flags[flagKey] = *state
+	// the metadata belongs to the evaluation: a segment status that is not healthy joins it
+	stored := a.flags[flagKey]
+	stored.Metadata = WithSegmentStatus(stored.Metadata, stored.SegmentStatus)
+
+	a.flags[flagKey] = stored
 	if a.valid && state.Failed {
 		a.valid = false
 	}

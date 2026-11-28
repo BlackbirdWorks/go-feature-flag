@@ -38,3 +38,10 @@ type Health struct {
 type HealthReporter interface {
 	Health() Health
 }
+
+// StaleReporter is implemented by a provider that can answer from data that is older than it should be, for example a
+// snapshot that could not be refreshed and keeps its last known good set. The evaluation reports the status
+// [StatusStale] for the evaluations that it served while Stale is true; the answers are still used.
+type StaleReporter interface {
+	Stale() bool
+}

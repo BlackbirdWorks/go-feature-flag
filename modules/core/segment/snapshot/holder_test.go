@@ -669,3 +669,58 @@ func TestAMissingResultAfterTheContextEndedKeepsTheLastKnownGood(t *testing.T) {
 	assert.Equal(t, snapshot.ClassCanceled, holder.Status().LastError, "the cancel decides, not the missing answer")
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the last known good is kept")
 }
+
+func TestAHolderReportsStaleOnlyWhileItServesALastKnownGoodSet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	// the steps of one holder, in order: each acts on the source and then reads Stale
+	steps := []struct {
+		act       func(src *segment.MemorySource) error
+		name      string
+		wantStale bool
+	}{
+		{name: "fresh", act: func(*segment.MemorySource) error { return nil }},
+		{
+			name: "the refresh failed, the last known good set answers",
+			act: func(src *segment.MemorySource) error {
+				src.Fail(segment.OpVersion, errBoom)
+
+				return errBoom
+			},
+			wantStale: true,
+		},
+		{
+			name: "the outage is over",
+			act: func(src *segment.MemorySource) error {
+				src.Fail(segment.OpVersion, nil)
+
+				return nil
+			},
+		},
+		{
+			name: "a missing segment is an answer, not a stale set",
+			act: func(src *segment.MemorySource) error {
+				src.Delete(segAlpha)
+
+				return segment.ErrSegmentMissing
+			},
+		},
+	}
+
+	assert.False(t, (&snapshot.Holder{}).Stale(), "nothing held, nothing stale")
+
+	holder, src := loaded(t, "a")
+
+	for _, step := range steps {
+		wantErr := step.act(src)
+		if wantErr != nil {
+			require.ErrorIs(t, holder.Refresh(ctx), wantErr, step.name)
+		} else if step.name != "fresh" {
+			require.NoError(t, holder.Refresh(ctx), step.name)
+		}
+
+		assert.Equal(t, step.wantStale, holder.Stale(), step.name)
+	}
+}
