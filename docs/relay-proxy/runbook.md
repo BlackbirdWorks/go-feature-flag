@@ -88,6 +88,7 @@ Accepted documents with fields from a newer schema or misspelt field names are n
 What to do:
 
 - Run `semaphore-cli config validate` or `semaphore-cli publish verify` against the published files to locate and fix misspelt keys or confirm whether the relay needs an upgrade for a newer schema field.
+- Note: flags objects in TOML format are not inspected for unknown fields and report 0.
 
 ## `pendingRestart` does not go away
 

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -314,4 +315,148 @@ func TestRejectionReason_MapsClosedVocabulary(t *testing.T) {
 			assert.Equal(t, tt.want, manifestreader.RejectionReason(tt.outcome, tt.reason))
 		})
 	}
+}
+
+func TestRejectionReason_AllControlplaneCodesInClosedSet(t *testing.T) {
+	t.Parallel()
+
+	closed := manifestreader.RejectionReasons()
+	allCodes := []controlplane.Code{
+		controlplane.CodeUnresolvedSource,
+		controlplane.CodeDuplicateKey,
+		controlplane.CodeDuplicateName,
+		controlplane.CodeInvalidName,
+		controlplane.CodeUnsupportedVersion,
+		controlplane.CodeInvalidChecksum,
+		controlplane.CodeInvalidValue,
+		controlplane.CodeMissingValue,
+		controlplane.CodeTooManyObjects,
+		controlplane.CodeUndeclaredVariation,
+	}
+
+	for _, code := range allCodes {
+		got := manifestreader.RejectionReason(manifestreader.OutcomeInvalid, string(code))
+		assert.Contains(t, closed, got, "code %s must map inside closed set", code)
+	}
+
+	const wantInvalid = manifestreader.OutcomeInvalid
+
+	assert.Equal(t, wantInvalid, manifestreader.RejectionReason(
+		manifestreader.OutcomeInvalid, string(controlplane.CodeUnresolvedSource),
+	))
+	assert.Equal(t, wantInvalid, manifestreader.RejectionReason(
+		manifestreader.OutcomeInvalid, string(controlplane.CodeDuplicateKey),
+	))
+	assert.Equal(t, wantInvalid, manifestreader.RejectionReason(
+		manifestreader.OutcomeInvalid, string(controlplane.CodeUndeclaredVariation),
+	))
+	assert.Equal(t, wantInvalid, manifestreader.RejectionReason(manifestreader.OutcomeInvalid, "future-code"))
+}
+
+func TestCapUnknownFieldPaths_SanitizesAndBounds(t *testing.T) {
+	t.Parallel()
+
+	const threeByteRune = "\u20ac"
+
+	longASCII := strings.Repeat("a", 250)
+	longUTF8 := strings.Repeat(threeByteRune, 50) // 150 bytes (3 bytes/rune) -> truncates cleanly at 126 bytes.
+
+	tests := []struct {
+		name      string
+		in        []string
+		want      []string
+		maxBytes  int
+		checkUTF8 bool
+	}{
+		{name: "nil input returns nil", in: nil, want: nil},
+		{name: "empty slice returns nil", in: []string{}, want: nil},
+		{
+			name:     "very long ascii key truncates to 128 bytes",
+			in:       []string{longASCII},
+			want:     []string{strings.Repeat("a", manifestreader.MaxUnknownFieldPathBytes)},
+			maxBytes: manifestreader.MaxUnknownFieldPathBytes,
+		},
+		{
+			name:      "very long utf8 key truncates on valid rune boundary",
+			in:        []string{longUTF8},
+			want:      []string{strings.Repeat(threeByteRune, manifestreader.MaxUnknownFieldPathBytes/3)},
+			maxBytes:  manifestreader.MaxUnknownFieldPathBytes,
+			checkUTF8: true,
+		},
+		{
+			name:      "invalid utf8 bytes are replaced cleanly",
+			in:        []string{"bad\xff\xfekey"},
+			want:      []string{"bad\uFFFD\uFFFDkey"},
+			maxBytes:  manifestreader.MaxUnknownFieldPathBytes,
+			checkUTF8: true,
+		},
+		{
+			name: "newlines and control characters are replaced with spaces",
+			in:   []string{"line1\nline2\r\nline3\tend"},
+			want: []string{"line1 line2  line3 end"},
+		},
+		{
+			name: "more than ten paths capped to ten",
+			in:   []string{"p00", "p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09", "p10", "p11"},
+			want: []string{"p00", "p01", "p02", "p03", "p04", "p05", "p06", "p07", "p08", "p09"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := manifestreader.CapUnknownFieldPaths(tt.in)
+			assert.Equal(t, tt.want, got)
+
+			for _, item := range got {
+				assert.LessOrEqual(t, len(item), manifestreader.MaxUnknownFieldPathBytes)
+				assert.NotContains(t, item, "\n")
+				assert.NotContains(t, item, "\r")
+
+				if tt.checkUTF8 {
+					assert.True(t, utf8.ValidString(item))
+				}
+			}
+		})
+	}
+}
+
+func TestReader_RestoresManifestUnknownFieldsFromSavedState(t *testing.T) {
+	t.Parallel()
+
+	items := threeObjects()
+	manifest := manifestOf(t, 4, items...)
+	raw, err := controlplane.MarshalManifestJSON(manifest)
+	require.NoError(t, err)
+
+	withUnknown := append([]byte(`{"restoredExtra":"secret-val",`), raw[1:]...)
+
+	restoredObjs := make([][]byte, 0, len(items))
+	for _, item := range items {
+		restoredObjs = append(restoredObjs, []byte(item.content))
+	}
+
+	hooks := manifestreader.Hooks{
+		Restore: func() (*manifestreader.Restored, error) {
+			return &manifestreader.Restored{
+				ETag:     "saved-etag",
+				Manifest: withUnknown,
+				Objects:  restoredObjs,
+			}, nil
+		},
+	}
+
+	// Empty store answers 404 on poll; status must keep restored unknown fields without a successful poll.
+	store := newFakeStore()
+	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
+
+	snap := rdr.snapshot()
+	require.NotNil(t, snap)
+	assert.Equal(t, uint64(4), snap.Generation)
+
+	got := rdr.reader.Status().Manifest
+	assert.Equal(t, manifestreader.OutcomeAccepted, got.Outcome)
+	assert.Equal(t, 1, got.UnknownFields)
+	assert.Equal(t, []string{"restoredExtra"}, got.UnknownFieldPaths)
 }

@@ -245,3 +245,86 @@ func TestCore_ManifestUnknownFieldsLoggedWhenRoundRejected(t *testing.T) {
 
 	assert.Equal(t, 1, strings.Count(logs.String(), `msg="unknown fields cleared in control-plane documents"`))
 }
+
+func TestCore_UnknownFieldsLogsWhenPathChangesWithSameCount(t *testing.T) {
+	t.Parallel()
+
+	dir := filepath.Join(t.TempDir(), "control")
+	require.NoError(t, os.MkdirAll(dir, 0o750))
+
+	logs := &syncBuffer{}
+	deps, harness := newDeps(t, secretOptions(map[string]string{hookEnv: deadURL}))
+	deps.Logger = slog.New(slog.NewTextHandler(logs, nil))
+
+	put := filePut(t, dir)
+
+	setsBytes, err := controlplane.MarshalFlagSet(&controlplane.FlagSetDocument{
+		FlagSets: []controlplane.FlagSet{
+			{Name: unknownTestSet, Sources: []string{objA}, APIKeys: []string{unknownTestKey}},
+		},
+	})
+	require.NoError(t, err)
+
+	publishWithExtra := func(gen uint64, extraKey string) {
+		t.Helper()
+
+		sSum := controlplane.ChecksumOf(setsBytes)
+		sKey, keyErr := controlplane.ObjectKey(sSum, controlplane.FormatYAML)
+		require.NoError(t, keyErr)
+		put(sKey, setsBytes)
+
+		fBytes := []byte(flagName + ":\n  " + extraKey + ": secret\n" +
+			"  variations:\n    v: 1\n  defaultRule:\n    variation: v\n")
+		fSum := controlplane.ChecksumOf(fBytes)
+		fKey, keyErr := controlplane.ObjectKey(fSum, controlplane.FormatYAML)
+		require.NoError(t, keyErr)
+		put(fKey, fBytes)
+
+		manifest := &controlplane.Manifest{
+			APIVersion: controlplane.APIVersion,
+			Kind:       controlplane.DocumentKindManifest,
+			Channel:    channelName,
+			Generation: gen,
+			Objects: []controlplane.ManifestObject{
+				{
+					Name: setsName, Kind: controlplane.KindFlagSets, Connection: connName, Key: sKey,
+					Format: controlplane.FormatYAML, Checksum: sSum, Size: int64(len(setsBytes)),
+				},
+				{
+					Name: objA, Kind: controlplane.KindFlags, Connection: connName, Key: fKey,
+					Format: controlplane.FormatYAML, Checksum: fSum, Size: int64(len(fBytes)),
+				},
+			},
+		}
+
+		rawManifest, marshalErr := controlplane.MarshalManifest(manifest)
+		require.NoError(t, marshalErr)
+		put(manifestKey, rawManifest)
+	}
+
+	publishWithExtra(1, "extraOne")
+
+	cfg := parse(t, fileDoc(dir, ""), bootstrap.LoadOptions{LookupEnv: deps.Secrets.LookupEnv})
+	harness.start(t, cfg, deps)
+	harness.settle(t)
+	harness.awaitGeneration(t, 1)
+
+	assert.Equal(t, 1, strings.Count(logs.String(), `msg="unknown fields in control-plane documents"`))
+	assert.Contains(t, logs.String(), objA+`/f.extraOne`)
+
+	// Replace extraOne with extraTwo: count remains 1, so the path change must emit a new log line.
+	publishWithExtra(2, "extraTwo")
+	harness.poll(t)
+	harness.awaitGeneration(t, 2)
+
+	updatedLogs := logs.String()
+	assert.Equal(t, 2, strings.Count(updatedLogs, `msg="unknown fields in control-plane documents"`))
+	assert.Contains(t, updatedLogs, objA+`/f.extraTwo`)
+
+	// Repeating the same count and path emits nothing new.
+	publishWithExtra(3, "extraTwo")
+	harness.poll(t)
+	harness.awaitGeneration(t, 3)
+
+	assert.Equal(t, 2, strings.Count(logs.String(), `msg="unknown fields in control-plane documents"`))
+}

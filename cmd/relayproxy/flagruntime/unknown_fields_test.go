@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 )
 
 func TestBuilder_ObjectUnknownFields(t *testing.T) {
@@ -119,6 +121,48 @@ func TestBuilder_ObjectUnknownFields(t *testing.T) {
 			},
 		},
 		{
+			name:       "very long flag path is bounded at max bytes",
+			objectName: "a",
+			wantKind:   flagruntime.KindFlags,
+			wantCount:  1,
+			wantValue:  int(1),
+			wantPaths:  []string{"f." + strings.Repeat("k", manifestreader.MaxUnknownFieldPathBytes-2)},
+			build: func(t *testing.T) objs {
+				t.Helper()
+
+				raw := []byte(fmt.Sprintf(
+					"f:\n  %s: secret\n  defaultRule: {variation: v}\n  variations: {v: 1}\n",
+					strings.Repeat("k", 200),
+				))
+
+				return objs{
+					"a":      obj(flagruntime.KindFlags, raw),
+					setsName: setsObj(t, fset("s", src("a"), keyA)),
+				}
+			},
+		},
+		{
+			name:       "newline in unknown flag key is replaced with space",
+			objectName: "a",
+			wantKind:   flagruntime.KindFlags,
+			wantCount:  1,
+			wantValue:  int(1),
+			wantPaths:  []string{"f.line1 line2"},
+			build: func(t *testing.T) objs {
+				t.Helper()
+
+				raw := []byte(
+					"\"f\":\n  \"line1\\nline2\": secret\n  \"defaultRule\": {\"variation\": \"v\"}\n" +
+						"  \"variations\": {\"v\": 1}\n",
+				)
+
+				return objs{
+					"a":      obj(flagruntime.KindFlags, raw),
+					setsName: setsObj(t, fset("s", src("a"), keyA)),
+				}
+			},
+		},
+		{
 			name:       "segments document reports unknown fields",
 			objectName: "segs",
 			wantKind:   flagruntime.KindSegments,
@@ -155,6 +199,13 @@ func TestBuilder_ObjectUnknownFields(t *testing.T) {
 			assert.Equal(t, tt.wantKind, status.Kind)
 			assert.Equal(t, tt.wantCount, status.UnknownFields)
 			assert.Equal(t, tt.wantPaths, status.UnknownFieldPaths)
+
+			for _, fieldPath := range status.UnknownFieldPaths {
+				assert.LessOrEqual(t, len(fieldPath), manifestreader.MaxUnknownFieldPathBytes)
+				assert.True(t, utf8.ValidString(fieldPath))
+				assert.NotContains(t, fieldPath, "\n")
+			}
+
 			assert.Equal(t, tt.wantValue, value(built.Runtime.ByKey[keyA], "f"))
 		})
 	}

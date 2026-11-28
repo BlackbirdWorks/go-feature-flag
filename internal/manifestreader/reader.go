@@ -12,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/modules/core/clock"
@@ -450,17 +452,44 @@ func (r *Reader) reject(ctx context.Context, outcome, reason string) {
 		slog.Uint64("heldGeneration", r.manifest.Generation))
 }
 
-func capPaths(paths []string) []string {
+// CapUnknownFieldPaths returns at most [MaxUnknownFieldPaths] unknown field paths, each sanitized by replacing
+// control characters with spaces and truncated to [MaxUnknownFieldPathBytes] bytes on a valid UTF-8 boundary.
+func CapUnknownFieldPaths(paths []string) []string {
 	if len(paths) == 0 {
 		return nil
 	}
 
-	return slices.Clone(paths[:min(len(paths), MaxUnknownFieldPaths)])
+	limit := min(len(paths), MaxUnknownFieldPaths)
+	out := make([]string, 0, limit)
+
+	for _, path := range paths[:limit] {
+		out = append(out, sanitizeUnknownFieldPath(path, MaxUnknownFieldPathBytes))
+	}
+
+	return out
+}
+
+func sanitizeUnknownFieldPath(path string, maxBytes int) string {
+	var builder strings.Builder
+
+	for _, r := range path {
+		if unicode.IsControl(r) {
+			r = ' '
+		}
+
+		if builder.Len()+utf8.RuneLen(r) > maxBytes {
+			break
+		}
+
+		builder.WriteRune(r)
+	}
+
+	return builder.String()
 }
 
 // RejectionReason maps a manifest outcome and raw reason to the single closed rejection-reason vocabulary
 // ([RejectionReasons]) shared by /info (config.reader.reason) and semaphore_config_reader_rejections_total.
-// It returns "" for non-rejection outcomes.
+// Any rejection reason outside [RejectionReasons] maps to "invalid". It returns "" for non-rejection outcomes.
 func RejectionReason(outcome, reason string) string {
 	switch outcome {
 	case "", OutcomeNone, OutcomeAccepted:
@@ -468,7 +497,11 @@ func RejectionReason(outcome, reason string) string {
 	case OutcomeChannelMismatch, OutcomeLowerGeneration, OutcomeConflict:
 		return outcome
 	default:
-		return reason
+		if slices.Contains(RejectionReasons(), reason) {
+			return reason
+		}
+
+		return OutcomeInvalid
 	}
 }
 
@@ -516,7 +549,7 @@ func (r *Reader) accept(ctx context.Context, obj Object, restoring bool) bool {
 		Generation:        manifest.Generation,
 		Objects:           len(manifest.Objects),
 		UnknownFields:     len(info.UnknownFields),
-		UnknownFieldPaths: capPaths(info.UnknownFields),
+		UnknownFieldPaths: CapUnknownFieldPaths(info.UnknownFields),
 	}
 
 	r.settle(ctx, genChanged, !restoring)

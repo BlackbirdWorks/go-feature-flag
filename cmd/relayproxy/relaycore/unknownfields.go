@@ -16,8 +16,13 @@ const (
 	maxLoggedUnknownFields = 10
 )
 
+type unknownSnapshot struct {
+	fields []string
+	count  int
+}
+
 type unknownTracker struct {
-	last map[string]int
+	last map[string]unknownSnapshot
 	mu   sync.Mutex
 }
 
@@ -68,14 +73,19 @@ func (c *Core) noteUnknownFields(ctx context.Context, res *flagruntime.RoundResu
 func (c *Core) logUnknownFieldsKind(ctx context.Context, kind string, count int, fields []string) {
 	c.unknownFields.mu.Lock()
 	if c.unknownFields.last == nil {
-		c.unknownFields.last = map[string]int{}
+		c.unknownFields.last = map[string]unknownSnapshot{}
 	}
 
 	prev := c.unknownFields.last[kind]
-	c.unknownFields.last[kind] = count
+
+	same := prev.count == count && slices.Equal(prev.fields, fields)
+	if !same {
+		c.unknownFields.last[kind] = unknownSnapshot{fields: slices.Clone(fields), count: count}
+	}
+
 	c.unknownFields.mu.Unlock()
 
-	if count == prev {
+	if same {
 		return
 	}
 

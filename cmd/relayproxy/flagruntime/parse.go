@@ -9,17 +9,12 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/internal/manifestreader"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
-const maxUnknownFieldPaths = 10
-
 func capUnknownFields(paths []string) []string {
-	if len(paths) == 0 {
-		return nil
-	}
-
-	return slices.Clone(paths[:min(len(paths), maxUnknownFieldPaths)])
+	return manifestreader.CapUnknownFieldPaths(paths)
 }
 
 // parsedFlags is the result of parsing one flags object. It is cached by checksum and never changed.

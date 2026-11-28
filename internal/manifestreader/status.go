@@ -9,6 +9,9 @@ import (
 // MaxUnknownFieldPaths is the maximum number of unknown field paths kept per document in status.
 const MaxUnknownFieldPaths = 10
 
+// MaxUnknownFieldPathBytes is the maximum byte length kept for each unknown field path.
+const MaxUnknownFieldPathBytes = 128
+
 // Results of a poll, in [PollStatus.Result]. The set is closed.
 const (
 	// PollNone is the result before the first round ended.
@@ -124,7 +127,7 @@ func RejectionReasons() []string {
 		"decode",
 		string(controlplane.CodeDuplicateName),
 		OutcomeConflict,
-		"invalid",
+		OutcomeInvalid,
 		string(controlplane.CodeInvalidChecksum),
 		string(controlplane.CodeInvalidName),
 		string(controlplane.CodeInvalidValue),
