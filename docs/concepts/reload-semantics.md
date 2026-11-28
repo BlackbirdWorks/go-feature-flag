@@ -32,10 +32,13 @@ An unchanged poll writes no log line and swaps nothing.
 
 The levels and what each keeps are in [last known good](manifest-and-documents.md#last-known-good). In short:
 
-- A manifest that is not valid, of another channel, or of a lower generation is rejected by the reader, before the
+- A manifest with an unsupported `apiVersion`, wrong `kind`, decode/validation failure (other than an object's content `version`), another channel, or a lower generation is rejected whole by the reader, before the
   engine sees it. No round runs, so `config.lastRejected` does not change. The reader writes one `"manifest reader:
   manifest rejected, previous one kept"` log line with the attributes `outcome` and `reason`, and the held state keeps
   serving. `/info` does not show the outcome.
+- An object entry whose content `version` is higher than the reader supports (`unsupported-version`) does not reject
+  the manifest: other objects apply normally, while that object keeps its last valid content (`stale`, or `missing` if
+  never loaded) with `reason: unsupported-version`, and dependent flag sets become `degraded` (`source-degraded`) and keep serving their last-known-good content.
 - A manifest at the same generation as the held one is not always ignored. The same objects in the same states change
   nothing (an unchanged poll). A `304` poll can still retry an object that failed: when it becomes readable, the reader
   publishes its new state at the same generation, and the engine applies it. Only another set of objects or another

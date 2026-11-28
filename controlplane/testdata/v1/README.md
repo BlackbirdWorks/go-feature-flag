@@ -41,7 +41,6 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 - `manifest-duplicate-name.yaml`: two objects with the same name.
 - `manifest-bad-checksum.yaml`, `manifest-upper-case-checksum.yaml`: a checksum that is not 64 lower-case hex characters.
 - `manifest-negative-size.yaml`: a negative size.
-- `manifest-object-unsupported-version.yaml`: an object with a newer content version (an entry problem).
 - `manifest-generation-fraction.yaml`, `manifest-generation-overflow.yaml`: an integer field with a fraction or an overflow.
 - `manifest-multiple-documents.yaml`: a second YAML document.
 - `manifest-duplicate-key.yaml`, `manifest-json-duplicate-key.json`, `manifest-non-string-key.yaml`: duplicate and non-string keys.
@@ -71,11 +70,13 @@ path of the field), `ErrDecode` (syntax). The document is rejected whole.
 
 ## forward-compatible/
 
-Documents with fields this version does not know (a later publisher added them). They decode and validate; each
-file has a `<file>.unknown` sidecar listing the expected unknown-field paths, one per line, sorted as the decoder
-reports them. An older reader must accept them and may only count them.
+Documents with fields or per-object versions this version does not know (a later publisher added them). Each file has
+either a `<file>.unknown` sidecar (listing expected unknown-field paths, one per line) or a `<file>.degraded` sidecar
+(listing entry-level problems `<kind> <name> <code> <path>`, one per line). An older reader accepts the manifest,
+counts unknown fields, and degrades only the flagged objects.
 
 - `manifest-extra-fields.yaml`, `manifest-extra-fields.json`: unknown fields at the top level and in an object.
+- `manifest-object-unsupported-version.yaml`: one object with `version: 2`; entry-level `unsupported-version` (`.degraded` sidecar).
 - `flagset-extra-fields.yaml`: unknown fields in a flag set and at the top level.
 - `flags-extra-fields.yaml`: unknown fields in a flag and in its default rule.
 - `segments-extra-fields.yaml`: unknown fields in a segment and at the top level.
