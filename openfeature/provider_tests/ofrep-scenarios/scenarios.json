@@ -1,0 +1,615 @@
+{
+ "description": "Language neutral scenarios of the OFREP behaviour of the relay: serve flags.yaml, send the context to the evaluation of the flag and to the bulk evaluation, expect these results. body: fields of the response that must equal; absent: fields that must not be there; metadata: entries the metadata must contain; bulk: same (the bulk item has the same fields), error (the item has the errorCode and no value), omitted (no item).",
+ "scenarios": [
+  {
+   "name": "static boolean",
+   "flag": "static_boolean",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "static_boolean",
+    "value": true,
+    "variant": "on",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "static string",
+   "flag": "static_string",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "static_string",
+    "value": "hello",
+    "variant": "hello",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "static integer",
+   "flag": "static_integer",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "static_integer",
+    "value": 7,
+    "variant": "seven",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "static float",
+   "flag": "static_float",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "static_float",
+    "value": 3.25,
+    "variant": "pi",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "static object",
+   "flag": "static_object",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "static_object",
+    "value": {
+     "name": "semaphore",
+     "retries": 3,
+     "nested": {
+      "on": true
+     }
+    },
+    "variant": "config",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "static flag with an empty context",
+   "flag": "static_boolean",
+   "context": {},
+   "status": 200,
+   "body": {
+    "key": "static_boolean",
+    "value": true,
+    "variant": "on",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting rule match",
+   "flag": "targeted_string",
+   "context": {
+    "targetingKey": "u",
+    "plan": "pro"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_string",
+    "value": "pro-plan",
+    "variant": "pro",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting rule miss falls to the default rule",
+   "flag": "targeted_string",
+   "context": {
+    "targetingKey": "u",
+    "plan": "free"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_string",
+    "value": "free-plan",
+    "variant": "free",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting without the attribute",
+   "flag": "targeted_string",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_string",
+    "value": "free-plan",
+    "variant": "free",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "percentage rollout, first key",
+   "flag": "rollout_boolean",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "rollout_boolean",
+    "value": false,
+    "variant": "off",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "percentage rollout, same key again",
+   "flag": "rollout_boolean",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "rollout_boolean",
+    "value": false,
+    "variant": "off",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "percentage rollout, other key",
+   "flag": "rollout_boolean",
+   "context": {
+    "targetingKey": "user-2"
+   },
+   "status": 200,
+   "body": {
+    "key": "rollout_boolean",
+    "value": true,
+    "variant": "on",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "rule with a percentage, rule matches",
+   "flag": "targeted_rollout",
+   "context": {
+    "targetingKey": "user-1",
+    "tier": "vip"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_rollout",
+    "value": "a",
+    "variant": "a",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "rule with a percentage, rule matches, other key",
+   "flag": "targeted_rollout",
+   "context": {
+    "targetingKey": "user-3",
+    "tier": "vip"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_rollout",
+    "value": "b",
+    "variant": "b",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "rule with a percentage, rule misses",
+   "flag": "targeted_rollout",
+   "context": {
+    "targetingKey": "user-1",
+    "tier": "std"
+   },
+   "status": 200,
+   "body": {
+    "key": "targeted_rollout",
+    "value": "fallback",
+    "variant": "fallback",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "disabled flag",
+   "flag": "disabled_string",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "disabled_string",
+    "reason": "DISABLED"
+   },
+   "bulk": "same",
+   "absent": [
+    "value"
+   ]
+  },
+  {
+   "name": "scheduled rollout that is over",
+   "flag": "scheduled_over",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "scheduled_over",
+    "value": "new",
+    "variant": "new",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "progressive rollout that is over",
+   "flag": "progressive_over",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "progressive_over",
+    "value": "after",
+    "variant": "after",
+    "reason": "SPLIT"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "flag metadata",
+   "flag": "metadata_flag",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 200,
+   "body": {
+    "key": "metadata_flag",
+    "value": true,
+    "variant": "on",
+    "reason": "STATIC"
+   },
+   "bulk": "same",
+   "metadata": {
+    "team": "payments",
+    "revision": 3,
+    "experimental": false
+   }
+  },
+  {
+   "name": "flag not found",
+   "flag": "no_such_flag",
+   "context": {
+    "targetingKey": "user-1"
+   },
+   "status": 404,
+   "body": {
+    "key": "no_such_flag",
+    "errorCode": "FLAG_NOT_FOUND"
+   },
+   "absent": [
+    "value",
+    "reason"
+   ],
+   "bulk": "omitted"
+  },
+  {
+   "name": "rollout without a targeting key",
+   "flag": "rollout_boolean",
+   "context": {},
+   "status": 400,
+   "body": {
+    "key": "rollout_boolean",
+    "errorCode": "TARGETING_KEY_MISSING"
+   },
+   "absent": [
+    "value",
+    "reason"
+   ],
+   "bulk": "error"
+  },
+  {
+   "name": "rollout with an empty targeting key",
+   "flag": "rollout_boolean",
+   "context": {
+    "targetingKey": ""
+   },
+   "status": 400,
+   "body": {
+    "key": "rollout_boolean",
+    "errorCode": "TARGETING_KEY_MISSING"
+   },
+   "absent": [
+    "value",
+    "reason"
+   ],
+   "bulk": "error"
+  },
+  {
+   "name": "rollout with a targeting key that is a number",
+   "flag": "rollout_boolean",
+   "context": {
+    "targetingKey": 42
+   },
+   "status": 400,
+   "body": {
+    "key": "rollout_boolean",
+    "errorCode": "TARGETING_KEY_MISSING"
+   },
+   "absent": [
+    "value",
+    "reason"
+   ],
+   "bulk": "error"
+  },
+  {
+   "name": "targeting on a number attribute, match",
+   "flag": "attr_number",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "age": 31
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_number",
+    "value": "matched",
+    "variant": "match",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a number attribute, miss",
+   "flag": "attr_number",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "age": 29
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_number",
+    "value": "missed",
+    "variant": "miss",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a boolean attribute, match",
+   "flag": "attr_boolean",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "beta": true
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_boolean",
+    "value": "matched",
+    "variant": "match",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a boolean attribute, miss",
+   "flag": "attr_boolean",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "beta": false
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_boolean",
+    "value": "missed",
+    "variant": "miss",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a string attribute, match",
+   "flag": "attr_string",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "country": "CA"
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_string",
+    "value": "matched",
+    "variant": "match",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a string attribute, miss",
+   "flag": "attr_string",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "country": "US"
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_string",
+    "value": "missed",
+    "variant": "miss",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a nested object attribute, match",
+   "flag": "attr_nested",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "user": {
+     "plan": "pro"
+    }
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_nested",
+    "value": "matched",
+    "variant": "match",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a nested object attribute, miss",
+   "flag": "attr_nested",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "user": {
+     "plan": "free"
+    }
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_nested",
+    "value": "missed",
+    "variant": "miss",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a date-time string attribute, match",
+   "flag": "attr_datetime",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "signup": "2025-06-01T00:00:00Z"
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_datetime",
+    "value": "matched",
+    "variant": "match",
+    "reason": "TARGETING_MATCH"
+   },
+   "bulk": "same"
+  },
+  {
+   "name": "targeting on a date-time string attribute, miss",
+   "flag": "attr_datetime",
+   "context": {
+    "targetingKey": "u",
+    "extra": {
+     "ignored": [
+      1,
+      {
+       "a": null
+      }
+     ]
+    },
+    "signup": "2023-06-01T00:00:00Z"
+   },
+   "status": 200,
+   "body": {
+    "key": "attr_datetime",
+    "value": "missed",
+    "variant": "miss",
+    "reason": "STATIC"
+   },
+   "bulk": "same"
+  }
+ ]
+}

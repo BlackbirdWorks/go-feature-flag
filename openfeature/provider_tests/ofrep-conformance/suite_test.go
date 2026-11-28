@@ -105,12 +105,13 @@ func TestOFREPConformance(t *testing.T) {
 	}
 
 	cases := map[string]func(*testing.T, *harness){
-		"single":  conformanceSingleFlag,
-		"bulk":    conformanceBulk,
-		"reasons": conformanceReasons,
-		"wire":    conformanceWire,
-		"etag":    conformanceBulkETag,
-		"stream":  conformanceEventStreams,
+		"single":    conformanceSingleFlag,
+		"bulk":      conformanceBulk,
+		"reasons":   conformanceReasons,
+		"wire":      conformanceWire,
+		"etag":      conformanceBulkETag,
+		"scenarios": conformanceScenarios,
+		"stream":    conformanceEventStreams,
 	}
 
 	for name, fn := range cases {

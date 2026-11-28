@@ -136,6 +136,10 @@ func wireCases() []wireCase {
 			wantStatus:   http.StatusOK,
 			wantItemKeys: []string{flagBoolMatch},
 		},
+		{name: "bulk: no flag evaluated still answers a flags array", method: http.MethodPost, path: bulkFlagsPath,
+			headers:    keyHeader(),
+			body:       `{"context":{"targetingKey":"u","gofeatureflag":{"flagList":["no_such_flag"]}}}`,
+			wantStatus: http.StatusOK, wantItemKeys: []string{}},
 		{name: "bulk: GET is not allowed", method: http.MethodGet, path: bulkFlagsPath, headers: keyHeader(),
 			wantStatus: http.StatusNotFound},
 		{name: "bulk: public flag set without a key", method: http.MethodPost, path: bulkFlagsPath, relay: relayPublic,
@@ -172,7 +176,8 @@ func conformanceWire(t *testing.T, hns *harness) {
 			assert.Equal(t, tt.wantStatus, res.status, "body: %s", string(res.body))
 
 			parsed := decodeObject(t, res.body)
-			if len(tt.wantItemKeys) > 0 {
+			if tt.wantItemKeys != nil {
+				assert.Contains(t, decodeObject(t, res.body), "flags", "the providers read the flags field")
 				assert.ElementsMatch(t, tt.wantItemKeys, slices.Collect(maps.Keys(parseBulkFlags(t, res.body))))
 			}
 
