@@ -31,7 +31,8 @@ static-flag:
     - {name: members, query: 'targetingKey in segment("beta")', variation: on}
   defaultRule: {name: default, variation: off}
 `
-	segDocGood    = segHeaderYAML + "  - name: beta\n    members: [alice]\n  - name: audience\n    connection: audiences\n"
+	segDocGood = segHeaderYAML + "  - name: beta\n    members: [alice]\n" +
+		"  - name: audience\n    connection: audiences\n    mode: lookup\n"
 	segDocMissing = segHeaderYAML + "  - name: beta\n    members: [alice]\n  - name: audience\n    connection: nowhere\n"
 	segDocFixed   = segHeaderYAML + "  - name: beta\n    members: [alice, bob]\n" +
 		"  - name: audience\n    connection: audiences\n    mode: lookup\n"
@@ -121,7 +122,7 @@ func segmentsInfo(t *testing.T, cfg *model.ConfigInfo) (*model.SegmentCountsInfo
 func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	t.Parallel()
 
-	rig := newV2With(t, v2Options{connections: audiencesConnection, cold: true})
+	rig := newV2With(t, &v2Options{connections: audiencesConnection, cold: true})
 	rig.flags[dynFlagsObject] = []byte(dynFlagsYAML)
 	rig.segments = map[string][]byte{segObjectName: []byte(segDocMissing)}
 	rig.sets = []controlplane.FlagSet{{
@@ -171,7 +172,7 @@ func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	counts, state = segmentsInfo(t, infoOf(t, rig))
 	assert.Equal(t, string(flagruntime.ObjectOK), state)
 	assert.Equal(t, model.SegmentCountsInfo{
-		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1},
+		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1, StoreError: 1},
 	}, *counts)
 
 	assert.Equal(t, 0, dynamicSegmentGauge(t, rig, "rejected"))

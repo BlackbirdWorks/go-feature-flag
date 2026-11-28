@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	connNowhere     = "nowhere"
 	policyFlagsYAML = `
 member-flag:
   variations: {on: true, off: false}
@@ -26,11 +27,17 @@ match-flag:
   targeting:
     - {name: audience, query: 'targetingKey in segment("strict")', variation: on, onError: match}
   defaultRule: {name: default, variation: off}
+negated-flag:
+  variations: {on: true, off: false}
+  targeting:
+    - {name: outside, query: 'not (targetingKey in segment("keyed"))', variation: on}
+  defaultRule: {name: default, variation: off}
 `
 	// lenient grants membership when a lookup cannot be answered, strict leaves it unknown (the rule decides).
 	policySegments = segHeader +
 		"  - name: lenient\n    connection: audiences\n    onError: member\n" +
-		"  - name: strict\n    connection: audiences\n    onError: unknown\n"
+		"  - name: strict\n    connection: audiences\n    onError: unknown\n" +
+		"  - name: keyed\n    connection: audiences\n    onError: member\n    missingKey: unknown\n"
 )
 
 func policyRuntime(t *testing.T, connection string) *flagruntime.Runtime {
@@ -63,8 +70,10 @@ func TestARejectedDefinitionNeverGrantsMembership(t *testing.T) {
 		flag       string
 		wantValue  bool
 	}{
-		{name: "rejected, definition onError member", connection: "nowhere", flag: "member-flag"},
-		{name: "rejected, rule onError match", connection: "nowhere", flag: "match-flag"},
+		{name: "rejected, definition onError member", connection: connNowhere, flag: "member-flag"},
+		{name: "rejected, rule onError match", connection: connNowhere, flag: "match-flag"},
+		{name: "rejected, negated clause", connection: connNowhere, flag: "negated-flag", wantValue: true},
+		{name: "served, negated clause", connection: connAudiences, flag: "negated-flag"},
 		{name: "served, definition onError member", connection: connAudiences, flag: "member-flag", wantValue: true},
 		{name: "served, rule onError match", connection: connAudiences, flag: "match-flag", wantValue: true},
 	}
@@ -139,6 +148,42 @@ func BenchmarkBuildRejectedDefinitions(b *testing.B) {
 				_, err := builder.Build(b.Context(), input)
 				require.NoError(b, err)
 			}
+		})
+	}
+}
+
+// The rejection is applied over what the document says: a rejected definition keeps the failure policy and the missing
+// key of a segment that was refused, whatever its own fields are, and a served one keeps its own.
+func TestARejectedDefinitionOverridesItsDocument(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		connection     string
+		wantOnError    segment.OnError
+		wantMissingKey segment.MissingKey
+	}{
+		{
+			name: "rejected", connection: connNowhere, wantOnError: segment.OnErrorNotMember,
+			wantMissingKey: segment.MissingNotMember,
+		},
+		{
+			name:           "served",
+			connection:     connAudiences,
+			wantOnError:    segment.OnErrorMember,
+			wantMissingKey: segment.MissingUnknown,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			def, ok := policyRuntime(t, tt.connection).FlagSets["a"].SegmentCatalog().Lookup("keyed")
+
+			require.True(t, ok)
+			assert.Equal(t, tt.wantOnError, def.OnError)
+			assert.Equal(t, tt.wantMissingKey, def.MissingKey)
 		})
 	}
 }

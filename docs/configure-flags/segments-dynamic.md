@@ -2,14 +2,14 @@
 
 A dynamic segment is a segment of type `redis` or `valkey`: the members stay in the store and are looked up while a flag is evaluated. See [Segments](segments.md) for what a segment is, the rule syntax and the two answers (member, not a member) and the opt-in for unknown. For small lists that change rarely use a [static segment](segments-static.md).
 
-- All the lookups of one rule go to the store in one batched call (`resolveSegments` batches the terms of a rule, not of a whole flag evaluation): one round trip to a single node, one batch for each node on a cluster. A flag evaluation with several segment rules can issue several calls.
+- The relay fetches every membership that an evaluation needs in one batch before the rules run: one flag, or all the flags of a bulk request, give one call to the store for each connection (and each `missingKey` policy) the request reaches. One round trip to a single node, one batch for each node on a cluster. A membership that the batch could not read (an attribute inside a typed object) is asked when the rule reaches it.
 - The providers work alone, but then every lookup goes to the store. When the resolver is used, it adds a bounded cache with a short negative TTL, coalescing of identical lookups and a circuit breaker for each segment. Errors are never cached.
 - When the store cannot answer a lookup, the lookup is not a member by default, and the failure policy of the segment (`onError`) can change that (`unknown` is the opt-in of the three-valued logic). The evaluation status is `STORE_ERROR` for the lookups that were not answered. A snapshot that was loaded and then failed to refresh is not an unanswered lookup: it keeps answering from the last known good set and the status is `STALE`. With the store down, a request takes at most its deadline plus a small margin. Exception: for a `valkey` segment whose peer stops reading until the connection ring is full, the wait can last until the `ConnWriteTimeout` of the client closes the connection (about 10 seconds by default), see [Limits](segments-valkey.md#limits).
 - The provider only reads, so a read-only ACL user is enough.
 
 ## Modes
 
-> Today the relay reads and checks the `mode` and the `version` of a definition when it builds a generation (see [Checks when a generation is built](#checks-when-a-generation-is-built)), but it does not open the stores yet: a dynamic segment is defined, answers "not a member" and the evaluation reports `NOT_CONFIGURED`. The providers, the snapshots and their refresh come with the next step of [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). The modes are interfaces and reference implementations in `modules/core/segment`; the Redis and Valkey stores keep the `lookup` behaviour described above.
+> The relay serves the `lookup` mode. A definition in the `snapshot` mode (the default when `mode` is not written) is rejected alone while the relay serves dynamic segments, with the reason `the snapshot mode is not served yet by this relay: use mode: lookup`: it answers "not a member" and the evaluation reports `NOT_CONFIGURED`. The snapshot mode comes with the next step of [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). Write `mode: lookup` in every definition until then. The modes are interfaces and reference implementations in `modules/core/segment`.
 
 A segment that lives in a store has a mode. A definition with no `mode` is a `snapshot` segment.
 
@@ -91,7 +91,7 @@ Each dynamic definition is then checked against the connections of the bootstrap
 - The type of the connection can serve segments (`redis` and `valkey`; a bucket or a stream cannot).
 - The store of the connection serves the `mode` of the definition (`segment.RequireMode`: `lookup` needs a provider, `snapshot` a snapshot source).
 
-A definition that fails is rejected alone. The document and its other definitions are applied (the static segments work, the other dynamic ones too), and the flag set is served, on the first load and later. The rejected segment stays in the catalog as "not configured": it answers like a segment without a provider (not a member, status `NOT_CONFIGURED`), and the flags that use it are not cacheable. A rejected definition never grants membership, whatever its `onError` says (even `member`) and whatever the rule says (`onError: match` does not match): a missing or unfit connection is a configuration error of this relay, not a store outage that the publisher chose a policy for.
+A definition that fails is rejected alone. The document and its other definitions are applied (the static segments work, the other dynamic ones too), and the flag set is served, on the first load and later. The rejected segment stays in the catalog as "not configured": it answers like a segment without a provider (not a member, status `NOT_CONFIGURED`), and the flags that use it are not cacheable. A rejected definition never grants membership, whatever its `onError` says (even `member`) and whatever the rule says: a rejected segment answers a known "not a member", so a negated clause (`not (... in segment(...))`) matches, and `onError: match` does not apply. A missing or unfit connection is a configuration error of this relay, not a store outage that the publisher chose a policy for.
 
 - A rejection is logged once, when its generation is built (`dynamic segment definitions rejected: ...`, with the object, the checksum and the path-addressed reasons), not for each evaluation and not for each poll that finds the same content.
 - `/info` shows, for each flag set, the dynamic segments by state: `valid` and `rejected` (in `segments.dynamicStates`). The same counts are the series `semaphore_resource_count{kind="dynamicSegment", state="valid"|"rejected"}`. The reasons are in the log only.
@@ -127,8 +127,28 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 
 - The relay checks the connections and the section at the start, and `semaphore-cli config validate` checks them too.
 - The password is a `fromEnv` or `fromFile` reference. It is never printed.
-- The segment definitions are published with the flags, like any other flag content. That comes with the next step of the segments work; the bootstrap file has no `segments.definitions`.
-- The relay checks the connections and the section at the start, checks the dynamic definitions against the connections when it builds a generation, and logs that the stores are configured but not active: it does not open them yet.
+- The segment definitions are published with the flags, like any other flag content; the bootstrap file has no `segments.definitions`.
+
+## Lifecycle
+
+- The relay opens no store at the start. A connection is opened when a valid dynamic definition first uses it, by a loop that the run context of the relay owns (it dials again every second while the store is not reachable). One client serves every generation: a reload binds the definitions of the new generation to it, and never closes it.
+- Each generation has its own view of the segments: the definitions of its flag sets bound to the shared clients, each behind a resolver (cache, coalescing, circuit breaker). The view is built off to the side and swapped in with the runtime, in the same atomic swap. A flag set that a reload does not change keeps its view (and its cache); a flag set that changes gets a new one. A request keeps the view it loaded, so an evaluation is never cut by a swap.
+- An outage writes no line for each evaluation: the evaluations answer `STORE_ERROR`, the loop logs a connection that cannot be dialled once, and the counters and the breaker metrics show the rest.
+- A store that cannot be reached at the start never stops the relay and never makes it unready. Its segments answer "not a member" with `STORE_ERROR` until it is back. The relay stops the clients at shutdown, with the shutdown timeout, after the loops ended.
+- A version `value` in the definition is the version of the cache of the generation. A version `key` is read by a watcher (a loop owned by the run context) every `version.interval` (5s when it is not written), never on the request path: a changed version makes the cached answers misses, and a request never waits for it.
+
+## What happens when the store is down
+
+| Situation | Answer | Status | Relay |
+|---|---|---|---|
+| Healthy store | the members of the store | none | ready |
+| Never connected, or gone, and the answer is not cached | not a member (or what `onError` says) | `STORE_ERROR` | ready |
+| Gone, and the answer is cached (a member for the TTL, a non-member for the negative TTL) | the cached answer | none | ready |
+| Breaker open (consecutive failures) | not a member, the store is not called | `STORE_ERROR` | ready |
+| Store is back | the members of the store, after the breaker cooldown | none | ready |
+| Definition rejected (unknown connection, a kind that cannot serve the mode, the `snapshot` mode) | not a member | `NOT_CONFIGURED` | ready |
+
+`/info` lists each connection (`segmentStores`: `idle`, `connecting`, `connected`, `error` or `closed`) and, for each flag set, the served dynamic segments by health (`dynamicStates.healthy` and `dynamicStates.storeError`). The metrics are in [probes](../relay-proxy/probes.md).
 
 <!-- full-example -->
 ```yaml

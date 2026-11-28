@@ -196,6 +196,7 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
 		ModifiedAt: st.now, Segments: segments, flagSigs: sigs, uses: flagUses(refs, segments),
 	}
+	fset.dynTerms = dynamicTerms(st.b.svc, flags, fset.uses, segments)
 
 	return &setState{
 		spec: spec, fs: fset, inputs: inputs, segInputs: segInputs, notes: notes,
@@ -215,6 +216,7 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *se
 		Segments:   old.fs.Segments,
 		flagSigs:   old.fs.flagSigs,
 		uses:       old.fs.uses,
+		dynTerms:   old.fs.dynTerms,
 		Name:       old.fs.Name,
 		State:      old.fs.State,
 		Hash:       old.fs.Hash,

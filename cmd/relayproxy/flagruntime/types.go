@@ -71,6 +71,9 @@ type FlagSet struct {
 	// flagSigs is, for each flag of the set that uses segments, a hash of the segments it uses (members included). Two
 	// builds of a flag set that hold the same flag pointer differ for a flag when its signature differs.
 	flagSigs map[string]uint64
+	// dynTerms is, for each flag that uses a served dynamic segment, the terms that the view serves: what an
+	// evaluation fetches in one batch before the rules run.
+	dynTerms map[string][]segment.Term
 	// uses is, for each flag of the set that uses segments, the segments it uses and whether one is dynamic.
 	uses       map[string]segUse
 	Name       string

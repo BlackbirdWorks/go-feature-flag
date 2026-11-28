@@ -19,6 +19,9 @@ type ConfigInfo struct {
 	FlagSets []FlagSetInfo `json:"flagSets"`
 	// Objects are the source objects by name.
 	Objects []ObjectInfo `json:"objects"`
+	// SegmentStores are the connections that can serve dynamic segments, with their state; left out when the file has
+	// none.
+	SegmentStores []SegmentStoreInfo `json:"segmentStores,omitempty"`
 	// Withdrawn lists the flag sets removed by the publisher.
 	Withdrawn []WithdrawnInfo `json:"withdrawn"`
 	// PendingRestart names the settings that changed and need a restart.

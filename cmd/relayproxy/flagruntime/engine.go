@@ -69,6 +69,12 @@ func WithSegmentStores(stores SegmentStores) Option {
 	return func(e *Engine) { e.stores = stores }
 }
 
+// WithSegments tells the engine how to serve the dynamic segments: the process-level binder, the settings of the
+// resolvers and the observer that counts what they do. Without it the dynamic segments are not served.
+func WithSegments(env *SegmentEnv) Option {
+	return func(e *Engine) { e.segEnv = env }
+}
+
 // Engine is the reconcile engine. One goroutine ([Engine.Run]) is the only writer of the [Holder]; the other
 // methods only hand it work through channels.
 //
@@ -100,6 +106,7 @@ func WithSegmentStores(stores SegmentStores) Option {
 // are dropped, and the channel is closed.
 type Engine struct {
 	stores     SegmentStores
+	segEnv     *SegmentEnv
 	hooks      Hooks
 	builder    *Builder
 	announced  map[string]struct{}
@@ -163,7 +170,7 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 
 	eng.changes = make(chan Change, eng.changeBuf)
 	eng.builder = NewBuilder(svc, BuilderOptions{
-		OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap, SegmentStores: eng.stores,
+		OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap, SegmentStores: eng.stores, Segments: eng.segEnv,
 	})
 	eng.snapshot = eng.cur.Snapshot
 
