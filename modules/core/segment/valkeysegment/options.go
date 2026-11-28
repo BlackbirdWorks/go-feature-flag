@@ -2,6 +2,7 @@ package valkeysegment
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -52,6 +53,10 @@ const (
 	connWriteTimeoutFactor = 10
 )
 
+// MaxClusterConcurrency is the most DoMulti calls that one lookup call has in flight on a cluster client with the
+// atomic check: each set is a transaction in a DoMulti of its own.
+const MaxClusterConcurrency = 16
+
 // DefaultConnWriteTimeout is the ConnWriteTimeout that [Dial] sets when the option is zero: ten call timeouts (zero
 // call timeout means DefaultTimeout), at least one second and at most MaxConnWriteTimeout.
 func DefaultConnWriteTimeout(callTimeout time.Duration) time.Duration {
@@ -71,6 +76,17 @@ type Options struct {
 	// Observer (optional) receives one Observation per call, except for a call with no lookup and a call after
 	// Shutdown.
 	Observer Observer
+	// Atomic sets the atomic existence check. Unset (nil) means on, except for a client that [Dial] creates with
+	// replica reads (ClientOption.SendToReplicas or ReplicaOnly): then off, with one INFO line to Logger. On, with
+	// MissingUnknown, a set segment sends MULTI, EXISTS, SMISMEMBER and EXEC in one batch, so a set that is removed
+	// or expires during the call is missing for both commands. Off, it sends EXISTS and SMISMEMBER outside a
+	// transaction: fewer commands, and a set that disappears between them can answer not-a-member for a former
+	// member. It has no effect with MissingNotMember (no existence check is sent). A transaction goes to the primary,
+	// never to a replica: an explicit true with replica reads moves the set lookups there. [New] cannot see the
+	// replica reads of its client: it defaults to on.
+	Atomic *bool
+	// Logger (optional) receives the INFO line of the replica default of Atomic. Nil discards.
+	Logger *slog.Logger
 	// KeyPrefix is the default prefix of the keys. Empty means DefaultKeyPrefix.
 	KeyPrefix string
 	// MissingKey is what a missing set key means. Empty means MissingNotMember.
@@ -92,12 +108,6 @@ type Options struct {
 	// option, and when that is zero too uses DefaultConnWriteTimeout(Timeout). Otherwise it is from
 	// MinConnWriteTimeout to MaxConnWriteTimeout.
 	ConnWriteTimeout time.Duration
-	// DisableAtomic turns the atomic existence check off. By default, with MissingUnknown, a set segment sends
-	// MULTI, EXISTS, SMISMEMBER and EXEC in one batch, so a set that is removed or expires during the call is
-	// missing for both commands. Off, it sends EXISTS and SMISMEMBER outside a transaction: fewer commands, and a
-	// set that disappears between them can answer not-a-member for a former member. It has no effect with
-	// MissingNotMember (no existence check is sent). The transaction goes to the primary, never to a replica.
-	DisableAtomic bool
 	// Retry lets valkey-go send a read again after a network error. Default false: a retry runs behind the call
 	// timeout of the provider and sends the lookups twice.
 	Retry bool

@@ -2407,8 +2407,7 @@
                     "$ref": "#/$defs/ValkeyTimeouts"
                 },
                 "atomic": {
-                    "type": "boolean",
-                    "default": true
+                    "type": "boolean"
                 },
                 "lookupTimeout": {
                     "$ref": "#/$defs/Duration"

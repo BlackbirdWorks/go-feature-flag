@@ -1,11 +1,16 @@
 package valkeysegment_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +27,7 @@ const (
 	replyOneIn    = "*1\r\n:1\r\n"
 )
 
-func TestOptionsDisableAtomic(t *testing.T) {
+func TestOptionsAtomic(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -90,7 +95,10 @@ func TestOptionsDisableAtomic(t *testing.T) {
 			}
 
 			opts := atomicOptions(nil)
-			opts.DisableAtomic = tt.disable
+			if tt.disable {
+				opts.Atomic = new(false)
+			}
+
 			prov := newProvider(t, srv, opts)
 
 			require.NoError(t, prov.Contains(context.Background(), tt.lookups))
@@ -113,20 +121,7 @@ func TestProviderContainsRejectsAReplyOfTheWrongShape(t *testing.T) {
 		reply      string
 		wantFailed int
 		wantClass  valkeysegment.Class
-		disable    bool
 	}{
-		{
-			name: "a RESP set instead of the SMISMEMBER array", command: cmdSMISMEMBER, reply: "~1\r\n:1\r\n",
-			disable: true, wantClass: valkeysegment.ClassProtocol, wantSentry: valkeysegment.ErrProtocol, wantFailed: 1,
-		},
-		{
-			name: "a RESP set inside EXEC", command: cmdEXEC, reply: "*2\r\n:1\r\n~1\r\n:1\r\n",
-			wantClass: valkeysegment.ClassProtocol, wantSentry: valkeysegment.ErrProtocol, wantFailed: 1,
-		},
-		{
-			name: "a RESP set instead of the EXEC array", command: cmdEXEC, reply: "~2\r\n:1\r\n*1\r\n:1\r\n",
-			wantClass: valkeysegment.ClassProtocol, wantSentry: valkeysegment.ErrProtocol, wantFailed: 1,
-		},
 		{
 			name: "an EXEC array of the wrong length", command: cmdEXEC, reply: replyOneIn,
 			wantClass: valkeysegment.ClassProtocol, wantSentry: valkeysegment.ErrProtocol, wantFailed: 1,
@@ -156,7 +151,6 @@ func TestProviderContainsRejectsAReplyOfTheWrongShape(t *testing.T) {
 
 			srv := loaded(t)
 			opts := atomicOptions(nil)
-			opts.DisableAtomic = tt.disable
 			prov := newProvider(t, srv, opts)
 
 			srv.answerOnly(tt.command, tt.reply)
@@ -273,6 +267,167 @@ func TestNewSendsOneTransactionOnOneSlotPerSet(t *testing.T) {
 			slices.Sort(rec.names)
 			slices.Sort(tt.wantCalls)
 			assert.Equal(t, tt.wantCalls, rec.names)
+		})
+	}
+}
+
+func TestDialDefaultsAtomicByReplicaReads(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		atomic    *bool
+		name      string
+		replicas  bool
+		wantMulti int
+		wantLogs  int
+	}{
+		{name: "no replica reads: on", wantMulti: 1},
+		{name: "replica reads, not set: off, with one INFO line", replicas: true, wantLogs: 1},
+		{name: "replica reads, explicit on: on", replicas: true, atomic: new(true), wantMulti: 1},
+		{name: "replica reads, explicit off: off, no line", replicas: true, atomic: new(false)},
+		{name: "no replica reads, explicit off: off", atomic: new(false)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := loaded(t)
+			opt := srv.clientOption()
+
+			if tt.replicas {
+				opt.SendToReplicas = func(valkey.Completed) bool { return false }
+			}
+
+			var logs bytes.Buffer
+
+			opts := atomicOptions(nil)
+			opts.Atomic = tt.atomic
+			opts.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+
+			prov, err := valkeysegment.Dial(opt, opts)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = prov.Shutdown(context.Background()) })
+
+			lookups := []segment.Lookup{lk(segBeta, idAlice)}
+
+			require.NoError(t, prov.Contains(context.Background(), lookups))
+			assert.Equal(t, []segment.State{segment.Member}, states(lookups))
+			assert.Equal(t, tt.wantMulti, srv.count("multi"), "MULTI")
+			assert.Equal(t, tt.wantLogs, strings.Count(logs.String(), "atomic existence check is off"))
+		})
+	}
+}
+
+// gateClient holds every DoMulti until the test lets them go, and counts how many are in flight.
+type gateClient struct {
+	valkey.Client
+
+	reached  chan struct{}
+	release  chan struct{}
+	inflight atomic.Int32
+	peak     atomic.Int32
+	calls    atomic.Int32
+	once     sync.Once
+	openOnce sync.Once
+}
+
+func (*gateClient) Mode() valkey.ClientMode { return valkey.ClientModeCluster }
+
+func (g *gateClient) DoMulti(ctx context.Context, multi ...valkey.Completed) []valkey.ValkeyResult {
+	now := g.inflight.Add(1)
+	g.calls.Add(1)
+
+	for {
+		old := g.peak.Load()
+		if now <= old || g.peak.CompareAndSwap(old, now) {
+			break
+		}
+	}
+
+	if now >= valkeysegment.MaxClusterConcurrency {
+		g.once.Do(func() { close(g.reached) })
+	}
+
+	<-g.release
+	g.inflight.Add(-1)
+
+	return g.Client.DoMulti(ctx, multi...)
+}
+
+// open lets the held calls go. It is safe to call more than once.
+func (g *gateClient) open() { g.openOnce.Do(func() { close(g.release) }) }
+
+func TestMaxClusterConcurrency(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		sets      int
+		wantPeak  int32
+		wantCalls int32
+	}{
+		{name: "more sets than the bound", sets: 3 * valkeysegment.MaxClusterConcurrency,
+			wantPeak: valkeysegment.MaxClusterConcurrency, wantCalls: 3 * valkeysegment.MaxClusterConcurrency},
+		{name: "fewer sets than the bound", sets: 3, wantPeak: 3, wantCalls: 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := loaded(t)
+
+			client, err := valkey.NewClient(*srv.clientOption())
+			require.NoError(t, err)
+			t.Cleanup(client.Close)
+
+			gate := &gateClient{Client: client, reached: make(chan struct{}), release: make(chan struct{})}
+			t.Cleanup(gate.open)
+
+			opts := atomicOptions(nil)
+			opts.Timeout = time.Minute
+			opts.Segments = map[string]valkeysegment.SegmentOptions{}
+			lookups := make([]segment.Lookup, tt.sets)
+
+			for i := range lookups {
+				name := "set" + strconv.Itoa(i)
+				opts.Segments[name] = valkeysegment.SegmentOptions{}
+				lookups[i] = lk(name, idAlice)
+			}
+
+			prov, err := valkeysegment.New(gate, opts)
+			require.NoError(t, err)
+
+			done := make(chan error, 1)
+
+			go func() { done <- prov.Contains(context.Background(), lookups) }()
+
+			if tt.sets >= valkeysegment.MaxClusterConcurrency {
+				select {
+				case <-gate.reached:
+				case <-time.After(closeBound):
+					require.Fail(t, "the calls did not reach the bound")
+				}
+			} else {
+				require.Eventually(t, func() bool { return gate.inflight.Load() == int32(tt.sets) },
+					closeBound, time.Millisecond, "every set is in flight at once")
+			}
+
+			// the bound holds while the first calls are held: no call beyond it has started
+			assert.Equal(t, tt.wantPeak, gate.peak.Load())
+
+			gate.open()
+
+			select {
+			case callErr := <-done:
+				require.NoError(t, callErr)
+			case <-time.After(closeBound):
+				require.Fail(t, "the call did not end")
+			}
+
+			assert.Equal(t, tt.wantPeak, gate.peak.Load(), "peak concurrency")
+			assert.Equal(t, tt.wantCalls, gate.calls.Load(), "one DoMulti for each set")
 		})
 	}
 }

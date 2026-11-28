@@ -127,7 +127,7 @@ func BenchmarkContainsAtomic(b *testing.B) {
 		disable bool
 	}{{name: "atomic"}, {name: "plain", disable: true}} {
 		prov := e2eProvider(b, opt, &valkeysegment.Options{
-			MissingKey: valkeysegment.MissingUnknown, Timeout: e2eTimeout, DisableAtomic: mode.disable,
+			MissingKey: valkeysegment.MissingUnknown, Timeout: e2eTimeout, Atomic: new(!mode.disable),
 			Segments: map[string]valkeysegment.SegmentOptions{segBeta: {Key: keyBeta}},
 		})
 

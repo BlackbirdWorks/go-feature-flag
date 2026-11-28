@@ -323,10 +323,10 @@ Settings of the store types `redis` and `valkey` (stores of [dynamic segments](.
 | `valkey` | `pipelining` | string | `always` | `always`, `auto` |
 | `valkey` | `blockingPipeline` | integer | `0` (never) | 0 or more |
 | `valkey` | `retry` | boolean | `false` | |
-| `valkey` | `atomic` | boolean | `true` | `EXISTS` and `SMISMEMBER` of a set in one `MULTI`/`EXEC`; only with `missingKey: unknown`; `false` sends them as two commands (see [Valkey](../configure-flags/segments-valkey.md#atomic-existence-check)) |
+| `valkey` | `atomic` | boolean | `true` (unset) | `EXISTS` and `SMISMEMBER` of a set in one `MULTI`/`EXEC`; only with `missingKey: unknown`; `false` sends them as two commands (see [Valkey](../configure-flags/segments-valkey.md#atomic-existence-check)) |
 | `valkey` | `forceSingleClient` | boolean | `false` | one address only; keeps valkey-go from probing for a cluster |
 | `valkey` | `timeouts.connect` | duration | valkey-go default | positive |
-| `valkey` | `timeouts.io` | duration | ten `lookupTimeout`s, at least `1s` | `10ms` to `1m`; the read and write timeout of a connection (`ConnWriteTimeout`); it also ends the wait behind a peer that stopped reading |
+| `valkey` | `timeouts.io` | duration | ten `lookupTimeout`s, at least `1s` | `10ms` to `1m` and `lookupTimeout` or more; the read and write timeout of a connection (`ConnWriteTimeout`); it also ends the wait behind a peer that stopped reading |
 
 ### `segments`
 

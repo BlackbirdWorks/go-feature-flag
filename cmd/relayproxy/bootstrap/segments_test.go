@@ -105,12 +105,23 @@ func TestStoreConnectionErrors(t *testing.T) {
 		{
 			name:    "valkey io timeout below the bound",
 			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], timeouts: {io: 1ms}}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.timeouts.io", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: ioPath, wantLine: 3,
 		},
 		{
 			name:    "valkey io timeout above the bound",
 			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], timeouts: {io: 2m}}\n",
-			wantErr: bootstrap.ErrInvalidValue, wantPath: "connections.v.timeouts.io", wantLine: 3,
+			wantErr: bootstrap.ErrInvalidValue, wantPath: ioPath, wantLine: 3,
+		},
+		{
+			name:    "valkey io timeout below the default lookup timeout",
+			doc:     "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], timeouts: {io: 50ms}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: ioPath, wantLine: 3,
+		},
+		{
+			name: "valkey io timeout below the lookup timeout",
+			doc: "version: 2\nconnections:\n  v: {type: valkey, addresses: [\"h:1\"], lookupTimeout: 150ms," +
+				" timeouts: {io: 20ms}}\n",
+			wantErr: bootstrap.ErrInvalidValue, wantPath: ioPath, wantLine: 3,
 		},
 		{
 			name:    "redis key on a valkey connection",
@@ -213,18 +224,21 @@ func TestSegmentDefaults(t *testing.T) {
 	assert.Equal(t, bootstrap.PipeliningAlways, cfg.Connections["v"].Valkey.Pipelining)
 }
 
+const ioPath = "connections.v.timeouts.io"
+
 func TestValkeyAtomic(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name       string
 		setting    string
+		wantSet    bool
 		wantAtomic bool
 	}{
-		{name: "unset is on", setting: "", wantAtomic: true},
-		{name: "explicitly on", setting: ", atomic: true", wantAtomic: true},
-		{name: "explicitly off", setting: ", atomic: false", wantAtomic: false},
-		{name: "io timeout at the bound", setting: ", timeouts: {io: 10ms}", wantAtomic: true},
+		{name: "unset stays unset (the provider decides)", setting: ""},
+		{name: "explicitly on", setting: ", atomic: true", wantSet: true, wantAtomic: true},
+		{name: "explicitly off", setting: ", atomic: false", wantSet: true},
+		{name: "io timeout at the lookup timeout", setting: ", timeouts: {io: 100ms}"},
 	}
 
 	for _, tt := range tests {
@@ -235,8 +249,12 @@ func TestValkeyAtomic(t *testing.T) {
 			cfg, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
 			require.NoError(t, err)
 
-			require.NotNil(t, cfg.Connections["v"].Valkey.Atomic)
-			assert.Equal(t, tt.wantAtomic, *cfg.Connections["v"].Valkey.Atomic)
+			got := cfg.Connections["v"].Valkey.Atomic
+			require.Equal(t, tt.wantSet, got != nil)
+
+			if tt.wantSet {
+				assert.Equal(t, tt.wantAtomic, *got)
+			}
 		})
 	}
 }

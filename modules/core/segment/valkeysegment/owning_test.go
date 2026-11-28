@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/valkey-io/valkey-go"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/valkeysegment"
 )
 
@@ -247,16 +248,16 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func TestDialKeepsTheConnWriteTimeoutOfTheClientOption(t *testing.T) {
+func TestOptionsConnWriteTimeoutEndsASilentPeer(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name      string
-		set       time.Duration
-		wantReady bool
+		timeout   time.Duration
+		wantClass valkeysegment.Class
 	}{
-		{name: "set in the client option", set: 30 * time.Second, wantReady: true},
-		{name: "not set", wantReady: true},
+		{name: "the option ends the call long before the call timeout", timeout: 50 * time.Millisecond,
+			wantClass: valkeysegment.ClassTimeout},
 	}
 
 	for _, tt := range tests {
@@ -264,14 +265,34 @@ func TestDialKeepsTheConnWriteTimeoutOfTheClientOption(t *testing.T) {
 			t.Parallel()
 
 			srv := loaded(t)
-			opt := srv.clientOption()
-			opt.ConnWriteTimeout = tt.set
+			entered := srv.Hang() // the server answers the handshake and then says nothing
 
-			prov, err := valkeysegment.Dial(opt, atomicOptions(nil))
-			require.NoError(t, err)
-			require.NoError(t, prov.Init(context.Background()))
-			assert.Equal(t, tt.wantReady, prov.Status().Ready)
-			require.NoError(t, prov.Shutdown(context.Background()))
+			opts := atomicOptions(nil)
+			opts.Timeout = time.Minute // the default of the option is tied to it: a minute, never 50ms
+			opts.ConnWriteTimeout = tt.timeout
+			prov := newProvider(t, srv, opts)
+
+			errs := make(chan error, 1)
+
+			go func() {
+				errs <- prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)})
+			}()
+
+			select {
+			case <-entered:
+			case <-time.After(closeBound):
+				require.Fail(t, "the server did not get the command")
+			}
+
+			select {
+			case err := <-errs:
+				var lookupErr *valkeysegment.LookupError
+
+				require.ErrorAs(t, err, &lookupErr)
+				assert.Equal(t, tt.wantClass, lookupErr.Class)
+			case <-time.After(closeBound):
+				require.Fail(t, "the connection deadline did not end the call: ConnWriteTimeout was ignored")
+			}
 		})
 	}
 }

@@ -89,6 +89,9 @@ func (v *validator) valkeySettings(path string, conn *ValkeyConnection) {
 	if tm := conn.Timeouts; tm != nil && tm.IO != nil {
 		if d := time.Duration(*tm.IO); d < valkeysegment.MinConnWriteTimeout || d > valkeysegment.MaxConnWriteTimeout {
 			v.failf(path+".timeouts.io", ErrInvalidValue, "expected a duration from 10ms to 1m")
+		} else if look := lookupTimeoutOf(conn.LookupTimeout); d < look {
+			v.failf(path+".timeouts.io", ErrInvalidValue,
+				"expected at least lookupTimeout (%s): a connection deadline below it cuts healthy replies", look)
 		}
 	}
 
@@ -138,4 +141,13 @@ func (v *validator) tuning(path string, t *SegmentTuning) {
 	v.positiveInt(path+".maxEntries", t.MaxEntries)
 	v.positiveInt(path+".shards", t.Shards)
 	v.positiveInt(path+".breakerFailures", t.BreakerFailures)
+}
+
+// lookupTimeoutOf is the lookup timeout of a connection with the default applied.
+func lookupTimeoutOf(d *Duration) time.Duration {
+	if d == nil {
+		return DefaultLookupTimeout
+	}
+
+	return time.Duration(*d)
 }

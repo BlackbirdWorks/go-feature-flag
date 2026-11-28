@@ -50,9 +50,9 @@ func TestE2EAtomicExistence(t *testing.T) {
 			load(t, client, keyBeta, "id1")
 
 			prov := e2eProvider(t, opt, &valkeysegment.Options{
-				MissingKey:    valkeysegment.MissingUnknown,
-				Timeout:       e2eTimeout,
-				DisableAtomic: tt.disable,
+				MissingKey: valkeysegment.MissingUnknown,
+				Timeout:    e2eTimeout,
+				Atomic:     new(!tt.disable),
 				Segments: map[string]valkeysegment.SegmentOptions{
 					segBeta:  {Key: keyBeta},
 					segGhost: {Key: "seg:{ghost}"},

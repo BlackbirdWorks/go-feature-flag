@@ -17,10 +17,10 @@ import (
 
 // valkeyHandle is a valkey-go client shared by every generation.
 type valkeyHandle struct {
-	client    valkey.Client
-	prefix    string
-	timeout   time.Duration
-	nonAtomic bool
+	client  valkey.Client
+	atomic  *bool
+	prefix  string
+	timeout time.Duration
 }
 
 func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOptions) Dialer {
@@ -70,7 +70,7 @@ func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOption
 
 		return &valkeyHandle{
 			client: client, prefix: conn.KeyPrefix, timeout: timeout,
-			nonAtomic: conn.Atomic != nil && !*conn.Atomic,
+			atomic: conn.Atomic,
 		}, nil
 	}
 }
@@ -91,7 +91,7 @@ func (h *valkeyHandle) Bind(
 
 	prov, err := valkeysegment.New(h.client, &valkeysegment.Options{
 		Segments: segs, KeyPrefix: h.prefix, MissingKey: valkeysegment.MissingKey(missing), Timeout: h.timeout,
-		DisableAtomic: h.nonAtomic,
+		Atomic: h.atomic,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("valkey provider: %w", err)

@@ -55,7 +55,7 @@ func loaded(tb testing.TB) *stubServer {
 // check is off. atomicOptions are the defaults.
 func baseOptions(counters *valkeysegment.Counters) *valkeysegment.Options {
 	opts := atomicOptions(counters)
-	opts.DisableAtomic = true
+	opts.Atomic = new(false)
 
 	return opts
 }

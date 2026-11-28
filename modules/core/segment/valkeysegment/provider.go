@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -63,7 +63,7 @@ type Provider struct {
 	ready     atomic.Bool
 	closed    atomic.Bool
 	cluster   bool // the client is a cluster: a transaction goes in a DoMulti of its own, see do
-	atomic    bool // the existence check and SMISMEMBER of a set run in one MULTI/EXEC, see Options.DisableAtomic
+	atomic    bool // the existence check and SMISMEMBER of a set run in one MULTI/EXEC, see Options.Atomic
 }
 
 var (
@@ -97,7 +97,7 @@ func New(client Client, opts *Options) (*Provider, error) {
 		timeout:  opts.Timeout,
 		missing:  opts.MissingKey,
 		maxID:    opts.MaxIDBytes,
-		atomic:   !opts.DisableAtomic,
+		atomic:   opts.Atomic == nil || *opts.Atomic,
 	}
 
 	if prov.maxID == 0 {
@@ -194,6 +194,8 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 		return nil, err
 	}
 
+	opts = replicaDefault(clientOpt, opts)
+
 	owned := buildClientOption(clientOpt, opts)
 
 	client, err := valkey.NewClient(owned)
@@ -209,6 +211,26 @@ func Dial(clientOpt *valkey.ClientOption, opts *Options) (*Provider, error) {
 	}
 
 	return prov, nil
+}
+
+// replicaDefault returns opts with the atomic check off when the client reads from replicas and Atomic is not
+// set: a transaction (MULTI) always goes to the primary, so the check would move every set lookup there. An
+// explicit Atomic wins.
+func replicaDefault(clientOpt *valkey.ClientOption, opts *Options) *Options {
+	if opts.Atomic != nil || (clientOpt.SendToReplicas == nil && !clientOpt.ReplicaOnly) {
+		return opts
+	}
+
+	eff := *opts
+	eff.Atomic = new(false)
+
+	if opts.Logger != nil {
+		opts.Logger.LogAttrs(context.Background(), slog.LevelInfo,
+			"valkey segments: the atomic existence check is off because the client reads from replicas; "+
+				"set atomic to true to send it to the primary")
+	}
+
+	return &eff
 }
 
 // buildClientOption returns the valkey-go options that Dial uses: clientOpt with the client settings of opts.
@@ -478,11 +500,11 @@ func decodeAll(steps []step, results []valkey.ValkeyResult) ([]decoded, bool) {
 // only (dec.err).
 func decodeTx(res valkey.ValkeyResult, want int, dec *decoded) bool {
 	msg, err := res.ToMessage()
-	if err != nil || !isArray(&msg) {
+	if err != nil {
 		return false
 	}
 
-	items, err := msg.ToArray()
+	items, err := msg.ToArray() // a RESP set is read as an array: valkey-go cannot tell them apart
 	if err != nil || len(items) != txReplies {
 		return false
 	}
@@ -575,18 +597,6 @@ func flag(res valkey.ValkeyResult) (bool, error) {
 	return flagValue(val)
 }
 
-// respArray is the type byte of a RESP array, the reply that SMISMEMBER and EXEC return.
-const respArray = '*'
-
-// isArray tells whether msg is a RESP array. valkey-go has no accessor for the type: IsArray and ToArray also accept
-// a RESP set, which no command of the provider returns, so the type byte is read from the message itself. A client
-// whose message has no such field answers false: every reply is then a protocol error, never a wrong answer.
-func isArray(msg *valkey.ValkeyMessage) bool {
-	typ := reflect.ValueOf(msg).Elem().FieldByName("typ")
-
-	return typ.IsValid() && typ.Kind() == reflect.Uint8 && typ.Uint() == respArray
-}
-
 func flagOf(msg valkey.ValkeyMessage) (bool, error) {
 	val, err := msg.ToInt64()
 	if err != nil {
@@ -614,13 +624,10 @@ func parseMembers(res valkey.ValkeyResult, want int) ([]int64, error) {
 	return membersOf(msg, want)
 }
 
-// membersOf reads an array message of want integers, each 0 or 1. ToArray would also accept a RESP set: that is not
-// the reply of SMISMEMBER, so it is a protocol error.
+// membersOf reads an array message of want integers, each 0 or 1. valkey-go has no public way to tell a RESP array
+// from a RESP set (IsArray and ToArray accept both), so a set reply of the right length and values is read as the
+// array it stands for. A wrong length, a null, a string or a value other than 0 or 1 is a protocol error.
 func membersOf(msg valkey.ValkeyMessage, want int) ([]int64, error) {
-	if !isArray(&msg) {
-		return nil, ErrProtocol
-	}
-
 	items, err := msg.ToArray()
 	if err != nil || len(items) != want {
 		return nil, ErrProtocol
@@ -886,21 +893,78 @@ func (p *Provider) do(ctx context.Context, steps []step, cmds []valkey.Completed
 		return p.client.DoMulti(ctx, cmds...)
 	}
 
+	groups := splitTx(steps)
+
+	out := make([]valkey.ValkeyResult, len(cmds))
+	panics := make([]any, len(groups))
+
+	// at most MaxClusterConcurrency workers take the groups in turn: a call with many sets never opens one
+	// DoMulti for each at once
+	forEachBounded(MaxClusterConcurrency, len(groups), func(grp int) {
+		if len(groups[grp]) == 0 {
+			return
+		}
+
+		defer func() { panics[grp] = recover() }()
+
+		group := make([]valkey.Completed, len(groups[grp]))
+		for k, idx := range groups[grp] {
+			group[k] = cmds[idx]
+		}
+
+		for k, res := range p.client.DoMulti(ctx, group...) {
+			out[groups[grp][k]] = res
+		}
+	})
+
+	for _, caught := range panics {
+		if caught != nil {
+			panic(caught) // lookup answers every lookup Unknown
+		}
+	}
+
+	return out
+}
+
+// forEachBounded calls visit for each index below count, from at most limit goroutines, and waits for them.
+func forEachBounded(limit, count int, visit func(int)) {
+	var (
+		wg   sync.WaitGroup
+		next atomic.Int64
+	)
+
+	for range min(limit, count) {
+		wg.Go(func() {
+			for {
+				idx := int(next.Add(1) - 1)
+				if idx >= count {
+					return
+				}
+
+				visit(idx)
+			}
+		})
+	}
+
+	wg.Wait()
+}
+
+// splitTx returns the indexes of the commands in groups: the first group is the commands that are not in a
+// transaction, the others are one transaction each.
+func splitTx(steps []step) [][]int {
 	var plain []int
 
-	groups := [][]int{nil} // the first is the commands that are not in a transaction
-
+	groups := [][]int{nil}
 	pos := 0
 
 	for i := range steps {
-		width := steps[i].width()
-		idx := make([]int, width)
+		idx := make([]int, steps[i].width())
 
 		for j := range idx {
 			idx[j] = pos + j
 		}
 
-		pos += width
+		pos += len(idx)
 
 		if steps[i].kind == kindTx {
 			groups = append(groups, idx)
@@ -911,39 +975,7 @@ func (p *Provider) do(ctx context.Context, steps []step, cmds []valkey.Completed
 
 	groups[0] = plain
 
-	out := make([]valkey.ValkeyResult, len(cmds))
-	panics := make([]any, len(groups))
-
-	var wg sync.WaitGroup
-
-	for grp := range groups {
-		if len(groups[grp]) == 0 {
-			continue
-		}
-
-		wg.Go(func() {
-			defer func() { panics[grp] = recover() }()
-
-			group := make([]valkey.Completed, len(groups[grp]))
-			for k, idx := range groups[grp] {
-				group[k] = cmds[idx]
-			}
-
-			for k, res := range p.client.DoMulti(ctx, group...) {
-				out[groups[grp][k]] = res
-			}
-		})
-	}
-
-	wg.Wait()
-
-	for _, caught := range panics {
-		if caught != nil {
-			panic(caught) // lookup answers every lookup Unknown
-		}
-	}
-
-	return out
+	return groups
 }
 
 // idsOf returns the ids of the lookups at idx.

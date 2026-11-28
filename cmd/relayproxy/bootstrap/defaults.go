@@ -154,11 +154,6 @@ func (c Connection) applyDefaults() {
 		k.Pipelining = PipeliningAlways
 	}
 
-	if k := c.Valkey; k != nil && k.Atomic == nil {
-		atomic := true
-		k.Atomic = &atomic
-	}
-
 	if a := c.aws(); a != nil {
 		a.applyDefaults()
 	}
