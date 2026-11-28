@@ -50,14 +50,6 @@ func TestEngineAwaitsTheRevision(t *testing.T) {
 	gate := make(chan struct{})
 	entered := make(chan struct{}, 8)
 
-	t.Cleanup(func() {
-		select {
-		case <-gate:
-		default:
-			close(gate)
-		}
-	})
-
 	harness := newRig(t, flagruntime.Hooks{BeforeSwap: func(candidate *flagruntime.Runtime) error {
 		if candidate.Snapshot >= 2 {
 			entered <- struct{}{}
@@ -68,6 +60,16 @@ func TestEngineAwaitsTheRevision(t *testing.T) {
 		return nil
 	}})
 	harness.start()
+
+	// registered after the rig: the cleanups run last in, first out, so the gate opens before the rig stops the
+	// engine, and a run that failed ends at once
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
 
 	stale := flagruntime.Object{Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale, Reason: "gone"}
 	res := harness.feed(revision(content(1, simpleObjs(t, 1).with(objs{"f1": stale})), 1))

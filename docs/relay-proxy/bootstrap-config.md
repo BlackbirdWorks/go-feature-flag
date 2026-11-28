@@ -34,6 +34,9 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 - The file is YAML with one document. A second document (`---`) is an error. The key `version: 2` is required, in
   any position. A file without it, or with another value, fails with `version 2 required`.
+- An address `host:port` (a listener, a Kafka broker, a store address, the OTLP endpoint) writes its port as digits
+  only, from 1 to 65535, with no sign and no leading zero (`1031`, not `+1031` or `01031`): the file is compared as
+  written and the server binds the number. An address that breaks the rule is refused with the path of the key.
 - Unknown keys are rejected. `studio` and the AWS Lambda `server.mode` are not part of version 2, so they are unknown
   keys. Inline `flagSets` is reserved and rejected: flag sets arrive from the manifest.
 - Every error names the path of the key and its line, for example

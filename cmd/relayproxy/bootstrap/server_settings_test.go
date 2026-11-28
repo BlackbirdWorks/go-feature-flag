@@ -170,3 +170,54 @@ func sizeOf(size *bootstrap.ByteSize) int64 {
 
 	return int64(*size)
 }
+
+// The one rule of a host:port address (the port is digits, no sign, no leading zero) holds for the brokers of a Kafka
+// exporter and for the OTLP endpoint, and the error names the path of the key.
+func TestAddressPortRuleOfBrokersAndOTLPEndpoint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		doc      string
+		wantPath string
+	}{
+		{name: "a broker", doc: "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:9092\"]}}\n"},
+		{
+			name:     "a broker with a leading zero",
+			doc:      "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:09092\"]}}\n",
+			wantPath: "exporters.e.kafka.addresses[0]",
+		},
+		{
+			name:     "the second broker with a sign",
+			doc:      "exporters:\n  e: {kind: kafka, kafka: {topic: t, addresses: [\"h:9092\", \"h:+9092\"]}}\n",
+			wantPath: "exporters.e.kafka.addresses[1]",
+		},
+		{name: "the OTLP endpoint", doc: "observability:\n  tracing: {otlpEndpoint: \"collector:4317\"}\n"},
+		{
+			name:     "the OTLP endpoint with a leading zero",
+			doc:      "observability:\n  tracing: {otlpEndpoint: \"collector:04317\"}\n",
+			wantPath: "observability.tracing.otlpEndpoint",
+		},
+		{
+			name:     "the OTLP endpoint with a sign",
+			doc:      "observability:\n  tracing: {otlpEndpoint: \"collector:+4317\"}\n",
+			wantPath: "observability.tracing.otlpEndpoint",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := bootstrap.Parse([]byte(settingsBase+tt.doc), nil, options(nil, nil, false))
+			if tt.wantPath == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.NotNil(t, findError(t, err, bootstrap.ErrInvalidValue, tt.wantPath))
+		})
+	}
+}
