@@ -36,6 +36,7 @@ const (
 	oldKey       = liveKey + ":import:" + runToken + ":old"
 	lockKey      = liveKey + ":import:lock"
 	committedKey = liveKey + ":import:committed"
+	sourceKey    = liveKey + ":import:source"
 	lastKey      = liveKey + ":import:last"
 	otherTmp     = liveKey + ":import:other:new"
 	deadTmp      = liveKey + ":import:dead:new"

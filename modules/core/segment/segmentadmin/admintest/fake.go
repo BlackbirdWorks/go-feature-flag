@@ -509,8 +509,9 @@ func (f *Fake) KeyTTL(ctx context.Context, key string) (bool, time.Duration, err
 	}
 
 	_, set := f.sets[key]
+	_, str := f.strs[key]
 
-	return set, f.ttls[key], nil
+	return set || str, f.ttls[key], nil
 }
 
 // CountKeys implements [segmentadmin.Store].
@@ -575,9 +576,19 @@ func (f *Fake) lose(command string) error {
 
 // commitLocked applies the swap. The caller holds the lock.
 func (f *Fake) commitLocked(commit *segmentadmin.Commit) (segmentadmin.CommitResult, bool, error) {
-	for _, key := range []string{commit.Tmp, commit.Old, commit.Lock, commit.Committed} {
+	for _, key := range []string{commit.Tmp, commit.Old, commit.Lock, commit.Committed, commit.Source} {
 		if segmentadmin.Slot(key) != segmentadmin.Slot(commit.Live) {
 			return segmentadmin.LockLost, false, ErrCrossSlot
+		}
+	}
+
+	record := func() {
+		f.strs[commit.Committed] = commit.Token
+
+		if commit.Fingerprint == "" {
+			delete(f.strs, commit.Source)
+		} else {
+			f.strs[commit.Source] = commit.Fingerprint
 		}
 	}
 
@@ -589,7 +600,7 @@ func (f *Fake) commitLocked(commit *segmentadmin.Commit) (segmentadmin.CommitRes
 	case commit.Empty:
 		delete(f.sets, commit.Live)
 		delete(f.ttls, commit.Live)
-		f.strs[commit.Committed] = commit.Token
+		record()
 
 		return segmentadmin.Committed, f.noUnlink, nil
 	}
@@ -613,7 +624,7 @@ func (f *Fake) commitLocked(commit *segmentadmin.Commit) (segmentadmin.CommitRes
 	delete(f.ttls, commit.Tmp)
 	delete(f.ttls, commit.Live) // PERSIST
 
-	f.strs[commit.Committed] = commit.Token
+	record()
 
 	return segmentadmin.Committed, false, nil
 }

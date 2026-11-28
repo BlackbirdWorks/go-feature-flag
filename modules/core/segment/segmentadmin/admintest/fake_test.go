@@ -26,7 +26,15 @@ const (
 
 func commitOf(want int64) *segmentadmin.Commit {
 	return &segmentadmin.Commit{
-		Lock: lock, Tmp: tmp, Live: live, Old: old, Committed: committed, Token: token, Want: want, OldTTL: time.Minute,
+		Lock:      lock,
+		Tmp:       tmp,
+		Live:      live,
+		Old:       old,
+		Committed: committed,
+		Source:    committed + "s",
+		Token:     token,
+		Want:      want,
+		OldTTL:    time.Minute,
 	}
 }
 

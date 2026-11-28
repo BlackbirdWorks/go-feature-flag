@@ -36,6 +36,8 @@ const (
 	// block the server for a noticeable time, and the report says so.
 	DelWarnMembers = 100_000
 	tokenBytes     = 16
+	// versionSuffixBytes is the random bytes of a version value (16 hex characters).
+	versionSuffixBytes = 8
 )
 
 // Target is a segment as its definition and the bootstrap file say it: the operator does not retype any of it.
@@ -61,6 +63,10 @@ type ImportOptions struct {
 	Wait func(ctx context.Context, delay time.Duration) error
 	// Token identifies the run in the lock and in the name of its temporary key. Empty means a random token.
 	Token string
+	// Fingerprint identifies the input (see [ObjectSource.Fingerprint]). The swap records it in the key
+	// [RunKeys.Source] in the same step, so the record is there exactly when the set is live. Empty means an input
+	// without one (a file, standard input): the swap removes the record of an older input.
+	Fingerprint string
 	// BatchSize is the members of one batch. Zero means [DefaultBatchSize].
 	BatchSize int
 	// TempTTL is the life of the temporary key and of the lock, refreshed by every batch. Zero means [DefaultTempTTL];
@@ -211,12 +217,15 @@ func waitTimer(ctx context.Context, delay time.Duration) error {
 	}
 }
 
-func newToken() (string, error) {
-	raw := make([]byte, tokenBytes)
+func newToken() (string, error) { return randomHex(tokenBytes) }
+
+// randomHex is n random bytes as hex.
+func randomHex(n int) (string, error) {
+	raw := make([]byte, n)
 
 	_, err := rand.Read(raw)
 	if err != nil {
-		return "", fmt.Errorf("make a token: %w", err)
+		return "", fmt.Errorf("make a random value: %w", err)
 	}
 
 	return hex.EncodeToString(raw), nil
@@ -484,8 +493,8 @@ func (run *importRun) finish(ctx context.Context) error {
 func (run *importRun) commit(ctx context.Context) (CommitResult, bool, error) {
 	commit := &Commit{
 		Lock: run.keys.Lock, Tmp: run.keys.Tmp, Live: run.target.Key, Old: run.keys.Old,
-		Committed: run.keys.Committed, Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL,
-		Empty: run.rep.Accepted == 0,
+		Committed: run.keys.Committed, Source: run.keys.Source, Fingerprint: run.opts.Fingerprint,
+		Token: run.token, Want: run.rep.Added, OldTTL: run.opts.TempTTL, Empty: run.rep.Accepted == 0,
 	}
 
 	var err error
@@ -541,15 +550,23 @@ func (run *importRun) bump(ctx context.Context) error {
 	return BumpWithRetry(ctx, run.store, run.target, run.rep, run.opts.Wait)
 }
 
-// Bump writes a new version to the version key of the target, when it has one, and records it in rep.
+// Bump writes a new version to the version key of the target, when it has one, and records it in rep. The value is
+// the time, a dot and 16 random hex characters, so that two bumps never write the same value (a frozen or coarse
+// clock, two hosts at the same instant): a relay that compares the token always sees a change.
 func Bump(ctx context.Context, store Store, target *Target, rep *Report) error {
 	if target.VersionKey == "" {
 		return nil
 	}
 
-	version := clock.Now().UTC().Format(time.RFC3339Nano)
+	// the time is for people (stat); the random part makes every bump a different value, whatever the clock says
+	suffix, err := randomHex(versionSuffixBytes)
+	if err != nil {
+		return err
+	}
 
-	err := store.SetValue(ctx, target.VersionKey, version)
+	version := clock.Now().UTC().Format(time.RFC3339Nano) + "." + suffix
+
+	err = store.SetValue(ctx, target.VersionKey, version)
 	if err != nil {
 		return fmt.Errorf("bump the version key: %w", err)
 	}

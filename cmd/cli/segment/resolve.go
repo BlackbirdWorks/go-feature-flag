@@ -1,6 +1,7 @@
 package segment
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -20,25 +21,73 @@ var (
 	ErrNoConnection = errors.New("the bootstrap file does not define the connection of the segment")
 	// ErrNotStore is returned for a connection that is neither valkey nor redis.
 	ErrNotStore = errors.New("the connection of the segment is not a valkey or redis connection")
+	// ErrAmbiguous is returned for a name that two segments documents of the control plane define.
+	ErrAmbiguous = errors.New("more than one segments document defines this segment")
 )
 
 // resolved is everything that the definition and the bootstrap file say about a segment.
 type resolved struct {
+	cfg      *bootstrap.Config
 	conn     *bootstrap.Connection
 	target   *segmentadmin.Target
 	connName string
 	secrets  bootstrap.LoadOptions
 }
 
-// resolve reads the bootstrap file and the segments document and returns the target: key, layout and version key
-// come from the definition, the key prefix from the connection, the normalization and the longest id from the
-// resolver settings of the bootstrap file, as the relay reads them.
-func resolve(com *Common, deps *Deps) (*resolved, error) {
+// namedDoc is a segments document and where it came from, for the messages.
+type namedDoc struct {
+	doc   *controlplane.SegmentsDocument
+	label string
+}
+
+// resolve reads the bootstrap file and the segments document (a file, or the segments objects that the manifest of the
+// control plane lists) and returns the target: key, layout and version key come from the definition, the key prefix
+// from the connection, the normalization and the longest id from the resolver settings of the bootstrap file, as the
+// relay reads them.
+func resolve(ctx context.Context, com *Common, deps *Deps) (*resolved, error) {
 	secrets := bootstrap.LoadOptions{LookupEnv: deps.LookupEnv, ReadFile: deps.ReadFile, SkipRelayChecks: true}
 
 	cfg, err := bootstrap.Load(&bootstrap.Overrides{Config: com.Config}, secrets)
 	if err != nil {
 		return nil, fmt.Errorf("bootstrap file: %w", err)
+	}
+
+	docs, err := loadDocuments(ctx, com, cfg, secrets, deps)
+	if err != nil {
+		return nil, err
+	}
+
+	def, found, err := findDefinition(docs, com.Segment)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, ok := cfg.Connections[def.Connection]
+	if !ok {
+		return nil, fmt.Errorf("%s: %q: %w", found.label, def.Connection, ErrNoConnection)
+	}
+
+	prefix, err := prefixOf(&conn, def.Connection)
+	if err != nil {
+		return nil, err
+	}
+
+	target := targetOf(cfg, def, prefix)
+
+	err = checkOverlap(found.doc, def, target, cfg, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", found.label, err)
+	}
+
+	return &resolved{cfg: cfg, conn: &conn, target: target, connName: def.Connection, secrets: secrets}, nil
+}
+
+// loadDocuments reads the file that --segments names, or, without it, the segments documents of the control plane.
+func loadDocuments(
+	ctx context.Context, com *Common, cfg *bootstrap.Config, secrets bootstrap.LoadOptions, deps *Deps,
+) ([]namedDoc, error) {
+	if com.Segments == "" {
+		return planeDocuments(ctx, cfg, secrets, deps)
 	}
 
 	data, err := deps.ReadFile(com.Segments)
@@ -51,29 +100,7 @@ func resolve(com *Common, deps *Deps) (*resolved, error) {
 		return nil, fmt.Errorf("%s: %w", com.Segments, err)
 	}
 
-	def, err := findDefinition(doc, com)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, ok := cfg.Connections[def.Connection]
-	if !ok {
-		return nil, fmt.Errorf("%q: %w", def.Connection, ErrNoConnection)
-	}
-
-	prefix, err := prefixOf(&conn, def.Connection)
-	if err != nil {
-		return nil, err
-	}
-
-	target := targetOf(cfg, def, prefix)
-
-	err = checkOverlap(doc, def, target, cfg, prefix)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", com.Segments, err)
-	}
-
-	return &resolved{conn: &conn, target: target, connName: def.Connection, secrets: secrets}, nil
+	return []namedDoc{{doc: doc, label: com.Segments}}, nil
 }
 
 // checkOverlap refuses a segment whose keys can meet the keys of another segment of the document on the same
@@ -97,22 +124,35 @@ func checkOverlap(
 	return nil
 }
 
-// findDefinition is the dynamic definition that the flags name.
-func findDefinition(doc *controlplane.SegmentsDocument, com *Common) (*controlplane.SegmentDefinition, error) {
-	for i := range doc.Segments {
-		def := &doc.Segments[i]
-		if def.Name != com.Segment {
-			continue
-		}
+// findDefinition is the dynamic definition of the name, in the one document that defines it.
+func findDefinition(docs []namedDoc, name string) (*controlplane.SegmentDefinition, *namedDoc, error) {
+	var (
+		def   *controlplane.SegmentDefinition
+		found *namedDoc
+	)
 
-		if def.Connection == "" {
-			return nil, fmt.Errorf("%s: %q: %w", com.Segments, com.Segment, ErrStatic)
-		}
+	for i := range docs {
+		for pos := range docs[i].doc.Segments {
+			if docs[i].doc.Segments[pos].Name != name {
+				continue
+			}
 
-		return def, nil
+			if def != nil {
+				return nil, nil, fmt.Errorf("%s and %s: %q: %w", found.label, docs[i].label, name, ErrAmbiguous)
+			}
+
+			def, found = &docs[i].doc.Segments[pos], &docs[i]
+		}
 	}
 
-	return nil, fmt.Errorf("%s: %q: %w", com.Segments, com.Segment, ErrNoSegment)
+	switch {
+	case def == nil:
+		return nil, nil, fmt.Errorf("%q: %w", name, ErrNoSegment)
+	case def.Connection == "":
+		return nil, nil, fmt.Errorf("%s: %q: %w", found.label, name, ErrStatic)
+	}
+
+	return def, found, nil
 }
 
 // targetOf is the segment as the relay reads it.
