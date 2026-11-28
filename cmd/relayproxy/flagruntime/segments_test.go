@@ -25,7 +25,7 @@ const (
 func segObj(body string) flagruntime.Object { return obj(flagruntime.KindSegments, []byte(body)) }
 
 // withSegmentSources is a flag-set document of two flag sets: a lists the segments object, b does not.
-func withSegmentSources(t *testing.T) flagruntime.Object {
+func withSegmentSources(t testing.TB) flagruntime.Object {
 	t.Helper()
 
 	return setsObj(
