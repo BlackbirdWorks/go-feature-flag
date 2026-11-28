@@ -5,7 +5,7 @@ store (for example S3) and that the relay proxy reads: the manifest, the flag-se
 
 - Import one package, fill exported structs, call a `Marshal` function, write the bytes.
 - The relay is built to decode and validate with the same package, so "valid for the publisher" is "accepted by the
-  relay". (The relay does not use it yet; it is wired in by the manifest reader and the flag-set work.)
+  relay". The relay reader and the `semaphore-cli publish` command use the same package.
 - The production files import only the standard library and `gopkg.in/yaml.v3`.
 - It is the public, stability-guaranteed Go package of the module: its API follows semantic versioning.
 
@@ -185,8 +185,15 @@ The structs mirror the engine's types exactly, so what the engine tells apart st
 
 ## Writing the documents
 
+The code below is the `Example` test of the package (`controlplane/example_test.go`), so it compiles and runs with
+the tests, and a test keeps this block equal to its source. It marshals the documents, validates them as the relay
+does, and shows the order of the upload: objects first, manifest last.
+
+<!-- controlplane-doc: example -->
 ```go
-func publish() error {
+// The whole publisher flow: marshal the flags, the flag-set document and the manifest, validate them as the
+// relay will, then upload the objects first and the manifest last.
+func Example() {
 	flags := controlplane.Flags{"new-cart": {
 		Variations:  map[string]any{"enabled": true, "disabled": false},
 		DefaultRule: &controlplane.Rule{Variation: new("disabled")},
@@ -197,19 +204,25 @@ func publish() error {
 
 	err := controlplane.ValidateFlags(flags)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	body, err := controlplane.MarshalFlags(flags)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	sum := controlplane.ChecksumOf(body)
 
 	key, err := controlplane.ObjectKey(sum, "yaml")
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	set := &controlplane.FlagSetDocument{FlagSets: []controlplane.FlagSet{{
@@ -218,14 +231,18 @@ func publish() error {
 
 	setBody, err := controlplane.MarshalFlagSet(set)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	setSum := controlplane.ChecksumOf(setBody)
 
 	setKey, err := controlplane.ObjectKey(setSum, "yaml")
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	manifest := &controlplane.Manifest{
@@ -256,23 +273,32 @@ func publish() error {
 	// The same checks the relay runs. An empty header means the current one.
 	err = controlplane.ValidateManifest(manifest)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	err = controlplane.ValidateFlagSet(set, manifest)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	manifestBody, err := controlplane.MarshalManifest(manifest)
 	if err != nil {
-		return err
+		fmt.Println(err)
+
+		return
 	}
 
 	// Upload body and setBody first, manifestBody last.
-	_ = manifestBody
-
-	return nil
+	fmt.Println(manifest.Objects[0].Key)
+	fmt.Print(string(manifestBody[:len("apiVersion: semaphore/v1\nkind: Manifest\n")]))
+	// Output:
+	// objects/sha256/51/51261bbe10356e8c36b7431ed8bf585372f8309d7e7dfa51b971a72fe7e031c3.yaml
+	// apiVersion: semaphore/v1
+	// kind: Manifest
 }
 ```
 
@@ -316,7 +342,8 @@ A reader that wants a last-known-good per entry uses the `FieldError` fields, no
   `invalid-checksum`, `invalid-value`, `missing-value`, `too-many-objects`, `undeclared-variation`.
 - An object that has a problem is one with a `FieldError` of kind `object` and its `Index`; the other objects are good.
   The same holds for flag sets (`flagSet`) and flags (`flag`, by `Name`).
-- An object with a newer content `version` is an entry problem (`unsupported-version`), not a failure of the manifest.
+- An object with a newer content `version` is an entry problem (`unsupported-version`) in the list of the package. The
+  relay reader rejects a manifest that has any problem, so it rejects such a manifest whole.
 - Of two objects or flag sets with one name, the first in document order keeps the name and the later one has the
   problem. Of an API key held by two flag sets, the first flag set keeps the key and the later one has the problem
   (`duplicate-key`); the key itself is never printed.

@@ -13,6 +13,8 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Bootstrap file, version 2](relay-proxy/bootstrap-config.md) (the configuration of the relay: connections, flag sets, API keys, exporters)
 - [Schema reference](reference/schema.md) (generated: bootstrap file, manifest, flag-set and segments documents)
 - [Relay core](relay-proxy/relay-core.md) (how the relay starts, reloads in place and shuts down)
+- [Runbook](relay-proxy/runbook.md) (store outage, bad object, rejected generation, `pendingRestart`, key rotation, rollback)
+- [Security](relay-proxy/security.md) (admin keys, API keys, what is never logged, state directory, TLS)
 - [Probes and observability](relay-proxy/probes.md) (`/livez`, `/readyz`, `/startupz`, the `/info` config section and the metrics)
 - [Observability](relay-proxy/observability.md) and [profiling](relay-proxy/profiling.md)
 - [API endpoints](relay-proxy/endpoints.md)
@@ -27,6 +29,9 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Evaluation context](concepts/evaluation-context.md)
 - [Flag sets](concepts/flagset.md)
 - [Live reload](concepts/live-reload.md)
+- [Reload semantics](concepts/reload-semantics.md)
+- [Manifest and document model](concepts/manifest-and-documents.md)
+- [Store request budget](concepts/request-budget.md)
 - [Flag sets and evaluation](concepts/flag-sets-and-evaluation.md)
 - [Connections](concepts/connections.md)
 - [Events and notifiers](concepts/events-and-notifiers.md)
@@ -55,6 +60,7 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [Configuration](go-module/configuration.md)
 - [Store flags](go-module/store_file.md), [target a user](go-module/target_user.md), [collect data](go-module/data_collection.md), [notifiers](go-module/notifier.md)
 - [Control plane document format](go-module/controlplane.md) (manifest, flag-set documents and flag objects for publishers)
+- [Document versions and compatibility](go-module/document-versioning.md)
 - [Publish to S3 (`s3publish`)](go-module/s3publish.md) (upload protocol: objects first, manifest last, conditional writes)
 
 ## Migration

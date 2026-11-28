@@ -155,3 +155,32 @@ func TestSegmentsDocsExamples(t *testing.T) {
 		}
 	}
 }
+
+// TestDocsExampleIsTheExampleTest: the code block of the page is the source of the Example test of the package, so the
+// sample compiles, runs and keeps its output.
+func TestDocsExampleIsTheExampleTest(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile(docsPage)
+	require.NoError(t, err)
+
+	source, err := os.ReadFile("example_test.go")
+	require.NoError(t, err)
+
+	_, after, found := strings.Cut(string(source), "// The whole publisher flow")
+	require.True(t, found)
+
+	body, _, found := strings.Cut(after, "\n}\n")
+	require.True(t, found)
+
+	want := "// The whole publisher flow" + body + "\n}\n"
+
+	_, block, found := strings.Cut(string(raw), "<!-- controlplane-doc: example -->\n```go\n")
+	require.True(t, found, "the page marks the example block")
+
+	got, _, found := strings.Cut(block, "```")
+	require.True(t, found)
+
+	assert.Equal(t, want, got)
+	assert.Contains(t, want, "// Output:", "the sample is checked by its output")
+}
