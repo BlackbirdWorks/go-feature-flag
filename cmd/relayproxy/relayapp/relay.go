@@ -661,7 +661,14 @@ func (r *relay) joinLoops(ctx context.Context) error {
 // wireStreams makes the core feed the streams: it broadcasts the changes, and after every swap it closes the streams of
 // the clients that the new runtime does not entitle anymore, before the changes of the swap are queued.
 func wireStreams(deps *relaycore.Deps, streams *corehttp.Streams) {
-	deps.Broadcast = streams.Broadcast
+	before := deps.Broadcast
+	deps.Broadcast = func(change flagruntime.Change) {
+		if before != nil {
+			before(change)
+		}
+
+		streams.Broadcast(change)
+	}
 
 	next := deps.Hooks.AfterSwap
 	deps.Hooks.AfterSwap = func(rt *flagruntime.Runtime) {

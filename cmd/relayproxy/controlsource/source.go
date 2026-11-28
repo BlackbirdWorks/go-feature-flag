@@ -130,7 +130,7 @@ func Content(snap *manifestreader.Snapshot) *flagruntime.Content {
 		}
 	}
 
-	return &flagruntime.Content{Objects: objects, Generation: snap.Generation}
+	return &flagruntime.Content{Objects: objects, Generation: snap.Generation, Revision: snap.Revision}
 }
 
 func objectState(state manifestreader.State) flagruntime.ObjectState {

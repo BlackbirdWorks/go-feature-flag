@@ -68,6 +68,7 @@
     ],
     "withdrawn": null,
     "pendingRestart": null,
+    "public": {"sets": [], "flags": 0, "present": false},
     "lastReload": {
       "outcome": "applied",
       "code": "applied",

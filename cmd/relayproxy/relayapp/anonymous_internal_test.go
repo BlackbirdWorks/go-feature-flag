@@ -2,9 +2,11 @@ package relayapp
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
@@ -329,8 +332,9 @@ func TestRunAppliesTheStreamAndValidateSettings(t *testing.T) {
 	rig.awaitGeneration(1)
 
 	// a flag set without keys is public: a client without a key is served
-	rig.store.publishDocs(publicSets(openSet),
-		map[string]string{flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100)})
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100),
+	})
 	rig.poll(2)
 
 	status, body := doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody,
@@ -378,6 +382,8 @@ const (
 type streamClient struct {
 	events chan string
 	closed chan error
+	// received counts every message the client got.
+	received atomic.Int64
 }
 
 func dialWebsocket(t *testing.T, base, key string) *streamClient {
@@ -403,6 +409,8 @@ func dialWebsocket(t *testing.T, base, key string) *streamClient {
 
 				return
 			}
+
+			client.received.Add(1)
 
 			client.events <- string(msg)
 		}
@@ -433,6 +441,8 @@ func dialSSE(t *testing.T, base, key string) *streamClient {
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			if line := scanner.Text(); strings.HasPrefix(line, "data:") {
+				client.received.Add(1)
+
 				client.events <- line
 			}
 		}
@@ -456,6 +466,7 @@ func (c *streamClient) awaitEvent(t *testing.T, want string) {
 	}
 }
 
+// awaitClosed waits for the end of the stream.
 func (c *streamClient) awaitClosed(t *testing.T) {
 	t.Helper()
 
@@ -465,6 +476,113 @@ func (c *streamClient) awaitClosed(t *testing.T) {
 	case <-time.After(waitBound):
 		require.FailNow(t, "the stream was not closed")
 	}
+}
 
-	assert.Empty(t, c.events, "nothing arrived after the close")
+// A client without a key gets the changes of the public flags, on the websocket and on the SSE stream, as a client with
+// a key gets the ones of its flag set. When a generation withdraws the public flags (their flag set gets a key) the
+// clients without a key are closed at once and get nothing more. A client with a key is never touched.
+func TestRunClosesThePublicStreamsWhenTheFlagsAreWithdrawn(t *testing.T) {
+	t.Parallel()
+
+	// the changes of the generations 1 and 2 are held back by the hook until the four clients are registered: they all
+	// get theirs, and the counts below are exact
+	held := make(chan struct{})
+	rig := startRelay(t, &rigOptions{
+		extra: "auth:\n  adminKeys: [" + adminKey + "]\n",
+		broadcast: func(change flagruntime.Change) {
+			if change.Generation <= 2 {
+				<-held
+			}
+		},
+	})
+	t.Cleanup(func() {
+		select {
+		case <-held:
+		default:
+			close(held)
+		}
+	})
+
+	rig.awaitGeneration(1)
+
+	rel := <-rig.started
+
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 100),
+	})
+	rig.poll(2)
+
+	keylessWS, keylessSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
+	keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
+
+	require.Eventually(t, func() bool {
+		return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
+	}, waitBound, time.Millisecond, "the four clients are registered")
+
+	close(held)
+
+	// generation 1: the flag set with the key; generation 2: the public flags
+	keyedWS.awaitEvent(t, `"v":1`)
+	keyedSSE.awaitEvent(t, "refetchEvaluation")
+	keylessWS.awaitEvent(t, `"v":100`)
+	keylessSSE.awaitEvent(t, "refetchEvaluation")
+
+	// generation 3: the public flags change, nothing else does
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(flagKey, 1), openObject: flagYAML(flagKey, 101),
+	})
+	rig.pollNext(3)
+
+	keylessWS.awaitEvent(t, `"v":101`)
+	keylessSSE.awaitEvent(t, "refetchEvaluation")
+
+	// generation 4: the public flag set gets a key, and the flag set of the key changes
+	rig.store.publishDocs([]controlplane.FlagSet{
+		{Name: "tenant", Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+		{Name: openSet, Sources: []string{openObject}, APIKeys: []string{"55555555-5555-4555-8555-555555555555"}},
+	}, map[string]string{flagsObject: flagYAML(flagKey, 2), openObject: flagYAML(flagKey, 101)})
+	rig.pollNext(4)
+
+	keylessWS.awaitClosed(t)
+	keylessSSE.awaitClosed(t)
+	keyedWS.awaitEvent(t, `"v":2`)
+	keyedSSE.awaitEvent(t, "refetchEvaluation")
+
+	// exact counts: the clients without a key got the changes of the generations 2 and 3, the ones with a key those
+	// of the generations 1 and 4
+	assert.Equal(t, int64(2), keylessWS.received.Load(), "messages of the websocket client without a key")
+	assert.Equal(t, int64(2), keylessSSE.received.Load(), "messages of the SSE client without a key")
+	assert.Equal(t, int64(2), keyedWS.received.Load(), "messages of the websocket client with a key")
+	assert.Equal(t, int64(2), keyedSSE.received.Load(), "messages of the SSE client with a key")
+	assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
+}
+
+const refreshPath = "/admin/v1/retriever/refresh"
+
+// The answer of a refresh is about what the relay serves: the evaluation that follows it already sees the new value.
+func TestRunRefreshAnswersWhatIsServed(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
+	rig.awaitGeneration(1)
+
+	headers := http.Header{headerAPIKey: {adminKey}}
+
+	for _, generation := range []int{2, 3} {
+		value := float64(generation)
+
+		rig.store.publish(generation)
+
+		status, body := doRequest(t, http.MethodPost, rig.url+refreshPath, "", headers)
+		require.Equal(t, http.StatusOK, status, body)
+		assert.JSONEq(t, fmt.Sprintf(
+			`{"result":"updated","generation":%d,"refreshed":true,"changed":true,"applied":true,"appliedGeneration":%d}`,
+			generation,
+			generation,
+		), body)
+
+		status, got := rig.evaluate(tenantKey)
+		assert.Equal(t, http.StatusOK, status)
+		assert.InDelta(t, value, got, 0, "the evaluation after the refresh serves the new generation")
+	}
 }

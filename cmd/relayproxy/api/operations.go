@@ -118,13 +118,6 @@ func flagKeyParam() *huma.Param {
 	}
 }
 
-func apiKeyQueryParam() *huma.Param {
-	return &huma.Param{
-		Name: queryAPIKey, In: inQuery,
-		Description: "apiKey to authorize the connection to the relay proxy", Schema: &huma.Schema{Type: typeString},
-	}
-}
-
 // setRequestBody replaces the request body huma derived from a RawBody field (a binary document) by the JSON
 // document the handler decodes: the handler decodes the bytes itself to keep its error bodies.
 func setRequestBody(api huma.API, id string, body *huma.RequestBody) {
@@ -306,8 +299,7 @@ func operationSSE(api huma.API) *huma.Operation {
 			"`: heartbeat` every 30 seconds), they are ignored by SSE clients.\n" +
 			"The full URL (including query string) is sensitive and must not be logged\n" +
 			"or persisted by intermediaries.",
-		Parameters: []*huma.Param{apiKeyQueryParam()},
-		Security:   securityQuery(),
+		Security: securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK): {
 				Description: "SSE stream of OFREP flag change events",
@@ -330,8 +322,7 @@ func operationWebsocket(api huma.API, deprecated bool) *huma.Operation {
 		Description: "This endpoint is a websocket endpoint to be notified about flag changes;\n" +
 			"every change pushes a notifier.DiffCache message to the client.\n" +
 			"When disableFlagDetailsInStream is true, values are empty objects.",
-		Parameters: []*huma.Param{apiKeyQueryParam()},
-		Security:   securityQuery(),
+		Security: securityQuery(),
 		Responses: map[string]*huma.Response{
 			statusKey(http.StatusOK):                  jsonResponse[notifier.DiffCache](api, "Success"),
 			statusKey(http.StatusBadRequest):          errorResponse(api, "Bad Request"),
@@ -457,9 +448,14 @@ func operationRefresh() *huma.Operation {
 		Summary: "This endpoint is used to force the refresh of the flags in the cache.", Tags: []string{tagAdmin},
 		Security: securityAuthorization(),
 		Description: "This endpoint is used to force the refresh of the flags in the cache.\n" +
-			"This endpoint is used when you know explicitly that a flag has changed, and you want to trigger\n" +
-			"the collection of the new versions.",
-		Errors: []int{http.StatusBadRequest, http.StatusInternalServerError, http.StatusNotImplemented},
+			"The relay polls the control plane at once, through the poll of its schedule: calls that arrive together\n" +
+			"share one poll. The answer tells what the poll found: its result, the generation the relay holds and\n" +
+			"whether the poll changed it. A failed poll is an answer with its reason, not an error of the request.\n" +
+			"Only an admin key may call it.",
+		Errors: []int{
+			http.StatusBadRequest, http.StatusInternalServerError, http.StatusNotImplemented,
+			http.StatusServiceUnavailable, http.StatusGatewayTimeout,
+		},
 	}
 }
 

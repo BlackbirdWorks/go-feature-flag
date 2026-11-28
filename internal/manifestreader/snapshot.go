@@ -66,6 +66,9 @@ type Snapshot struct {
 	Channel string
 	// Generation is the generation of the manifest.
 	Generation uint64
+	// Revision is the sequence number of the snapshot: the reader numbers every snapshot it emits, from 1, so a second
+	// snapshot at the same generation (an object that recovered) has a revision of its own.
+	Revision uint64
 }
 
 // Names returns the object names in sorted order.

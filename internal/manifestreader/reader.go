@@ -41,6 +41,8 @@ type Reader struct {
 	retry      map[string]*retryState
 	routes     map[string]string
 	snaps      chan *Snapshot
+	refresh    *refresher
+	now        func() time.Time
 	logged     map[string]string
 	hookPanics map[string]uint64
 	held       *held
@@ -64,9 +66,11 @@ type Reader struct {
 	// vnow is the virtual time: the sum of the waits the scheduler completed. The retry schedule of the objects
 	// is kept on it, so the scheduler is the only clock of the reader.
 	pollFails int
-	vnow      time.Duration
-	notMod    uint64
-	polls     uint64
+	// revision is the number of the last snapshot emitted.
+	revision uint64
+	vnow     time.Duration
+	notMod   uint64
+	polls    uint64
 	// cacheBytes is the number of bytes in cache.
 	cacheBytes int64
 	started    atomic.Bool
@@ -141,6 +145,8 @@ func New(store ObjectStore, cfg *Config, opts ...Option) (*Reader, error) {
 		jitter:     defaultJitter,
 		reqCtx:     withTimeout,
 		snaps:      make(chan *Snapshot, 1),
+		refresh:    newRefresher(),
+		now:        clock.Now,
 		cache:      map[string][]byte{},
 		names:      map[string]*nameState{},
 		logged:     map[string]string{},
@@ -193,6 +199,7 @@ func (r *Reader) Run(ctx context.Context) error {
 	}
 
 	defer close(r.snaps)
+	defer close(r.refresh.stopped)
 
 	r.restore(ctx)
 
@@ -204,13 +211,19 @@ func (r *Reader) Run(ctx context.Context) error {
 	}
 
 	for {
+		before := r.Status().Manifest.Generation
+
 		r.round(ctx)
 
 		if ctx.Err() != nil {
 			return nil
 		}
 
-		if r.sleep(ctx, r.wait) != nil {
+		result := r.roundResult(before)
+		r.refresh.complete(&result)
+
+		_, err := r.sleepOrRefresh(ctx, r.wait)
+		if err != nil {
 			return nil
 		}
 	}
@@ -881,7 +894,11 @@ func (r *Reader) publish(ctx context.Context) {
 		objects[name] = state.objectState()
 	}
 
-	snap := &Snapshot{Generation: r.held.generation, Channel: r.held.channel, Objects: objects}
+	r.revision++
+
+	snap := &Snapshot{
+		Generation: r.held.generation, Channel: r.held.channel, Objects: objects, Revision: r.revision,
+	}
 
 	r.send(ctx, snap)
 

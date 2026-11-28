@@ -97,6 +97,19 @@ func TestOpenAPIOptionalKey(t *testing.T) {
 
 	assert.Equal(t, want, got, "the security of every operation that has one")
 
+	for _, item := range api.OpenAPI().Paths {
+		for _, operation := range []*huma.Operation{item.Get, item.Post, item.Put, item.Delete} {
+			if operation == nil {
+				continue
+			}
+
+			for _, param := range operation.Parameters {
+				assert.False(t, param.In == "query" && param.Name == "apiKey",
+					"%s declares the key as a parameter and as a security scheme", operation.OperationID)
+			}
+		}
+	}
+
 	for operationID, requirements := range got {
 		hasEmpty := slices.ContainsFunc(requirements, func(names []string) bool { return len(names) == 0 })
 

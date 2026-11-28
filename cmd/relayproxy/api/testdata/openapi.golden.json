@@ -886,8 +886,33 @@
       "RetrieverRefreshResponse": {
         "additionalProperties": false,
         "properties": {
+          "applied": {
+            "type": "boolean"
+          },
+          "appliedGeneration": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "changed": {
+            "type": "boolean"
+          },
+          "generation": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
           "refreshed": {
             "type": "boolean"
+          },
+          "rejection": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
           }
         },
         "required": [
@@ -1070,7 +1095,7 @@
     },
     "/admin/v1/retriever/refresh": {
       "post": {
-        "description": "This endpoint is used to force the refresh of the flags in the cache.\nThis endpoint is used when you know explicitly that a flag has changed, and you want to trigger\nthe collection of the new versions.",
+        "description": "This endpoint is used to force the refresh of the flags in the cache.\nThe relay polls the control plane at once, through the poll of its schedule: calls that arrive together\nshare one poll. The answer tells what the poll found: its result, the generation the relay holds and\nwhether the poll changed it. A failed poll is an answer with its reason, not an error of the request.\nOnly an admin key may call it.",
         "operationId": "retrieverRefresh",
         "responses": {
           "200": {
@@ -1112,6 +1137,26 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
           }
         },
         "security": [
@@ -1556,16 +1601,6 @@
       "get": {
         "description": "Server-Sent Events endpoint pushing flag change notifications, following OpenFeature ADR-0008.\nIt is advertised in the `eventStreams` field of the OFREP bulk evaluation response.\nEach event is sent as `event: message` with a `model.OFREPSSEEvent` JSON payload,\na `refetchEvaluation` event means that the provider must re-fetch its evaluations.\nThe stream also sends SSE comment lines (`: connected` when the connection opens,\n`: heartbeat` every 30 seconds), they are ignored by SSE clients.\nThe full URL (including query string) is sensitive and must not be logged\nor persisted by intermediaries.\n\nThe key is optional when a flag set is published without API keys (the public flags): a request without a key is then served by those flags. Without such a flag set every request needs a key. A wrong key is always refused.",
         "operationId": "sseFlagChange",
-        "parameters": [
-          {
-            "description": "apiKey to authorize the connection to the relay proxy",
-            "in": "query",
-            "name": "apiKey",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1624,16 +1659,6 @@
       "get": {
         "description": "This endpoint is a websocket endpoint to be notified about flag changes;\nevery change pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.\n\nThe key is optional when a flag set is published without API keys (the public flags): a request without a key is then served by those flags. Without such a flag set every request needs a key. A wrong key is always refused.",
         "operationId": "wsFlagChange",
-        "parameters": [
-          {
-            "description": "apiKey to authorize the connection to the relay proxy",
-            "in": "query",
-            "name": "apiKey",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -2017,16 +2042,6 @@
         "deprecated": true,
         "description": "Deprecated: use /stream/v1/ws/flag/change instead. This endpoint\nis a websocket endpoint to be notified about flag changes; every\nchange pushes a notifier.DiffCache message to the client.\nWhen disableFlagDetailsInStream is true, values are empty objects.\n\nThe key is optional when a flag set is published without API keys (the public flags): a request without a key is then served by those flags. Without such a flag set every request needs a key. A wrong key is always refused.",
         "operationId": "wsFlagChangeLegacy",
-        "parameters": [
-          {
-            "description": "apiKey to authorize the connection to the relay proxy",
-            "in": "query",
-            "name": "apiKey",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
