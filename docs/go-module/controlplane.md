@@ -15,6 +15,7 @@ store (for example S3) and that the relay proxy reads: the manifest, the flag-se
 | --- | --- | --- | --- |
 | Manifest | `Manifest` | `apiVersion: semaphore/v1` | the objects of one channel at one generation |
 | Flag-set document | `FlagSet` | `apiVersion: semaphore/v1` | flag sets: sources and API keys |
+| Segments document | `Segments` | `apiVersion: semaphore/v1` | named segment definitions: static (inline members) and dynamic (in a store) |
 | Flag object | none | none | a flag file: flag name to flag (flag format v1) |
 
 The manifest is written last. It points to the other objects by connection, key, checksum and size. The three examples
@@ -59,7 +60,7 @@ objects:
 | `createdAt` | optional, informational |
 | `objects` | at most `DefaultMaxObjects` (20000) entries; the limit is an option, see below |
 | `objects[].name` | `^[a-z][a-z0-9-]{0,62}$`, unique; flag sets refer to objects by name |
-| `objects[].kind` | `flags` or `flagSets` |
+| `objects[].kind` | `flags`, `flagSets` or `segments` |
 | `objects[].connection` | name of a connection of the relay bootstrap file (it fixes bucket and credentials); never a secret |
 | `objects[].key` | key in the bucket of the connection |
 | `objects[].format` | `yaml`, `json` (and `toml` for `flags`) |
@@ -88,8 +89,68 @@ flagSets:
 
 - `name`: same pattern as an object name, unique.
 - `sources`: at least one name of a manifest object of kind `flags`; a later source wins on a duplicate flag key.
+- `segmentSources`: names of manifest objects of kind `segments`, each listed once. The segments that the rules of the
+  flag set use are defined there.
 - `apiKeys`: plain inline strings (UUIDs), unique across all flag sets. They are secrets: neither the validator nor a
   decoder prints them. Protect the bucket (read-only for the relay, write for the publisher) and encrypt it at rest.
+
+### Segments document
+
+An object of kind `segments` in the manifest. A flag set lists it in `segmentSources`. A segment has no `type`:
+with a `connection` it is a dynamic segment (its members are in a store, and the store kind is the one of the
+connection in the relay bootstrap file, which a publisher cannot see: only the shape of the name is checked); without
+one it is a static segment with its `members` inline. Give exactly one of the two.
+
+<!-- controlplane-doc: segments -->
+```yaml
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta-testers
+    members:
+      - alice
+      - bob
+  - name: nobody-yet
+    members: []
+    onError: notMember
+  - name: churned
+    connection: audiences
+    key: semaphore:segment:{churned}
+    version:
+      key: semaphore:segment:churned:version
+      interval: "5s"
+  - name: staff
+    connection: audiences
+    mode: lookup
+    key: 'staff:'
+    layout: keys
+    missingKey: unknown
+    version:
+      value: "2026-11-27"
+    cache:
+      maxEntries: 50000
+      ttl: "30s"
+```
+
+- `name`: 1 to 64 characters of `a-z`, `0-9`, `_` and `-` (the name that `segment("name")` uses), unique in the document.
+- Static segment: `members` (at most 100000 members, 4 MiB in all, each 1 to 4096 bytes, no duplicate). An empty list
+  is a static segment with no member.
+- Dynamic segment: `mode` is `snapshot` (default, not written) or `lookup`; `key` and `layout` (`set`, default, or
+  `keys`) say where the members are; the `keys` layout is lookup only, so `layout: keys` with `snapshot` is rejected.
+  `missingKey` is `notMember` (default) or `unknown`. `version` is `value` or `key` (not both) with an optional
+  `interval` (`100ms` to `24h`, needs `key`). `cache` (`maxEntries`, `ttl`) is for the `lookup` mode only.
+- `onError`: `unknown` (default), `notMember` or `member`.
+- The relay tracks segments objects: it decodes and validates each one, keeps its last good content when a later
+  version is invalid, shows it in `/info`, and resolves the `segmentSources` of the flag sets that list it. A segment
+  source that is unresolved (removed, or never good) degrades the flag sets that list it: they keep their last good
+  flags, or are not served when they never had any. Evaluation with the segments comes in the next release step; today
+  they are tracked, not used.
+- `semaphore-cli publish` and `publish verify` also run the engine checks of the `flagcheck` package: a segment
+  definition that the engine rejects, a `segment("name")` of a rule of a flag that the flag set serves (the later
+  source wins on a duplicate flag key, as in the relay) that no segment source of the flag set defines, and a name that
+  two segment sources of one flag set define are errors. `verify` skips the objects of other connections: the names
+  that such a segment source could define are unknown, so nothing is reported as undefined while one is not read, and
+  the report lists the skipped objects.
 
 ### Flag object
 

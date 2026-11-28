@@ -55,6 +55,16 @@ func TestMarshalGolden(t *testing.T) {
 			"flagset.json",
 			func() ([]byte, error) { return controlplane.MarshalFlagSetJSON(fixtureFlagSet()) },
 		},
+		{
+			"segments yaml",
+			"segments.yaml",
+			func() ([]byte, error) { return controlplane.MarshalSegments(wantSegmentsV1()) },
+		},
+		{
+			"segments json",
+			"segments.json",
+			func() ([]byte, error) { return controlplane.MarshalSegmentsJSON(wantSegmentsV1()) },
+		},
 		{"flags yaml", "flagfile.yaml", func() ([]byte, error) { return controlplane.MarshalFlags(fixtureFlags()) }},
 		{
 			"flags json",

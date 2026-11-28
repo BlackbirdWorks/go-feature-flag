@@ -406,24 +406,28 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 	}
 
 	tests := []struct {
-		segs      map[string]redissegment.SegmentOptions
-		name      string
-		wantScans int
-		wantGets  int
+		segs        map[string]redissegment.SegmentOptions
+		name        string
+		wantScans   int
+		wantGets    int
+		wantLookups int
 	}{
 		{
-			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1,
+			name: "three segments that share a set and a version key", wantScans: 1, wantGets: 1, wantLookups: 1,
 			segs: map[string]redissegment.SegmentOptions{"a": shared, "b": shared, "c": shared},
 		},
-		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2},
+		{name: "two distinct segments", segs: distinct(2), wantScans: 2, wantGets: 2, wantLookups: 2},
 		{
-			// 10 lookup namespaces leave 6 probes of the cap of 16, taken in the order of the names: set, version key, ...
-			name:      "the cap of the probes is shared with the lookup probes",
-			segs:      distinct(10),
-			wantScans: 3,
-			wantGets:  3,
+			// the snapshot probes come first: 10 segments make 20 probes, the cap of 16 keeps one for the lookups
+			name: "the snapshot probes take the cap before the lookup probes", segs: distinct(10),
+			wantScans: 8, wantGets: 7, wantLookups: 1,
 		},
-		{name: "the lookup probes use the whole cap", segs: distinct(20), wantScans: 0, wantGets: 0},
+		{name: "the cap holds for 20 segments", segs: distinct(20), wantScans: 8, wantGets: 7, wantLookups: 1},
+		{
+			// 16 lookup namespaces and one snapshot segment: its two probes run, the lookups give way to 14
+			name: "16 lookup namespaces and a snapshot segment", segs: lookupAndSnapshot(), wantScans: 1, wantGets: 1,
+			wantLookups: 14,
+		},
 	}
 
 	for _, tt := range tests {
@@ -440,7 +444,7 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, prov.Init(context.Background()))
 
-			scans, gets := 0, 0
+			scans, gets, lookups := 0, 0, 0
 
 			for _, pipeline := range store.commands() {
 				for _, cmd := range pipeline {
@@ -449,12 +453,15 @@ func TestSnapshotProbesAreDeduplicatedAndCountedInTheCap(t *testing.T) {
 						scans++
 					case strings.HasPrefix(cmd, "get "):
 						gets++
+					case strings.HasPrefix(cmd, "smismember "):
+						lookups++
 					}
 				}
 			}
 
 			assert.Equal(t, tt.wantScans, scans, "SSCAN probes")
 			assert.Equal(t, tt.wantGets, gets, "GET probes")
+			assert.Equal(t, tt.wantLookups, lookups, "lookup probes")
 		})
 	}
 }
@@ -489,13 +496,19 @@ func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
 		return nil
 	}
 
+	var releaseOnce sync.Once
+
+	open := func() { releaseOnce.Do(func() { close(release) }) }
+
+	t.Cleanup(open) // a failed test must not leave the read at the gate
+
 	prov := snapProvider(t, store, segs, "")
 
 	var wait sync.WaitGroup
 
 	wait.Go(func() {
 		_, err := prov.Version(context.Background(), snapAlpha)
-		assert.NoError(t, err)
+		assert.NoError(t, err, "the store ignores its context: the read ends with its answer once it is released")
 	})
 
 	<-entered
@@ -509,7 +522,73 @@ func TestShutdownWaitsForASnapshotReadInFlight(t *testing.T) {
 		"the read in flight is waited for, bounded by the context",
 	)
 
-	close(release)
+	open()
 	wait.Wait()
 	require.NoError(t, prov.Shutdown(context.Background()))
+}
+
+// lookupAndSnapshot is 16 segments of the lookup mode, each in its own namespace, and one segment of the snapshot mode.
+func lookupAndSnapshot() map[string]redissegment.SegmentOptions {
+	segs := map[string]redissegment.SegmentOptions{
+		"zsnap": {Key: "zsnap:{x}", VersionKey: "v:zsnap", Snapshot: true},
+	}
+
+	for i := range 16 {
+		name := "l" + strconv.Itoa(100+i)
+		segs[name] = redissegment.SegmentOptions{Key: name + ":{x}"}
+	}
+
+	return segs
+}
+
+func TestStartupProbesOfASnapshotGoToThePrimary(t *testing.T) {
+	t.Parallel()
+
+	store, _ := snapStore(0)
+	cluster, hits := newFakeCluster(store)
+
+	prov, err := redissegment.New(cluster, &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{
+		snapAlpha: {Key: snapSetKey, VersionKey: snapVerKey, Snapshot: true},
+	}})
+	require.NoError(t, err)
+	require.NoError(t, prov.Init(context.Background()))
+
+	assert.Equal(t, int64(2), hits.Load(), "the SSCAN and the GET of the snapshot probes ran on the primary")
+	assert.Equal(t, []string{snapSetKey, snapVerKey}, cluster.keys, "the primary of the key of each probe")
+	assert.Equal(t, int64(1), cluster.routed.Load(), "only the lookup probes went through the routing client")
+}
+
+func TestSnapshotsThatFillTheCapLeaveTheScriptDetection(t *testing.T) {
+	t.Parallel()
+
+	segs := map[string]redissegment.SegmentOptions{}
+
+	for i := range 10 {
+		name := "s" + strconv.Itoa(100+i)
+		segs[name] = redissegment.SegmentOptions{Key: name + ":{x}", VersionKey: "v:" + name, Snapshot: true}
+	}
+
+	store := &fakeStore{sets: map[string]map[string]bool{}, keys: map[string]bool{}, values: map[string]string{}}
+
+	prov, err := redissegment.New(store, &redissegment.Options{
+		Segments: segs, Atomic: true, MissingKey: redissegment.MissingUnknown,
+	})
+	require.NoError(t, err)
+	require.NoError(t, prov.Init(context.Background()))
+
+	scripts, scans := 0, 0
+
+	for _, pipeline := range store.commands() {
+		for _, cmd := range pipeline {
+			switch {
+			case strings.HasPrefix(cmd, "eval_ro "):
+				scripts++
+			case strings.HasPrefix(cmd, cmdSScan+" "):
+				scans++
+			}
+		}
+	}
+
+	assert.Equal(t, 1, scripts, "the read-only script is probed once, whatever the snapshot probes take")
+	assert.Equal(t, 8, scans)
 }

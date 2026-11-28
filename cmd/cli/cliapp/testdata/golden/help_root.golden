@@ -18,7 +18,7 @@ Commands:
     configuration.
 
   publish <dir> [flags]
-    Source directory containing flags/ and flagsets/.
+    Source directory containing flags/, flagsets/ and segments/.
 
   publish verify [flags]
     Check the manifest and every object it lists in the bucket

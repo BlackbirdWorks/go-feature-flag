@@ -36,6 +36,49 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 - A store that can push changes also implements `ChangeNotifier`; polling the version stays the baseline.
 - Nothing in the library starts a goroutine or a timer for this: the relay calls `Holder.Refresh` (snapshot) and `Resolver.RefreshVersions` (lookup) on its own schedule.
 
+## Published form
+
+In a flag set published through the control plane, a dynamic segment is a definition with a `connection` (a connection
+of the relay bootstrap file) in a document of kind `Segments`; the flag set lists the document in `segmentSources`.
+See [the document format](../go-module/controlplane.md#segments-document).
+
+A `snapshot` segment (the default mode) with a version key that the writer of the members bumps:
+
+<!-- segments-doc -->
+```yaml
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: churned
+    connection: audiences
+    key: semaphore:segment:{churned}
+    version:
+      key: semaphore:segment:churned:version
+      interval: 5s
+```
+
+A `lookup` segment with a cache and the `keys` layout (the `keys` layout is lookup only):
+
+<!-- segments-doc -->
+```yaml
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: staff
+    connection: audiences
+    mode: lookup
+    layout: keys
+    key: "staff:"
+    version:
+      value: "2026-11-27"
+    cache:
+      maxEntries: 50000
+      ttl: 30s
+```
+
+`mode` is not written when it is `snapshot`, `missingKey` is `notMember` unless you set `unknown`, and a definition
+with the `keys` layout and the `snapshot` mode is rejected when the document is validated.
+
 ## Which type to choose
 
 | | `redis` ([page](segments-redis.md)) | `valkey` ([page](segments-valkey.md)) |

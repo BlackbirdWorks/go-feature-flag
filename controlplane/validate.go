@@ -147,12 +147,12 @@ func validateKindFormat(probs *problems, owner entry, path string, obj *Manifest
 		if obj.Format != FormatYAML && obj.Format != FormatJSON && obj.Format != FormatTOML {
 			probs.addf(owner, CodeInvalidValue, path+".format", "%q is not yaml, json or toml", obj.Format)
 		}
-	case KindFlagSets:
+	case KindFlagSets, KindSegments:
 		if obj.Format != FormatYAML && obj.Format != FormatJSON {
 			probs.addf(owner, CodeInvalidValue, path+".format", "%q is not yaml or json", obj.Format)
 		}
 	default:
-		probs.addf(owner, CodeInvalidValue, path+".kind", "%q is not flags or flagSets", obj.Kind)
+		probs.addf(owner, CodeInvalidValue, path+".kind", "%q is not flags, flagSets or segments", obj.Kind)
 	}
 }
 
@@ -176,11 +176,11 @@ func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 
 	var probs problems
 
-	flagObjects := flagObjectNames(manifest)
+	objects := objectNamesOf(manifest)
 	names := map[string]string{}
 	keys := map[string]string{}
 
-	validateFlagSets(&probs, "", doc, manifest != nil, flagObjects, names, keys)
+	validateFlagSets(&probs, "", doc, manifest != nil, &objects, names, keys)
 
 	return probs.err()
 }
@@ -194,7 +194,7 @@ func ValidateFlagSet(doc *FlagSetDocument, manifest *Manifest) error {
 func ValidateFlagSetDocuments(docs []*FlagSetDocument, manifest *Manifest) error {
 	var probs problems
 
-	flagObjects := flagObjectNames(manifest)
+	objects := objectNamesOf(manifest)
 	names := map[string]string{}
 	keys := map[string]string{}
 
@@ -209,24 +209,33 @@ func ValidateFlagSetDocuments(docs []*FlagSetDocument, manifest *Manifest) error
 			return err
 		}
 
-		validateFlagSets(&probs, "documents["+strconv.Itoa(i)+"].", doc, manifest != nil, flagObjects, names, keys)
+		validateFlagSets(&probs, "documents["+strconv.Itoa(i)+"].", doc, manifest != nil, &objects, names, keys)
 	}
 
 	return probs.err()
 }
 
-func flagObjectNames(manifest *Manifest) map[string]struct{} {
-	flagObjects := map[string]struct{}{}
+// objectNames are the names of the objects of a manifest that flag sets can reference, by kind.
+type objectNames struct {
+	flags    map[string]struct{}
+	segments map[string]struct{}
+}
+
+func objectNamesOf(manifest *Manifest) objectNames {
+	names := objectNames{flags: map[string]struct{}{}, segments: map[string]struct{}{}}
 
 	if manifest != nil {
 		for i := range manifest.Objects {
-			if manifest.Objects[i].Kind == KindFlags {
-				flagObjects[manifest.Objects[i].Name] = struct{}{}
+			switch manifest.Objects[i].Kind {
+			case KindFlags:
+				names.flags[manifest.Objects[i].Name] = struct{}{}
+			case KindSegments:
+				names.segments[manifest.Objects[i].Name] = struct{}{}
 			}
 		}
 	}
 
-	return flagObjects
+	return names
 }
 
 // validateFlagSets checks the flag sets of one document; names and keys map a name or key to the path of its
@@ -236,7 +245,7 @@ func validateFlagSets(
 	prefix string,
 	doc *FlagSetDocument,
 	resolve bool,
-	flagObjects map[string]struct{},
+	objects *objectNames,
 	names, keys map[string]string,
 ) {
 	for i := range doc.FlagSets {
@@ -254,7 +263,8 @@ func validateFlagSets(
 			names[set.Name] = path + ".name"
 		}
 
-		validateSources(probs, owner, path, set, resolve, flagObjects)
+		validateSources(probs, owner, path, set, resolve, objects.flags)
+		validateSegmentSources(probs, owner, path, set, resolve, objects.segments)
 		validateAPIKeys(probs, owner, path, set, keys)
 	}
 }
@@ -276,6 +286,39 @@ func validateSources(
 			probs.addf(owner, CodeUnresolvedSource, path+".sources["+strconv.Itoa(i)+"]",
 				"%q is not an object of kind flags in the manifest", source)
 		}
+	}
+}
+
+// validateSegmentSources checks the segment sources of a flag set: each is the name of an object of kind segments,
+// and listed once.
+func validateSegmentSources(
+	probs *problems,
+	owner entry,
+	path string,
+	set *FlagSet,
+	resolve bool,
+	segmentObjects map[string]struct{},
+) {
+	listed := map[string]struct{}{}
+
+	for i, source := range set.SegmentSources {
+		sourcePath := path + ".segmentSources[" + strconv.Itoa(i) + "]"
+
+		if _, ok := segmentObjects[source]; resolve && !ok {
+			probs.addf(
+				owner,
+				CodeUnresolvedSource,
+				sourcePath,
+				"%q is not an object of kind segments in the manifest",
+				source,
+			)
+		}
+
+		if _, dup := listed[source]; dup {
+			probs.addf(owner, CodeDuplicateName, sourcePath, "%q is listed twice", source)
+		}
+
+		listed[source] = struct{}{}
 	}
 }
 

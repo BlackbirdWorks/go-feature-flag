@@ -63,6 +63,7 @@ type setState struct {
 type state struct {
 	objStatus map[string]*ObjectStatus
 	docs      map[string]*docState
+	segs      map[string]*segState
 	sets      map[string]*setState
 	flagSets  map[string]*FlagSet
 	byKey     map[string]*FlagSet
@@ -80,6 +81,7 @@ func emptyState() *state {
 	return &state{
 		objects:   map[string]*objState{},
 		docs:      map[string]*docState{},
+		segs:      map[string]*segState{},
 		sets:      map[string]*setState{},
 		flagSets:  map[string]*FlagSet{},
 		byKey:     map[string]*FlagSet{},

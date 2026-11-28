@@ -77,8 +77,10 @@ type publication struct {
 	wire   *wireLog
 	// objects are the names and bytes listed by the manifest, with the key of each.
 	flags map[string][]byte
-	sets  []controlplane.FlagSet
-	gen   uint64
+	// segments are the segments objects by name
+	segments map[string][]byte
+	sets     []controlplane.FlagSet
+	gen      uint64
 }
 
 // object is a manifest entry with its bytes.
@@ -114,6 +116,10 @@ func (p *publication) publish() {
 
 	for name, data := range p.flags {
 		objs = append(objs, p.entry(name, controlplane.KindFlags, data))
+	}
+
+	for name, data := range p.segments {
+		objs = append(objs, p.entry(name, controlplane.KindSegments, data))
 	}
 
 	manifest := &controlplane.Manifest{

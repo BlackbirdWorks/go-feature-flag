@@ -190,6 +190,21 @@ func (p *Publisher) validateContents(items []planned, manifest *controlplane.Man
 		return nil, fmt.Errorf("%w: flag-set documents [%s]: %w", ErrInvalid, strings.Join(labels, ", "), err)
 	}
 
+	if p.cfg.CheckAll != nil {
+		all := make([]Object, len(items))
+		for i := range items {
+			all[i] = Object{
+				Name: items[i].entry.Name, Kind: items[i].entry.Kind, Format: items[i].format, Source: items[i].source,
+				Body: items[i].body,
+			}
+		}
+
+		err = p.cfg.CheckAll(all)
+		if err != nil {
+			return nil, fmt.Errorf("%w: the documents together: %w", ErrInvalid, err)
+		}
+	}
+
 	return warnings, nil
 }
 
@@ -224,6 +239,18 @@ func validateContent(
 		}
 
 		return info, doc, nil
+	case controlplane.KindSegments:
+		doc, info, err := controlplane.UnmarshalSegments(body)
+		if err != nil {
+			return info, nil, fmt.Errorf("decode segments: %w", err)
+		}
+
+		err = controlplane.ValidateSegments(doc)
+		if err != nil {
+			return info, nil, fmt.Errorf("validate segments: %w", err)
+		}
+
+		return info, nil, nil
 	}
 
 	return controlplane.DecodeInfo{}, nil, fmt.Errorf("%w: kind %q", controlplane.ErrInvalid, entry.Kind)

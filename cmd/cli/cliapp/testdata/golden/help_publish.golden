@@ -2,10 +2,10 @@ Usage: semaphore-cli publish <command> [flags]
 
 Publish flag files and flag-set documents to S3 behind a manifest
 
-Reads the documents of <dir> (flags/*.yaml|yml|json and
-flagsets/*.yaml|yml|json), validates them, uploads the objects that are
-absent under their content-addressed keys, and writes the manifest last with a
-conditional write, so a reader never sees a half-written state.
+Reads the documents of <dir> (flags/, flagsets/ and segments/, each
+*.yaml|yml|json), validates them, uploads the objects that are absent under
+their content-addressed keys, and writes the manifest last with a conditional
+write, so a reader never sees a half-written state.
 
 Where to publish comes from the control-plane connection of a bootstrap file
 (--config), or from --bucket and --region. Exit codes: 0 success, 1 failure or
@@ -41,7 +41,7 @@ Flags:
 
 Commands:
   publish <dir> [flags]
-    Source directory containing flags/ and flagsets/.
+    Source directory containing flags/, flagsets/ and segments/.
 
   publish verify [flags]
     Check the manifest and every object it lists in the bucket

@@ -1,0 +1,42 @@
+{
+  "apiVersion": "semaphore/v1",
+  "kind": "Segments",
+  "segments": [
+    {
+      "name": "beta-testers",
+      "members": [
+        "alice",
+        "bob"
+      ]
+    },
+    {
+      "name": "nobody-yet",
+      "members": [],
+      "onError": "notMember"
+    },
+    {
+      "name": "churned",
+      "connection": "audiences",
+      "key": "semaphore:segment:{churned}",
+      "version": {
+        "key": "semaphore:segment:churned:version",
+        "interval": "5s"
+      }
+    },
+    {
+      "name": "staff",
+      "connection": "audiences",
+      "mode": "lookup",
+      "key": "staff:",
+      "layout": "keys",
+      "missingKey": "unknown",
+      "version": {
+        "value": "2026-11-27"
+      },
+      "cache": {
+        "maxEntries": 50000,
+        "ttl": "30s"
+      }
+    }
+  ]
+}

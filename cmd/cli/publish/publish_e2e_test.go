@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -386,4 +387,139 @@ func TestE2EExplicitFlagsTarget(t *testing.T) {
 	assert.Equal(t, chanCanary, manifest.Channel)
 	assert.Equal(t, "control", manifest.Objects[0].Connection)
 	assert.Contains(t, manifest.Objects[0].Key, "p/objects/sha256/")
+}
+
+const e2eChannelName = "stable"
+
+const e2eSegments = `apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta
+    members:
+      - alice
+  - name: churned
+    connection: audiences
+    version:
+      key: churned:version
+      interval: 5s
+`
+
+const e2eSegmentSets = `apiVersion: semaphore/v1
+kind: FlagSet
+flagSets:
+  - name: with-segments
+    sources: [checkout]
+    segmentSources: [people]
+    apiKeys: [segment-api-key-0001]
+`
+
+func TestE2EPublishSegmentsAndVerify(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(env.dir, "segments"), 0o750))
+	env.write(t, "segments/people.yaml", e2eSegments)
+	env.write(t, "flagsets/segment-sets.yaml", e2eSegmentSets)
+
+	out, err := runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.NoError(t, err, out)
+
+	manifest := env.readManifest(t)
+	require.Len(t, manifest.Objects, 4)
+
+	var found *controlplane.ManifestObject
+
+	for i := range manifest.Objects {
+		if manifest.Objects[i].Kind == controlplane.KindSegments {
+			found = &manifest.Objects[i]
+		}
+	}
+
+	require.NotNil(t, found, "the manifest lists the segments object")
+	assert.Equal(t, "people", found.Name)
+	assert.Equal(t, e2eSegments, string(env.get(t, found.Key)))
+	require.NoError(t, controlplane.VerifyChecksum(env.get(t, found.Key), found.Checksum))
+
+	out, err = runCLI(t, env.deps, verifyWord, optConfig, env.config)
+	require.NoError(t, err, out)
+	assert.Contains(t, out, "ok: every checked object matches")
+}
+
+const e2eSegmentFlags = `uses-segment:
+  variations:
+    "on": true
+    "off": false
+  targeting:
+    - name: beta rule
+      query: targetingKey in segment("ghost")
+      variation: "on"
+  defaultRule:
+    variation: "off"
+`
+
+// writeSegmentTree adds a flag file that uses the segment "ghost" and a flag set that lists the segments object
+// "people", which does not define it.
+func (e *e2eEnv) writeSegmentTree(t *testing.T) {
+	t.Helper()
+
+	require.NoError(t, os.MkdirAll(filepath.Join(e.dir, "segments"), 0o750))
+	e.write(t, "flags/uses-segment.yaml", e2eSegmentFlags)
+	e.write(t, "segments/people.yaml", e2eSegments)
+	e.write(t, "flagsets/segment-sets.yaml", strings.Replace(
+		e2eSegmentSets, "sources: [checkout]", "sources: [uses-segment]", 1))
+}
+
+func TestE2EPublishRefusesAnUndefinedSegment(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	env.writeSegmentTree(t)
+
+	out, err := runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.Error(t, err, out)
+	assert.Equal(t, helper.ExitInvalid, codeOf(err), "the exit code of the other validation failures")
+	assert.Contains(t, err.Error(), "flag set with-segments: flag uses-segment, rule 0: segment ghost: is not defined")
+	assert.Zero(t, env.count.put.Load(), "nothing is written")
+}
+
+func TestE2EPublishRefusesANameDefinedTwice(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	env.writeSegmentTree(t)
+	env.write(
+		t,
+		"segments/more.yaml",
+		"apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: beta\n    members: []\n",
+	)
+	env.write(t, "flagsets/segment-sets.yaml", strings.Replace(
+		e2eSegmentSets, "segmentSources: [people]", "segmentSources: [people, more]", 1))
+
+	out, err := runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.Error(t, err, out)
+	assert.Equal(t, helper.ExitInvalid, codeOf(err))
+	assert.Contains(t, err.Error(), "flag set with-segments: segment beta: defined twice")
+}
+
+func TestE2EVerifyReportsAnUndefinedSegment(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	env.writeSegmentTree(t)
+
+	// the tree is published without the checks of the CLI, as an older tool could have done
+	objects, err := publish.LoadSource(os.DirFS(env.dir), env.dir, publish.SourceLimits{})
+	require.NoError(t, err)
+
+	pub, err := s3publish.New(env.client, &s3publish.Config{
+		Bucket: env.bucket, Channel: e2eChannelName, Connection: "control", ManifestKey: manifestKey, Concurrency: 1,
+	})
+	require.NoError(t, err)
+
+	_, err = pub.Publish(t.Context(), s3publish.Request{Objects: objects})
+	require.NoError(t, err)
+
+	out, err := runCLI(t, env.deps, verifyWord, optConfig, env.config)
+	require.Error(t, err, out)
+	assert.Contains(t, out+err.Error(), "segment ghost: is not defined")
 }

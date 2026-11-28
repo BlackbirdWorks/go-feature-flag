@@ -18,8 +18,11 @@ const vectors = "testdata/v1"
 type vector struct {
 	manifest *controlplane.Manifest
 	set      *controlplane.FlagSetDocument
-	flags    controlplane.Flags
-	unknown  []string
+	segments *controlplane.SegmentsDocument
+	// manifestFile is the manifest that a flag-set vector is validated against
+	manifestFile string
+	flags        controlplane.Flags
+	unknown      []string
 }
 
 // load decodes one vector. Flag-set vectors are resolved against valid/manifest-basic.yaml by validate.
@@ -31,13 +34,18 @@ func load(t *testing.T, path string) (*vector, error) {
 
 	base := filepath.Base(path)
 	format := strings.TrimPrefix(filepath.Ext(base), ".")
-	out := &vector{manifest: nil, set: nil, flags: nil, unknown: nil}
+	out := &vector{manifest: nil, set: nil, segments: nil, flags: nil, unknown: nil}
 
 	switch {
 	case strings.HasPrefix(base, "manifest-"):
 		var info controlplane.DecodeInfo
 
 		out.manifest, info, err = controlplane.UnmarshalManifest(data)
+		out.unknown = info.UnknownFields
+	case strings.HasPrefix(base, "segments-"):
+		var info controlplane.DecodeInfo
+
+		out.segments, info, err = controlplane.UnmarshalSegments(data)
 		out.unknown = info.UnknownFields
 	case strings.HasPrefix(base, "flagset-"):
 		var info controlplane.DecodeInfo
@@ -51,6 +59,11 @@ func load(t *testing.T, path string) (*vector, error) {
 		out.unknown = info.UnknownFields
 	}
 
+	out.manifestFile = "manifest-basic.yaml"
+	if strings.HasPrefix(base, "flagset-segments") {
+		out.manifestFile = "manifest-segments.yaml"
+	}
+
 	return out, err
 }
 
@@ -58,10 +71,12 @@ func (v *vector) validate(t *testing.T) error {
 	t.Helper()
 
 	switch {
+	case v.segments != nil:
+		return controlplane.ValidateSegments(v.segments)
 	case v.manifest != nil:
 		return controlplane.ValidateManifest(v.manifest)
 	case v.set != nil:
-		raw, err := os.ReadFile(filepath.Join(vectors, "valid", "manifest-basic.yaml"))
+		raw, err := os.ReadFile(filepath.Join(vectors, "valid", v.manifestFile))
 		require.NoError(t, err)
 
 		manifest, _, err := controlplane.UnmarshalManifest(raw)
@@ -80,6 +95,10 @@ func (v *vector) marshal(asJSON bool) ([]byte, error) {
 		return controlplane.MarshalManifestJSON(v.manifest)
 	case v.manifest != nil:
 		return controlplane.MarshalManifest(v.manifest)
+	case v.segments != nil && asJSON:
+		return controlplane.MarshalSegmentsJSON(v.segments)
+	case v.segments != nil:
+		return controlplane.MarshalSegments(v.segments)
 	case v.set != nil && asJSON:
 		return controlplane.MarshalFlagSetJSON(v.set)
 	case v.set != nil:
@@ -166,6 +185,7 @@ func TestConformanceValidRoundTrip(t *testing.T) {
 				require.NoError(t, loadErr)
 				assert.Equal(t, first.manifest, second.manifest)
 				assert.Equal(t, first.set, second.set)
+				assert.Equal(t, first.segments, second.segments)
 				assert.Equal(t, first.flags, second.flags)
 				assert.Empty(t, second.unknown)
 
@@ -265,7 +285,7 @@ func TestConformanceVectorsAreAllExercised(t *testing.T) {
 				case ext == extYAML || ext == extJSON:
 					loaded++
 
-					assert.Regexp(t, `^(manifest|flagset|flags)-`, name, "a vector needs a type prefix")
+					assert.Regexp(t, `^(manifest|flagset|segments|flags)-`, name, "a vector needs a type prefix")
 					assert.Contains(t, string(readme), name, "the README must describe every vector")
 
 					if tt.sidecar != "" {
