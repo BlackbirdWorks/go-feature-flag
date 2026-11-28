@@ -29,15 +29,24 @@ var (
 // Main parses args and runs the soak harness until ctx is cancelled, returning the process exit code
 // (0 PASS, 1 FAIL, 2 usage or setup error, 130 interrupted).
 func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
-	return run(ctx, args, stdout, stderr)
+	return run(ctx, args, stdout, stderr, loadtest.Run)
 }
+
+// soakRunner executes the soak loop against target and returns its report.
+// Production calls pass [loadtest.Run]; tests inject a deterministic sampler.
+type soakRunner func(
+	ctx context.Context,
+	target loadtest.Target,
+	opts *loadtest.Options,
+	out io.Writer,
+) loadtest.Report
 
 // soakTarget wraps [loadtest.Target] so newTarget returns a concrete type.
 type soakTarget struct {
 	loadtest.Target
 }
 
-func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, execute soakRunner) int {
 	opts, err := parseCommandLine(args)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "soak: %v\n\n%s", err, usageText())
@@ -84,7 +93,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	_, _ = fmt.Fprintf(stdout, "# %s GOMAXPROCS=%d %s duration=%s\n",
 		name, runtime.GOMAXPROCS(0), runtime.Version(), opts.Duration)
 
-	rep := loadtest.Run(ctx, target, &loadtest.Options{
+	rep := execute(ctx, target, &loadtest.Options{
 		Name: name, Duration: opts.Duration, Interval: opts.Interval, Workers: workers,
 		WarmupIntervals: opts.Warmup, HeapTolerance: opts.HeapTolerance,
 	}, stdout)

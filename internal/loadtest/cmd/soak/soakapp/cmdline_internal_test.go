@@ -14,6 +14,10 @@ const (
 	singleTarget   = "-target"
 	singleNopeFlag = "-nope"
 	dashCPUProfile = "-cpu.pprof"
+	flagLongTarget = "--target"
+	flagLongFlag   = "--flag"
+	flagLongWorker = "--workers"
+	flagLongWarmup = "--warmup"
 )
 
 func defaultCLI() cli {
@@ -113,7 +117,7 @@ func TestParseCommandLine(t *testing.T) {
 		},
 		{
 			name: "dash-prefixed profile filename and negative workers",
-			args: []string{"-cpuprofile", dashCPUProfile, "--flag", singleTarget, "-workers", "-1"},
+			args: []string{"-cpuprofile", dashCPUProfile, flagLongFlag, singleTarget, "-workers", "-1"},
 			want: withCLIFields(func(c *cli) {
 				c.CPUProfile = dashCPUProfile
 				c.FlagKey = singleTarget
@@ -124,7 +128,7 @@ func TestParseCommandLine(t *testing.T) {
 		{name: "unknown single-dash flag", args: []string{singleNopeFlag}, wantErr: true},
 		{name: "unknown flag after help", args: []string{"--help", "--nope"}, wantErr: true},
 		{name: "invalid duration", args: []string{"--duration", "abc"}, wantErr: true},
-		{name: "invalid workers", args: []string{"--workers", "abc"}, wantErr: true},
+		{name: "invalid workers", args: []string{flagLongWorker, "abc"}, wantErr: true},
 		{name: "unexpected positional arg after --", args: []string{"--", singleTarget}, wantErr: true},
 	}
 
@@ -156,17 +160,17 @@ func TestNormalizeArgs(t *testing.T) {
 		{
 			name: "single-dash value and help flags",
 			args: []string{singleTarget, targetRelay, "-help", "-h", singleNopeFlag},
-			want: []string{"--target", targetRelay, "--help", "-h", singleNopeFlag},
+			want: []string{flagLongTarget, targetRelay, "--help", "-h", singleNopeFlag},
 		},
 		{
 			name: "double-dash value starting with dash is joined with equals",
-			args: []string{"--flag", singleTarget, "-cpuprofile", dashCPUProfile, "-endpoint=ofrep-eval"},
+			args: []string{flagLongFlag, singleTarget, "-cpuprofile", dashCPUProfile, "-endpoint=ofrep-eval"},
 			want: []string{"--flag=-target", "--cpuprofile=" + dashCPUProfile, "--endpoint=ofrep-eval"},
 		},
 		{
 			name: "double-dash terminator stops normalization",
 			args: []string{singleTarget, targetLibrary, "--", "-endpoint", "x"},
-			want: []string{"--target", targetLibrary, "--", "-endpoint", "x"},
+			want: []string{flagLongTarget, targetLibrary, "--", "-endpoint", "x"},
 		},
 	}
 
