@@ -17,6 +17,7 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/corehttp"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
+	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
 const (
@@ -31,16 +32,6 @@ const (
 )
 
 func jsonHeader() http.Header { return http.Header{headerContentType: {mimeJSON}} }
-
-// applyReload hands the file that is on disk to the relay and waits for the round that applies it.
-func (r *relayRig) applyReload(t *testing.T) {
-	t.Helper()
-
-	before := r.snapshot
-	r.reload <- struct{}{}
-
-	r.awaitRound(func(res flagruntime.RoundResult) bool { return res.Snapshot > before })
-}
 
 // pollNext is poll for a relay that already polled: the reader waits for its tick, the first round signal was taken.
 func (r *relayRig) pollNext(gen uint64) {
@@ -61,16 +52,41 @@ func (r *relayRig) pollNext(gen uint64) {
 	r.awaitGeneration(gen)
 }
 
-func (r *relayRig) infoAnonymous(t *testing.T) string {
+// pollRejected lets the reader poll once more and waits for the round in which the engine rejects the generation.
+func (r *relayRig) pollRejected(t *testing.T, gen uint64, wantCode string) {
+	t.Helper()
+
+	select {
+	case r.sched.release <- struct{}{}:
+	case <-time.After(waitBound):
+		require.FailNow(t, "the reader is not waiting for a tick")
+	}
+
+	timeout := time.After(waitBound)
+
+	for {
+		select {
+		case res := <-r.rounds:
+			if res.Outcome == flagruntime.OutcomeRejected && res.Generation == gen {
+				assert.Equal(t, wantCode, res.Code)
+
+				return
+			}
+		case <-timeout:
+			require.FailNow(t, "the engine did not reject the generation", r.stderr.String())
+		}
+	}
+}
+
+// infoPublic is the public status of /info.
+func (r *relayRig) infoPublic(t *testing.T) string {
 	t.Helper()
 
 	status, body := get(t, r.url+infoPath, http.Header{"Accept": {mimeJSON}})
 	require.Equal(t, http.StatusOK, status)
 
-	_, after, found := strings.Cut(body, `"anonymous":`)
-	if !found {
-		return ""
-	}
+	_, after, found := strings.Cut(body, `"public":`)
+	require.True(t, found, "/info has the status of the public flags")
 
 	end := strings.Index(after, "}")
 	require.GreaterOrEqual(t, end, 0)
@@ -78,63 +94,129 @@ func (r *relayRig) infoAnonymous(t *testing.T) string {
 	return after[:end+1]
 }
 
-// The relay started from a file that names an anonymous flag set serves the requests without a key from it, and only
-// those requests: a wrong key is refused, the admin endpoints stay closed. A reload of the file changes it with no
-// restart.
-func TestRunServesTheAnonymousFlagSet(t *testing.T) {
+const (
+	openSet     = "open"
+	openObject  = "flags-open"
+	otherObject = "flags-other"
+)
+
+// publicSets are the flag sets of the tests: the tenant, with its key, and flag sets without keys.
+func publicSets(open ...string) []controlplane.FlagSet {
+	sets := make([]controlplane.FlagSet, 0, 1+len(open))
+	sets = append(
+		sets,
+		controlplane.FlagSet{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+	)
+
+	for _, name := range open {
+		sets = append(sets, controlplane.FlagSet{Name: name, Sources: []string{map[string]string{
+			openSet: openObject, "other": otherObject,
+		}[name]}})
+	}
+
+	return sets
+}
+
+// A flag set published without API keys is public: a request without a key is served by it, and only by it. A wrong key
+// is refused, the admin endpoints stay closed, and the public flags follow the published generations: withdrawn when
+// the last public flag set gets a key.
+func TestRunServesThePublicFlags(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, &rigOptions{
-		extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n",
-	})
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
 	rig.awaitGeneration(1)
+
+	status, _ := rig.evaluate("")
+	assert.Equal(t, http.StatusUnauthorized, status, "no flag set is public yet: a request without a key is refused")
+	assert.JSONEq(t, `{"sets":[],"flags":0,"present":false}`, rig.infoPublic(t))
+
+	// generation 2 publishes a flag set without keys
+	rig.store.publishDocs(
+		publicSets(openSet),
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(100)},
+	)
+	rig.poll()
 
 	status, value := rig.evaluate("")
 	assert.Equal(t, http.StatusOK, status, "a request without a key is served")
-	assert.InDelta(t, 1, value, 0)
+	assert.InDelta(t, 100, value, 0, "by the public flags")
 
 	status, value = rig.evaluate(tenantKey)
 	assert.Equal(t, http.StatusOK, status, "a request with the key behaves as before")
-	assert.InDelta(t, 1, value, 0)
+	assert.InDelta(t, 1, value, 0, "and gets the flags of its flag set")
 
 	status, _ = rig.evaluate("33333333-3333-4333-8333-333333333333")
-	assert.Equal(t, http.StatusUnauthorized, status, "a wrong key never falls back to the anonymous flag set")
+	assert.Equal(t, http.StatusUnauthorized, status, "a wrong key never falls back to the public flags")
 
 	status, body := doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody, jsonHeader())
 	assert.Equal(t, http.StatusOK, status, "the bulk evaluation is served without a key")
 	assert.Contains(t, body, `"key":"`+flagKey+`"`)
 
 	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, "{}", http.Header{})
-	assert.Equal(t, http.StatusUnauthorized, status, "an anonymous request never reaches the admin endpoints")
+	assert.Equal(t, http.StatusUnauthorized, status, "a request without a key never reaches the admin endpoints")
 
 	status, _ = doRequest(t, http.MethodPost, rig.url+adminValidatePath, "{}", http.Header{headerAPIKey: {tenantKey}})
 	assert.Equal(t, http.StatusUnauthorized, status, "the key of a flag set is no admin key")
 
-	assert.JSONEq(t, `{"flagSet":"tenant","state":"serving"}`, rig.infoAnonymous(t))
+	assert.JSONEq(t, `{"sets":["open"],"flags":1,"present":true}`, rig.infoPublic(t))
 
-	// a flag set that does not exist: the answer of a key whose flag set is not available, and /info says so
-	rig.writeConfig("auth:\n  anonymousFlagSet: ghost\n  adminKeys: [" + adminKey + "]\n")
-	rig.applyReload(t)
+	// generation 3 changes the public flags: no restart, no reload of the file
+	rig.store.publishDocs(
+		publicSets(openSet),
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(101)},
+	)
+	rig.pollNext(3)
+
+	status, value = rig.evaluate("")
+	assert.Equal(t, http.StatusOK, status)
+	assert.InDelta(t, 101, value, 0)
+
+	// generation 4 gives the flag set a key: nothing is public any more
+	rig.store.publishDocs([]controlplane.FlagSet{
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+		{Name: openSet, Sources: []string{openObject}, APIKeys: []string{"55555555-5555-4555-8555-555555555555"}},
+	}, map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(101)})
+	rig.pollNext(4)
 
 	status, _ = rig.evaluate("")
-	assert.Equal(t, http.StatusNotFound, status, "the flag is not found, as for a flag set that is not available")
-	assert.JSONEq(t, `{"flagSet":"ghost","state":"missing"}`, rig.infoAnonymous(t))
-	assert.Equal(t, 1, strings.Count(rig.stderr.String(), "the anonymous flag set is not in the generation"))
-
-	status, _ = rig.evaluate(tenantKey)
-	assert.Equal(t, http.StatusOK, status, "the keys of the flag sets are not affected")
-
-	// switched off again by a reload, in place
-	rig.writeConfig("auth:\n  adminKeys: [" + adminKey + "]\n")
-	rig.applyReload(t)
-
-	status, _ = rig.evaluate("")
-	assert.Equal(t, http.StatusUnauthorized, status)
-	assert.Empty(t, rig.infoAnonymous(t))
+	assert.Equal(t, http.StatusUnauthorized, status, "the flags are not public any more")
+	assert.JSONEq(t, `{"sets":[],"flags":0,"present":false}`, rig.infoPublic(t))
 }
 
-// By default every request needs a key.
-func TestRunWithoutAnonymousFlagSetNeedsAKey(t *testing.T) {
+// Two flag sets published without keys form one namespace: a flag key that both define is refused. The generation is
+// rejected whole and the relay keeps the last known good, public flags included.
+func TestRunRejectsAFlagKeyInTwoPublicFlagSets(t *testing.T) {
+	t.Parallel()
+
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n"})
+	rig.awaitGeneration(1)
+
+	rig.store.publishDocs(
+		publicSets(openSet),
+		map[string]string{flagsObject: flagYAML(1), openObject: flagYAML(100)},
+	)
+	rig.poll()
+
+	status, value := rig.evaluate("")
+	require.Equal(t, http.StatusOK, status)
+	assert.InDelta(t, 100, value, 0)
+
+	// generation 3: a second public flag set defines the flag f too
+	rig.store.publishDocs(publicSets(openSet, "other"), map[string]string{
+		flagsObject: flagYAML(1), openObject: flagYAML(101), otherObject: flagYAML(5),
+	})
+
+	rig.pollRejected(t, 3, flagruntime.CodeBuildFailed)
+
+	status, value = rig.evaluate("")
+	assert.Equal(t, http.StatusOK, status, "the relay keeps serving the last known good")
+	assert.InDelta(t, 100, value, 0)
+	assert.Contains(t, rig.stderr.String(), "defined in open and other")
+	assert.NotContains(t, rig.stderr.String(), tenantKey)
+}
+
+// With no flag set published without keys, every request needs a key.
+func TestRunWithoutPublicFlagsNeedsAKey(t *testing.T) {
 	t.Parallel()
 
 	rig := startRelay(t, &rigOptions{})
@@ -238,10 +320,16 @@ func TestRunServesPprofOnTheOpsListenerOnly(t *testing.T) {
 func TestRunAppliesTheStreamAndValidateSettings(t *testing.T) {
 	t.Parallel()
 
-	rig := startRelay(t, &rigOptions{extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n" +
+	rig := startRelay(t, &rigOptions{extra: "auth:\n  adminKeys: [" + adminKey + "]\n" +
 		"server:\n  ofrepEventStream: {baseUrl: \"https://flags.example.com\", inactivityDelaySec: 45}\n" +
 		"  validateFlags: {maxJsonBodySize: 1KiB}\n"})
 	rig.awaitGeneration(1)
+
+	// a flag set without keys is public: a client without a key is served
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(1), openObject: flagYAML(100),
+	})
+	rig.poll()
 
 	status, body := doRequest(t, http.MethodPost, rig.url+anonymousBulkPath, bulkBody,
 		http.Header{headerAPIKey: {tenantKey}, headerContentType: {mimeJSON}})
@@ -384,98 +472,83 @@ func (c *streamClient) awaitClosed(t *testing.T) {
 	}
 }
 
-// A client without a key gets the changes of the anonymous flag set, on the websocket and on the SSE stream. When a
-// reload clears the setting, or names another flag set, they are closed at once and get no further change. A client
-// with a key of the flag set is never touched.
-func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
+// A client without a key gets the changes of the public flags, on the websocket and on the SSE stream, as a client with
+// a key gets the ones of its flag set. When a generation withdraws the public flags (their flag set gets a key) the
+// clients without a key are closed at once and get nothing more. A client with a key is never touched.
+func TestRunClosesThePublicStreamsWhenTheFlagsAreWithdrawn(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		// reloaded is the auth block of the file that ends the anonymous access of the flag set tenant.
-		reloaded string
-	}{
-		{name: "the setting is cleared", reloaded: "auth:\n  adminKeys: [" + adminKey + "]\n"},
-		{
-			name:     "the setting names a flag set that is not held",
-			reloaded: "auth:\n  anonymousFlagSet: ghost\n  adminKeys: [" + adminKey + "]\n",
+	// the changes of the generations 1 and 2 are held back by the hook until the four clients are registered: they all
+	// get theirs, and the counts below are exact
+	held := make(chan struct{})
+	rig := startRelay(t, &rigOptions{
+		extra: "auth:\n  adminKeys: [" + adminKey + "]\n",
+		broadcast: func(change flagruntime.Change) {
+			if change.Generation <= 2 {
+				<-held
+			}
 		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			// the change of generation 1 is held back by the hook until the four clients are registered: they all get
-			// it, and the counts below are exact
-			held := make(chan struct{})
-			rig := startRelay(t, &rigOptions{
-				extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n",
-				broadcast: func(change flagruntime.Change) {
-					if change.Generation == 1 {
-						<-held
-					}
-				},
-			})
-			t.Cleanup(func() {
-				select {
-				case <-held:
-				default:
-					close(held)
-				}
-			})
-
-			rig.awaitGeneration(1)
-
-			rel := <-rig.started
-
-			anonWS, anonSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
-			keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
-
-			require.Eventually(t, func() bool {
-				return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
-			}, waitBound, time.Millisecond, "the four clients are registered")
-
+	})
+	t.Cleanup(func() {
+		select {
+		case <-held:
+		default:
 			close(held)
+		}
+	})
 
-			for _, client := range []*streamClient{anonWS, keyedWS} {
-				client.awaitEvent(t, `"added":{"f"`)
-			}
+	rig.awaitGeneration(1)
 
-			for _, client := range []*streamClient{anonSSE, keyedSSE} {
-				client.awaitEvent(t, "refetchEvaluation")
-			}
+	rel := <-rig.started
 
-			rig.store.publish(2)
-			rig.poll(2)
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(1), openObject: flagYAML(100),
+	})
+	rig.poll()
 
-			// the message of the websocket carries the new value of the flag: it is the change of generation 2
-			anonWS.awaitEvent(t, `"v":2`)
-			anonSSE.awaitEvent(t, "refetchEvaluation")
-			keyedWS.awaitEvent(t, `"v":2`)
-			keyedSSE.awaitEvent(t, "refetchEvaluation")
+	keylessWS, keylessSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
+	keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
 
-			rig.writeConfig(tt.reloaded)
-			rig.applyReload(t)
+	require.Eventually(t, func() bool {
+		return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
+	}, waitBound, time.Millisecond, "the four clients are registered")
 
-			anonWS.awaitClosed(t)
-			anonSSE.awaitClosed(t)
+	close(held)
 
-			rig.store.publish(3)
-			rig.pollNext(3)
+	// generation 1: the flag set with the key; generation 2: the public flags
+	keyedWS.awaitEvent(t, `"v":1`)
+	keyedSSE.awaitEvent(t, "refetchEvaluation")
+	keylessWS.awaitEvent(t, `"v":100`)
+	keylessSSE.awaitEvent(t, "refetchEvaluation")
 
-			keyedWS.awaitEvent(t, `"v":3`)
-			keyedSSE.awaitEvent(t, "refetchEvaluation")
+	// generation 3: the public flags change, nothing else does
+	rig.store.publishDocs(publicSets(openSet), map[string]string{
+		flagsObject: flagYAML(1), openObject: flagYAML(101),
+	})
+	rig.pollNext(3)
 
-			// exact counts: one message per generation for the clients with a key, and the ones of generations 1 and 2
-			// for the clients that were closed before generation 3
-			assert.Equal(t, int64(2), anonWS.received.Load(), "messages of the closed websocket client")
-			assert.Equal(t, int64(2), anonSSE.received.Load(), "messages of the closed SSE client")
-			assert.Equal(t, int64(3), keyedWS.received.Load(), "messages of the websocket client with a key")
-			assert.Equal(t, int64(3), keyedSSE.received.Load(), "messages of the SSE client with a key")
-			assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
-		})
-	}
+	keylessWS.awaitEvent(t, `"v":101`)
+	keylessSSE.awaitEvent(t, "refetchEvaluation")
+
+	// generation 4: the public flag set gets a key, and the flag set of the key changes
+	rig.store.publishDocs([]controlplane.FlagSet{
+		{Name: tenantSet, Sources: []string{flagsObject}, APIKeys: []string{tenantKey}},
+		{Name: openSet, Sources: []string{openObject}, APIKeys: []string{"55555555-5555-4555-8555-555555555555"}},
+	}, map[string]string{flagsObject: flagYAML(2), openObject: flagYAML(101)})
+	rig.pollNext(4)
+
+	keylessWS.awaitClosed(t)
+	keylessSSE.awaitClosed(t)
+	keyedWS.awaitEvent(t, `"v":2`)
+	keyedSSE.awaitEvent(t, "refetchEvaluation")
+
+	// exact counts: the clients without a key got the changes of the generations 2 and 3, the ones with a key those
+	// of the generations 1 and 4
+	assert.Equal(t, int64(2), keylessWS.received.Load(), "messages of the websocket client without a key")
+	assert.Equal(t, int64(2), keylessSSE.received.Load(), "messages of the SSE client without a key")
+	assert.Equal(t, int64(2), keyedWS.received.Load(), "messages of the websocket client with a key")
+	assert.Equal(t, int64(2), keyedSSE.received.Load(), "messages of the SSE client with a key")
+	assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
 }
 
 const refreshPath = "/admin/v1/retriever/refresh"

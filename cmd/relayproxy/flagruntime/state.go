@@ -61,18 +61,19 @@ type setState struct {
 
 // state is the committed state of the builder after a build.
 type state struct {
-	objects   map[string]*objState
+	objStatus map[string]*ObjectStatus
 	docs      map[string]*docState
 	segs      map[string]*segState
 	sets      map[string]*setState
 	flagSets  map[string]*FlagSet
 	byKey     map[string]*FlagSet
 	rev       map[string][]string
-	objStatus map[string]*ObjectStatus
+	objects   map[string]*objState
 	setStatus map[string]*FlagSetStatus
+	public    *publicView
 	entries   []EntryProblem
 	withdrawn []WithdrawnSet
-	namesVer  uint64 // version of the set of flags object names
+	namesVer  uint64
 	init      bool
 }
 

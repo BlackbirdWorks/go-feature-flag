@@ -117,7 +117,7 @@ func (rs *routeSet) raw(op *huma.Operation, pattern string, h http.Handler, mws 
 func (s *Server) userKeyAuth() middleware.KeyAuth {
 	return middleware.NewKeyAuth(middleware.KeyAuthConfig{
 		Skipper: func() bool { return !s.keys.AuthenticationEnabled() },
-		// a request without a key is served by the anonymous flag set of the runtime, when there is one: the
+		// a request without a key is served by the public flags of the runtime, when there are some: the
 		// resolver answers "no flag set" for an empty key otherwise.
 		AllowAnonymous: true,
 		Validator: func(ctx context.Context, key string) (context.Context, bool) {

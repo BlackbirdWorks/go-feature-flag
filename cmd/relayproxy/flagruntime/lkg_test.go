@@ -634,10 +634,10 @@ func TestBuilderHashIdentifiesContent(t *testing.T) {
 		"f2": flagsObj(2, "x"),
 		setsName: setsObj(
 			t,
-			fset("a", src("f1")),
-			fset("same", src("f1")),
-			fset("other", src("f2")),
-			fset("both", src("f1", "f2")),
+			fset("a", src("f1"), "k1"),
+			fset("same", src("f1"), "k2"),
+			fset("other", src("f2"), "k3"),
+			fset("both", src("f1", "f2"), "k4"),
 		),
 	}
 	built, err := b.Build(context.Background(), content(1, objects))

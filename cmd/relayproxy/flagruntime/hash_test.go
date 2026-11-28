@@ -84,8 +84,14 @@ func TestFlagSetHashIgnoresTheOrderOfDisjointSources(t *testing.T) {
 	t.Parallel()
 
 	built := buildAndCommit(t, flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{}), content(1, objs{
-		"f1": flagsObj(1, "x"), "f2": flagsObj(2, "y"),
-		setsName: setsObj(t, fset("ab", src("f1", "f2")), fset("ba", src("f2", "f1")), fset("one", src("f1"))),
+		"f1": flagsObj(1, "x"),
+		"f2": flagsObj(2, "y"),
+		setsName: setsObj(
+			t,
+			fset("ab", src("f1", "f2"), "k1"),
+			fset("ba", src("f2", "f1"), "k2"),
+			fset("one", src("f1"), "k3"),
+		),
 	}))
 
 	sets := built.Runtime.FlagSets

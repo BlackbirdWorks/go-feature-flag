@@ -38,10 +38,9 @@ type Runtime struct {
 	ByKey map[string]*FlagSet
 	// AdminKeys are the admin keys of the bootstrap file.
 	AdminKeys map[string]struct{}
-	// Anonymous is the flag set that serves the requests without an API key; nil when the bootstrap file names none.
-	// It is the flag set of that name in FlagSets, or, when the generation has none, an empty pending flag set: the
-	// requests get the answer of a key whose flag set is not available.
-	Anonymous *FlagSet
+	// Public is the flag set that serves the requests without an API key: the flag sets published without a key,
+	// merged into one namespace. Nil when the generation has none: such a request is refused.
+	Public *FlagSet
 	// Status is the status tree of this runtime.
 	Status *Status
 	// Generation is the manifest generation of the content.

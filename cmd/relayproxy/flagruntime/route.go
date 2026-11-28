@@ -72,7 +72,7 @@ func (r Route) Err() error {
 // is no weaker than the map lookup of version 1. No key is copied, logged or put in an error.
 func (r *Runtime) Route(key string) (*FlagSet, Route) {
 	if key == "" {
-		return r.routeAnonymous()
+		return r.routePublic()
 	}
 
 	if fs, ok := r.ByKey[key]; ok {
@@ -88,4 +88,18 @@ func (r *Runtime) Route(key string) (*FlagSet, Route) {
 	}
 
 	return nil, RouteUnknown
+}
+
+// routePublic routes a request without a key: to the public flag set when the generation has one, with the route a
+// key of that flag set would get; else it is unknown. A key that is given never comes here.
+func (r *Runtime) routePublic() (*FlagSet, Route) {
+	if r.Public == nil {
+		return nil, RouteUnknown
+	}
+
+	if r.Public.State == StatePending {
+		return r.Public, RoutePending
+	}
+
+	return r.Public, RouteFlagSet
 }

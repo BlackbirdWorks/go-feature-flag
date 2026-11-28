@@ -49,7 +49,7 @@ func ResolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[st
 }
 
 // pendingRestart lists the settings of cfg that differ from the ones the process started with. Only names are
-// listed: a value may be a secret. Auth.AdminKeys and Auth.AnonymousFlagSet are not compared: they apply live.
+// listed: a value may be a secret. Auth.AdminKeys is not compared: it applies live.
 func pendingRestart(base, cfg *bootstrap.Config) []string {
 	var out []string
 

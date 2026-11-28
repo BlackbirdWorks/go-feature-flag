@@ -7,7 +7,6 @@ const (
 	pathOPSPprof    = "server.ops.pprof.enabled"
 	pathStreamURL   = "server.ofrepEventStream.baseUrl"
 	pathStreamDelay = "server.ofrepEventStream.inactivityDelaySec"
-	pathAnonymous   = "auth.anonymousFlagSet"
 )
 
 // Ops holds the settings of the ops listener (the listener with the role ops).
@@ -81,17 +80,4 @@ func (v *validator) hasOps() bool {
 	}
 
 	return false
-}
-
-// anonymousFlagSet checks the name of the flag set that serves the requests without a key. Whether the flag set
-// exists is known to the relay only, per generation.
-func (v *validator) anonymousFlagSet() {
-	name := v.cfg.Auth.AnonymousFlagSet
-	if name == "" {
-		return
-	}
-
-	if !nameRE.MatchString(name) {
-		v.failf(pathAnonymous, ErrInvalidName, "names match %s", nameRE.String())
-	}
 }

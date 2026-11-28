@@ -15,12 +15,13 @@ control plane location, listeners, observability and admin keys. It is strict: a
   status and starts nothing. After the start the process never exits because the store is unreachable: `/readyz` shows
   the state, see [probes](probes.md).
 - Listeners: one `api` listener and at most one `ops` listener, each with its own address (the ops listener can bind another host, for
-  example `127.0.0.1:1032`), with ports from 1 to 65535. More
+  example `127.0.0.1:1032`), with ports from 1 to 65535 (`:0` is refused by the relay and by `semaphore-cli config validate`, with the path of the
+  address; a tool that only reads the file does not check the layout). More
   listeners, the same address twice and `server.unixSocketPath` are refused by the validation (`semaphore-cli config
   validate` and the relay agree; the publish command does not check them). `h2c` in `protocols` enables HTTP/2 over
   cleartext on the `api` listener.
 - `observability.logging.format: text` writes logfmt lines.
-- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` and `auth.anonymousFlagSet` apply live; every other change is kept out and named in
+- Reload: `SIGHUP` reads the file again. Only `auth.adminKeys` applies live; every other change is kept out and named in
   `pendingRestart` of the status, see [the core](relay-core.md#reload-in-place). A file that does not load is logged and
   refused, the relay keeps what it has. The log line `reload queued` says the file was handed to the engine; the outcome
   is the `runtime reload` line and the status. A reload whose admin key reference does not resolve is rejected as a
@@ -34,6 +35,9 @@ control plane location, listeners, observability and admin keys. It is strict: a
 
 - The file is YAML with one document. A second document (`---`) is an error. The key `version: 2` is required, in
   any position. A file without it, or with another value, fails with `version 2 required`.
+- An address `host:port` (a listener, a Kafka broker, a store address, the OTLP endpoint) writes its port as digits
+  only, from 1 to 65535, with no sign and no leading zero (`1031`, not `+1031` or `01031`): the file is compared as
+  written and the server binds the number. An address that breaks the rule is refused with the path of the key.
 - Unknown keys are rejected. `studio` and the AWS Lambda `server.mode` are not part of version 2, so they are unknown
   keys. Inline `flagSets` is reserved and rejected: flag sets arrive from the manifest.
 - Every error names the path of the key and its line, for example
@@ -206,19 +210,22 @@ A change of `evaluation` needs a restart (it is listed in `pendingRestart` after
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `adminKeys` | list | empty | plain strings or `{fromEnv: NAME}` / `{fromFile: PATH}` |
-| `anonymousFlagSet` | string | empty (every request needs a key) | the name of a flag set |
 
-`auth.anonymousFlagSet` names the flag set that serves the requests **without** an API key: the evaluation, the bulk
-evaluation, OFREP, the flag change and the streams, everything a key of that flag set can do, and never the admin
-endpoints. It is off by default. Use it for a relay that only the trusted network can reach.
+Public flags are not a bootstrap setting: see [Public flags](#public-flags).
 
-- A request **with** a key behaves as it does without the setting: a wrong key is still `401`, it never falls back to
-  the anonymous flag set.
-- The flag set does not have to exist when the relay starts. While the current generation does not hold it, a request
-  without a key gets the answer of a key whose flag set is not available (a single evaluation says `FLAG_NOT_FOUND`, a
-  bulk evaluation is valid and empty), `/info` shows `"anonymous": {"flagSet": "<name>", "state": "missing"}` and the
-  relay logs a warning once per generation. It starts serving on the reload that publishes it, with no restart.
-- A change of the setting applies on `SIGHUP` with no restart, like `adminKeys`.
+### Public flags
+
+A flag set that is published **without API keys** (no `apiKeys` in its entry of the flag-set document) is public: a request without a key is served by the public flags: the evaluation, the bulk evaluation, OFREP, the flag change and the streams, everything a key of a flag set can do, and never the admin endpoints. Like the other flag sets, it changes with the published generation: no `SIGHUP`, no restart.
+
+- Several flag sets without keys form **one public namespace**. A flag key that two of them define is an error: the generation is rejected as a whole, the relay keeps the last known good (`code: build-failed`, with the flag key and the two flag sets in the log).
+- A request **with** a key behaves as before: a wrong key is `401`, it never falls back to the public flags.
+- When the generation has no flag set without keys, a request without a key is refused (`401`). When the generation that publishes the keys of the last public flag set arrives, the open streams of the clients without a key are closed (they reconnect and are refused).
+- **What a caller without a key can do:** it is a caller of the public flags only. It evaluates them (single, bulk,
+  OFREP), reads their configuration, change hashes and manifest, follows their changes on the streams, and sends
+  evaluation events for them. It sees nothing of the flags of a flag set with a key: they answer as flags that do not
+  exist, and an evaluation event for any other flag key is dropped and counted (`semaphore_events_dropped_total` with
+  `reason="not_public"`), with the same answer as for any other batch. The admin endpoints need an admin key.
+- `/info` shows the status of the namespace: `"public": {"present": true, "flags": 12, "sets": ["pricing", "web"]}`.
 
 ### `controlPlane`
 
@@ -501,7 +508,6 @@ notifiers:
     endpointUrl: {fromFile: /run/secrets/audit-url}
     secret: {fromFile: /run/secrets/audit-signing}
 auth:
-  anonymousFlagSet: public
   adminKeys:
     - 7d9f1e0c-6a43-4c2e-9d57-0f6b3f0f1a11
     - {fromEnv: SEMAPHORE_ADMIN_KEY}

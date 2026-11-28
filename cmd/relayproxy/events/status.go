@@ -10,6 +10,8 @@ const (
 	ReasonNoExporter = "no_exporter"
 	// ReasonOverflow: the queue of an exporter overflowed (its manager dropped the event).
 	ReasonOverflow = "overflow"
+	// ReasonNotPublic: the event came from a caller without an API key and its flag is not one of the public flags.
+	ReasonNotPublic = "not_public"
 	// ReasonDrain: the event was not delivered when its exporter closed: the drain deadline passed or the final
 	// flush failed.
 	ReasonDrain = "drain"
@@ -47,10 +49,13 @@ type Drops struct {
 	NoExporter uint64 `json:"noExporter"`
 	Overflow   uint64 `json:"overflow"`
 	Drain      uint64 `json:"drain"`
+	NotPublic  uint64 `json:"notPublic"`
 }
 
 // Total is the sum of every reason.
-func (d Drops) Total() uint64 { return d.QueueFull + d.Shutdown + d.NoExporter + d.Overflow + d.Drain }
+func (d Drops) Total() uint64 {
+	return d.QueueFull + d.Shutdown + d.NoExporter + d.Overflow + d.Drain + d.NotPublic
+}
 
 // QueueStatus is the state of the event channel.
 type QueueStatus struct {
