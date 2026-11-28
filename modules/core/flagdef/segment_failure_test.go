@@ -556,7 +556,10 @@ func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 
 			var opts []flagdef.ServiceOption
 			if tt.onError != nil && !tt.defaults {
-				opts = append(opts, flagdef.WithSegments(optInCatalog(t, "a", "b"))) // the three-valued path is an opt-in
+				opts = append(
+					opts,
+					flagdef.WithSegments(optInCatalog(t, "a", "b")),
+				) // the three-valued path is an opt-in
 			}
 
 			svc := flagdef.NewService(opts...)

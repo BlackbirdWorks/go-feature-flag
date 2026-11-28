@@ -96,7 +96,7 @@ func TestSegmentRuleEvaluatedWithoutValidation(t *testing.T) {
 			query: jsonInclude, onError: new("match"), defaults: true,
 		},
 		{
-			name: "nikunjy, no provider, default policy: not (member) matches", query: `not (targetingKey in segment("beta"))`,
+			name: "nikunjy, no provider, default policy: not (member) matches", query: nikunjyExclude,
 			defaults: true, wantMatched: true,
 		},
 		{name: "json, no provider: unknown, skipped", query: jsonInclude},

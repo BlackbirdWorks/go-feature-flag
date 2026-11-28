@@ -221,8 +221,8 @@ func (c *Catalog) Has(name string) bool {
 }
 
 // ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does; a segment
-// that the catalog does not define (or no catalog) gets the default policy, not a member. It does not copy the definition: it is
-// for the evaluation path.
+// that the catalog does not define (or no catalog) gets the default policy, not a member. It does not copy the
+// definition: it is for the evaluation path.
 func (c *Catalog) ResolveFor(name string, state State) State {
 	if state != Unknown {
 		return state

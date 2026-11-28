@@ -88,6 +88,7 @@ const (
 	nikunjyPlan    = `plan eq "pro" or targetingKey in segment("beta")`
 	jsonPlan       = `{"or": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "beta"]}]}`
 	nikunjyPlanAnd = `plan eq "pro" and targetingKey in segment("beta")`
+	nikunjyExclude = `not (targetingKey in segment("beta"))`
 	jsonPlanAnd    = `{"and": [{"==": [{"var": "plan"}, "pro"]}, {"inSegment": [{"var": "targetingKey"}, "beta"]}]}`
 )
 
@@ -405,7 +406,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 		// failure policy of the definition
 		{
 			name:     "policy notMember",
-			query:    `not (targetingKey in segment("beta"))`,
+			query:    nikunjyExclude,
 			key:      keyAlice,
 			provider: failingProvider{},
 			catalog: mustCatalog(
@@ -452,7 +453,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 		},
 		{
 			name:          "undefined segment under not matches everybody",
-			query:         `not (targetingKey in segment("beta"))`,
+			query:         nikunjyExclude,
 			key:           keyAlice,
 			catalog:       mustCatalog(t, segment.Definition{Name: segOther, Type: segment.TypeFile}),
 			wantVariant:   variantOn,

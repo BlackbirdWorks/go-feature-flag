@@ -31,13 +31,19 @@ func TestSegmentStatusStale(t *testing.T) {
 	tests := []struct {
 		name        string
 		key         string
-		stale       bool
 		wantVariant string
 		wantStatus  segment.Status
+		stale       bool
 	}{
 		{name: "fresh member", key: keyAlice, wantVariant: variantOn, wantStatus: segment.StatusHealthy},
-		{name: "stale member is still a member", key: keyAlice, stale: true, wantVariant: variantOn, wantStatus: segment.StatusStale},
-		{name: "stale non member", key: keyBob, stale: true, wantVariant: variantOff, wantStatus: segment.StatusStale},
+		{
+			name: "stale member is still a member", key: keyAlice, stale: true,
+			wantVariant: variantOn, wantStatus: segment.StatusStale,
+		},
+		{
+			name: "stale non member", key: keyBob, stale: true,
+			wantVariant: variantOff, wantStatus: segment.StatusStale,
+		},
 	}
 
 	for _, tt := range tests {
