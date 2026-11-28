@@ -128,7 +128,7 @@ func TestSnapshotSuiteCatchesBrokenSources(t *testing.T) {
 			wantCases: []string{
 				segmenttest.CaseSnapCancelMidStream, segmenttest.CaseSnapLastKnownGood, segmenttest.CaseSnapGone,
 				segmenttest.CaseSnapCtxEnded, segmenttest.CaseSnapNoRepull, segmenttest.CaseSnapMemoryGuard,
-				segmenttest.CaseSnapVersionMoves,
+				segmenttest.CaseSnapVersionMoves, segmenttest.CaseSnapChangedInPull,
 			},
 		},
 		{defect: defEmitsAfterError, wantCases: []string{segmenttest.CaseSnapEmptyVsMissing}},
