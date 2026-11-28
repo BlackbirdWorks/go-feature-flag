@@ -191,7 +191,7 @@ stops the relay at the start. See [probes](probes.md#shutdown-in-kubernetes) for
 | `metrics.legacyNames` | boolean | `false` | |
 | `metrics.perFlagLabels` | boolean | `false` | |
 | `metrics.perSegmentLabels` | boolean | `false` | adds the `semaphore_segment_named_*` series labelled by segment name, see [Metrics](probes.md#metrics) |
-| `metrics.maxSegmentLabels` | integer | `100` | at least 1; the names beyond it are counted under `segment="other"` |
+| `metrics.maxSegmentLabels` | integer | `100` | at least 1, and only with `perSegmentLabels: true` (an error otherwise); 0 or unset is the default; the names beyond it are counted under `segment="other"` |
 | `tracing.otlpEndpoint` | string | none | `host:port`, or an `http`/`https` URL, without credentials |
 | `tracing.serviceName` | string | `semaphore` | |
 | `tracing.sampler` | string | `parentbased_always_off` | `always_on`, `always_off`, `traceidratio`, `parentbased_always_on`, `parentbased_always_off`, `parentbased_traceidratio` |

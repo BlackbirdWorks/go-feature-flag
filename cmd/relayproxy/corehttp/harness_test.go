@@ -1,6 +1,7 @@
 package corehttp_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -458,4 +460,24 @@ func (rig *v2) setAdmin(tb testing.TB, keys string) {
 			require.FailNow(tb, "the engine did not apply the bootstrap file")
 		}
 	}
+}
+
+// logBuffer is a log destination that several goroutines write.
+type logBuffer struct {
+	buf bytes.Buffer
+	mu  sync.Mutex
+}
+
+func (b *logBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *logBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }

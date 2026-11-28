@@ -133,3 +133,21 @@ func TestSegmentBindingsCountOpenBreakers(t *testing.T) {
 		built.Runtime.SegmentBindings().Breakers,
 	)
 }
+
+// The runtime names the dynamic segments that it serves, sorted and distinct; a flag set with none names nothing.
+func TestRuntimeDynamicSegmentNames(t *testing.T) {
+	t.Parallel()
+
+	source := segment.NewMemorySource(map[string][]string{audienceSegmentName: {memberAlice}})
+	builder := viewBuilder(t, &memBinder{source: source})
+	built, err := builder.Build(t.Context(), viewContent(t, lookupDoc))
+	require.NoError(t, err)
+
+	builder.Commit(built)
+
+	assert.Equal(t, []string{audienceSegmentName}, built.Runtime.DynamicSegmentNames())
+	assert.Empty(t, flagruntime.NewHolder().Load().DynamicSegmentNames())
+}
+
+// staffName is a segment that the flags of several fixtures use and no document of them defines.
+const staffName = "staff"

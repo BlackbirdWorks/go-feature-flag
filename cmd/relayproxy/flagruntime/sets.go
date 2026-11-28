@@ -202,7 +202,7 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 		spec: spec, fs: fset, inputs: inputs, segInputs: segInputs, notes: notes,
 		status: &FlagSetStatus{
 			Name: spec.name, State: phase, Sources: spec.sources, Problems: sum.problems, Flags: len(flags),
-			APIKeys: len(spec.keys), Rejected: sum.rejected, Segments: segments.counts(),
+			APIKeys: len(spec.keys), Rejected: sum.rejected, Segments: withUnresolved(segments.counts(), fset.uses),
 		},
 	}
 }

@@ -306,6 +306,26 @@ func (p *SegmentPoll) reportConnection(ctx context.Context) func(string, bool) {
 	}
 }
 
+// DynamicSegmentNames returns the sorted, distinct names of the dynamic segments that the flag sets of the runtime
+// serve.
+func (r *Runtime) DynamicSegmentNames() []string {
+	seen := map[string]struct{}{}
+
+	for _, set := range r.FlagSets {
+		if set.Segments == nil || set.Segments.View == nil {
+			continue
+		}
+
+		for _, group := range set.Segments.View.groups {
+			for _, name := range slices.Concat(group.lookups, group.snapshots) {
+				seen[name] = struct{}{}
+			}
+		}
+	}
+
+	return slices.Sorted(maps.Keys(seen))
+}
+
 // liveBindings returns the distinct bindings that the flag sets of the runtime use, in a stable order.
 func (r *Runtime) liveBindings() []*segBinding {
 	seen := map[*segBinding]struct{}{}

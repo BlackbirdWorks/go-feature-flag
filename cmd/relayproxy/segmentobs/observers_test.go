@@ -156,7 +156,10 @@ func TestObservers_PerSegmentSeriesAreOptInAndCapped(t *testing.T) {
 	obs := segmentobs.New(segmentobs.Options{PerSegment: true, MaxSegments: 2})
 	conn := obs.For("c")
 
-	for _, name := range []string{"a", "b", "c", "d", "a"} {
+	// four live names and room for two: the first two in sorted order, whatever the order of arrival
+	obs.SetLive([]string{"d", "c", "b", "a", "a"})
+
+	for _, name := range []string{"d", "c", "b", "a", "a"} {
 		conn.ObserveSegment(
 			resolver.SegmentObservation{Segment: name, Lookups: 2, Hits: 1, Unknown: 1, Failure: resolver.ReasonStore},
 		)
@@ -206,6 +209,13 @@ func TestObservers_DefaultCap(t *testing.T) {
 	obs := segmentobs.New(segmentobs.Options{PerSegment: true})
 	conn := obs.For("c")
 
+	live := make([]string, 0, segmentobs.DefaultMaxSegments+7)
+	for i := range segmentobs.DefaultMaxSegments + 7 {
+		live = append(live, fmt.Sprintf("s%d", i))
+	}
+
+	obs.SetLive(live)
+
 	for i := range segmentobs.DefaultMaxSegments + 7 {
 		conn.ObserveSegment(resolver.SegmentObservation{Segment: fmt.Sprintf("s%d", i), Lookups: 1, Hits: 1})
 	}
@@ -222,6 +232,8 @@ func TestObservers_Concurrent(t *testing.T) {
 	obs := segmentobs.New(segmentobs.Options{PerSegment: true, MaxSegments: 3})
 	conn := obs.For("c")
 	done := make(chan struct{})
+
+	obs.SetLive([]string{"s0", "s1", "s2", "s3", "s4"})
 
 	const workers, rounds = 8, 200
 
@@ -244,6 +256,49 @@ func TestObservers_Concurrent(t *testing.T) {
 
 	assert.InDelta(t, workers*rounds, got["semaphore_segment_lookups_total{connection=c,result=hit}"], 0)
 	assert.InDelta(t, workers*rounds, got["semaphore_segment_lookup_duration_seconds{connection=c}"], 0)
+}
+
+// The names that have a series follow the live catalog: a name that is gone loses its series and frees its slot, a
+// name that stays keeps its counts (a counter never goes back), and a live name is never counted under other while
+// fewer than the cap names are live.
+func TestObservers_NamesFollowTheLiveCatalog(t *testing.T) {
+	t.Parallel()
+
+	obs := segmentobs.New(segmentobs.Options{PerSegment: true, MaxSegments: 2})
+	conn := obs.For("c")
+	hit := func(name string) {
+		conn.ObserveSegment(resolver.SegmentObservation{Segment: name, Lookups: 1, Hits: 1})
+	}
+	key := func(name string) string {
+		return "semaphore_segment_named_lookups_total{result=hit,segment=" + name + "}"
+	}
+
+	obs.SetLive([]string{"a", "b"})
+	hit("a")
+	hit("b")
+	hit("b")
+
+	// a is removed and c is added: c takes the slot of a, b keeps its counts
+	obs.SetLive([]string{"b", "c"})
+	hit("b")
+	hit("c")
+
+	got := gather(t, obs)
+
+	assert.NotContains(t, got, key("a"), "the series of a removed name is gone")
+	assert.InDelta(t, 3, got[key("b")], 0, "a name that stays keeps its counts")
+	assert.InDelta(t, 1, got[key("c")], 0, "a new name has its own series")
+	assert.InDelta(t, 0, got[key("other")], 0, "no live name was counted under other")
+	assert.InDelta(t, 0, got["semaphore_segment_named_overflow_total{}"], 0)
+
+	// the segments are gone altogether, and one comes back: it starts again at zero
+	obs.SetLive(nil)
+	obs.SetLive([]string{"a"})
+
+	got = gather(t, obs)
+
+	assert.InDelta(t, 0, got[key("a")], 0)
+	assert.NotContains(t, got, key("b"))
 }
 
 func TestObservers_Describe(t *testing.T) {
@@ -286,6 +341,27 @@ func BenchmarkObserveCall(b *testing.B) {
 				conn.ObserveCall(call)
 				conn.ObserveSegment(seg)
 			}
+		})
+	}
+}
+
+// BenchmarkObserveSegmentParallel shows that the series by segment name do not serialize the callers: a name beyond
+// the cap, the case that used to take a write lock, and a name with a series, with 1 and 8 callers.
+func BenchmarkObserveSegmentParallel(b *testing.B) {
+	for _, name := range []string{"live", "beyond-the-cap"} {
+		b.Run(name, func(b *testing.B) {
+			obs := segmentobs.New(segmentobs.Options{PerSegment: true, MaxSegments: 1})
+			obs.SetLive([]string{"live"})
+
+			conn := obs.For("c")
+			seg := resolver.SegmentObservation{Segment: name, Lookups: 1, Hits: 1}
+
+			b.ReportAllocs()
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					conn.ObserveSegment(seg)
+				}
+			})
 		})
 	}
 }

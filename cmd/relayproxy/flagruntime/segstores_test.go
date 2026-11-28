@@ -257,6 +257,8 @@ func TestRejectionsAreReportedOnceAndCounted(t *testing.T) {
 		setsName:  withSegmentSources(t),
 	}
 
+	// the flags of the fixture use "staff", which no document of this test defines
+	staffOnly := []string{staffName}
 	invalid := segHeader + "  - name: audience\n    connection: audiences\n    layout: keys\n"
 
 	steps := []struct {
@@ -268,37 +270,53 @@ func TestRejectionsAreReportedOnceAndCounted(t *testing.T) {
 	}{
 		{
 			name: "good", doc: audienceDoc(connAudiences, ""), wantState: flagruntime.ObjectOK,
-			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1},
+			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, Unresolved: 1, UnresolvedNames: staffOnly},
 		},
 		{
 			name: "definition rejected", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectOK,
-			wantCounts:     flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
+			wantCounts: flagruntime.SegmentCounts{
+				Static: 1, Dynamic: 1, RejectedDefinitions: 1, Unresolved: 1, UnresolvedNames: staffOnly,
+			},
 			wantRejections: 1,
 		},
 		{
 			name: "the same content again", doc: audienceDoc("nowhere", ""), wantState: flagruntime.ObjectOK,
-			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
+			wantCounts: flagruntime.SegmentCounts{
+				Static: 1, Dynamic: 1, RejectedDefinitions: 1, Unresolved: 1, UnresolvedNames: staffOnly,
+			},
 		},
 		{
 			name: "other bad content", doc: audienceDoc("elsewhere", ""), wantState: flagruntime.ObjectOK,
-			wantCounts:     flagruntime.SegmentCounts{Static: 1, Dynamic: 1, RejectedDefinitions: 1},
+			wantCounts: flagruntime.SegmentCounts{
+				Static: 1, Dynamic: 1, RejectedDefinitions: 1, Unresolved: 1, UnresolvedNames: staffOnly,
+			},
 			wantRejections: 1,
 		},
 		{
 			name: "two bad definitions", doc: segHeader + "  - name: one\n    connection: nowhere\n" +
 				"  - name: two\n    connection: elsewhere\n",
-			wantState:      flagruntime.ObjectOK,
-			wantCounts:     flagruntime.SegmentCounts{Dynamic: 2, RejectedDefinitions: 2},
+			wantState: flagruntime.ObjectOK,
+			wantCounts: flagruntime.SegmentCounts{
+				Dynamic:             2,
+				RejectedDefinitions: 2,
+				Unresolved:          2,
+				UnresolvedNames:     []string{betaSegmentName, staffName},
+			},
 			wantRejections: 1,
 		},
 		{
 			name: "invalid document keeps the last good one", doc: invalid, wantState: flagruntime.ObjectInvalid,
-			wantCounts:     flagruntime.SegmentCounts{Dynamic: 2, RejectedDefinitions: 2},
+			wantCounts: flagruntime.SegmentCounts{
+				Dynamic:             2,
+				RejectedDefinitions: 2,
+				Unresolved:          2,
+				UnresolvedNames:     []string{betaSegmentName, staffName},
+			},
 			wantRejections: 1,
 		},
 		{
 			name: "fixed", doc: audienceDoc(connAudiences, "lookup"), wantState: flagruntime.ObjectOK,
-			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1},
+			wantCounts: flagruntime.SegmentCounts{Static: 1, Dynamic: 1, Unresolved: 1, UnresolvedNames: staffOnly},
 		},
 	}
 

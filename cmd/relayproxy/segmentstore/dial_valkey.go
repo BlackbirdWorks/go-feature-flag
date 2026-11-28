@@ -65,7 +65,8 @@ func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOption
 
 		client, err := valkey.NewClient(opt)
 		if err != nil {
-			return nil, fmt.Errorf("valkey: %w", valkeysegment.ErrUnavailable) // the error holds an address
+			// the error holds an address: only its class is kept
+			return nil, fmt.Errorf("valkey: %w", dialClass(err))
 		}
 
 		return &valkeyHandle{

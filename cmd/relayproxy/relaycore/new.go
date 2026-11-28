@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/opentelemetry"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/controlsource"
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/events"
@@ -132,7 +135,7 @@ func (c *Core) assemble(ctx context.Context, cfg *bootstrap.Config, deps *Deps) 
 	engineHooks := deps.Hooks
 	afterRound := engineHooks.AfterRound
 	engineHooks.AfterRound = func(res flagruntime.RoundResult) {
-		c.reloads.record(&res)
+		c.recordRound(ctx, &res)
 		c.reloads.recordRejected(&res, c.holder.Load().Status.Objects)
 
 		if persist != nil {
@@ -184,7 +187,9 @@ func (c *Core) newEngine(
 			Binder:      c.segs,
 			ObserverFor: func(connection string) resolver.Observer { return c.segObs.For(connection) },
 			Resolver:    resolverSettings(cfg),
-			Traced:      cfg.Observability.Tracing.OTLPEndpoint != "",
+			Traced: opentelemetry.Enabled(&opentelemetry.Settings{
+				OTLPEndpoint: cfg.Observability.Tracing.OTLPEndpoint,
+			}),
 		}),
 		flagruntime.WithSecretOptions(deps.Secrets),
 		flagruntime.WithInitialBootstrap(cfg),
@@ -278,3 +283,55 @@ func (c *Core) registerSegmentSeries(ctx context.Context) {
 
 	c.segObsRegistered = true
 }
+
+// recordRound counts a round, then follows the live segments of the generation that it applied.
+func (c *Core) recordRound(ctx context.Context, res *flagruntime.RoundResult) {
+	c.reloads.record(res)
+	c.noteLiveSegments(ctx, res)
+}
+
+// noteLiveSegments follows the live catalog: the names of the served dynamic segments are the ones that have a series
+// by segment name.
+func (c *Core) noteLiveSegments(ctx context.Context, res *flagruntime.RoundResult) {
+	if !res.ContentApplied {
+		return
+	}
+
+	runtime := c.holder.Load()
+	c.segObs.SetLive(runtime.DynamicSegmentNames())
+	c.warnUnresolved(ctx, runtime)
+}
+
+// warnUnresolved writes one line for the applied generation when flags use segment names that no segments object of
+// their flag set defines: such a name answers "not a member" for ever, which is nearly always a typo. The flag sets and
+// names are bounded; names only.
+func (c *Core) warnUnresolved(ctx context.Context, current *flagruntime.Runtime) {
+	var total int
+
+	var entries []string
+
+	for _, name := range slices.Sorted(maps.Keys(current.Status.FlagSets)) {
+		counts := current.Status.FlagSets[name].Segments
+		if counts == nil || counts.Unresolved == 0 {
+			continue
+		}
+
+		total += counts.Unresolved
+
+		for _, segName := range counts.UnresolvedNames {
+			entries = append(entries, name+"/"+segName)
+		}
+	}
+
+	if total == 0 {
+		return
+	}
+
+	c.log.LogAttrs(ctx, slog.LevelWarn,
+		"flags use segment names that no segments object of their flag set defines: they answer not a member",
+		slog.Int("unresolved", total),
+		slog.Any("names", entries[:min(len(entries), maxLoggedUnresolved)]))
+}
+
+// maxLoggedUnresolved bounds the names of the line that reports unresolved segment names.
+const maxLoggedUnresolved = 10

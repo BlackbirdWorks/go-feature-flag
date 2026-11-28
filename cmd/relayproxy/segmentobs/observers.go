@@ -76,6 +76,11 @@ func (o *Observers) For(connection string) *ConnObserver {
 	return conn
 }
 
+// SetLive tells which segment names are live (defined by the segments objects that are served): only these, up to the
+// cap and in sorted order, have a series by segment name; a name that is gone loses its series. It is called when a
+// generation is applied. It does nothing when the per-segment series are off.
+func (o *Observers) SetLive(names []string) { o.named.setLive(names) }
+
 // Stats sums what the resolvers of every connection did since the start.
 func (o *Observers) Stats() resolver.Stats {
 	var out resolver.Stats

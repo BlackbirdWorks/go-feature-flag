@@ -18,7 +18,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -136,26 +135,6 @@ func startTLSValkey(tb testing.TB, authority *tlsAuthority) *valkeyStore {
 	return &valkeyStore{client: client, address: address}
 }
 
-// logBuffer is a log destination that several goroutines write.
-type logBuffer struct {
-	buf bytes.Buffer
-	mu  sync.Mutex
-}
-
-func (b *logBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b.buf.Write(p)
-}
-
-func (b *logBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	return b.buf.String()
-}
-
 // The connection options for TLS work against a real TLS-only store: the CA bundle file verifies it and the lookups are
 // served. A CA that did not sign the certificate, and no TLS at all, are refused with a classified error that names
 // neither the address nor the certificate, the segments answer STORE_ERROR, and the relay stays ready.
@@ -179,11 +158,15 @@ func TestE2E_SegmentStoreTLS(t *testing.T) {
 			tests := []struct {
 				name       string
 				tls        string
+				wantClass  string
 				wantMember bool
 			}{
 				{name: "the right CA", tls: ", tls: {enable: true, caBundleFile: " + goodCA + "}", wantMember: true},
-				{name: "a CA that did not sign it", tls: ", tls: {enable: true, caBundleFile: " + wrongCA + "}"},
-				{name: "no TLS against a TLS store", tls: ""},
+				{
+					name: "a CA that did not sign it", tls: ", tls: {enable: true, caBundleFile: " + wrongCA + "}",
+					wantClass: "tls: the certificate of the store was not verified",
+				},
+				{name: "no TLS against a TLS store", tls: "", wantClass: "unavailable"},
 			}
 
 			for _, tt := range tests {
@@ -233,7 +216,7 @@ func TestE2E_SegmentStoreTLS(t *testing.T) {
 					assert.NotContains(t, out, "certificate signed by unknown authority", "no raw TLS error text")
 
 					if kind == kindValkey {
-						assert.Contains(t, out, "unavailable", "the dial error is classified")
+						assert.Contains(t, out, tt.wantClass, "the dial error is classified")
 					}
 				})
 			}

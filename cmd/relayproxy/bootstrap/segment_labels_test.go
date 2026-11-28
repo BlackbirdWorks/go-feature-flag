@@ -31,6 +31,11 @@ func TestMetricsSegmentLabels(t *testing.T) {
 			wantMax:        20,
 		},
 		{
+			name:    "a cap without the series",
+			doc:     base + "observability:\n  metrics: {maxSegmentLabels: 20}\n",
+			wantErr: "maxSegmentLabels (line 8): invalid value: needs observability.metrics.perSegmentLabels: true",
+		},
+		{
 			name: "a negative cap", doc: base + "observability:\n  metrics: {maxSegmentLabels: -1}\n",
 			wantErr: "observability.metrics.maxSegmentLabels (line 8): invalid value: expected at least 1",
 		},

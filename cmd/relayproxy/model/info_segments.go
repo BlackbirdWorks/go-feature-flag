@@ -6,8 +6,12 @@ type SegmentCountsInfo struct {
 	// DynamicStates tells how many of the dynamic definitions are valid and how many were rejected; it is left out
 	// when the flag set has no dynamic segment and no rejection.
 	DynamicStates *DynamicStatesInfo `json:"dynamicStates,omitempty"`
-	Static        int                `json:"static"`
-	Dynamic       int                `json:"dynamic"`
+	// UnresolvedNames are the first segment names (sorted, bounded) that flags of the flag set use and no segments
+	// object of the flag set defines; Unresolved is how many there are. Names only.
+	UnresolvedNames []string `json:"unresolvedNames,omitempty"`
+	Static          int      `json:"static"`
+	Dynamic         int      `json:"dynamic"`
+	Unresolved      int      `json:"unresolved,omitempty"`
 }
 
 // DynamicStatesInfo is the dynamic segments of a flag set by state. A rejected definition is one that the connections

@@ -3,6 +3,7 @@ package flagruntime
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"time"
 
@@ -34,6 +35,8 @@ type SetSegments struct {
 
 // SegmentCounts is the number of segments of a flag set, in the status and in /info.
 type SegmentCounts struct {
+	// UnresolvedNames is the first of the unresolved names, sorted, at most [MaxUnresolvedNames]. Names only.
+	UnresolvedNames []string `json:"unresolvedNames,omitempty"`
 	// Static is the number of static segments (members in the document).
 	Static int `json:"static"`
 	// Dynamic is the number of dynamic segments (members in a store), the rejected ones included.
@@ -41,6 +44,43 @@ type SegmentCounts struct {
 	// RejectedDefinitions is the number of dynamic definitions, among Dynamic, that the connections of the bootstrap
 	// file cannot serve.
 	RejectedDefinitions int `json:"rejectedDefinitions,omitempty"`
+	// Unresolved is the number of segment names that the flags of the flag set use and that no segments object of
+	// the flag set defines (a typo, or an object that is not in segmentSources): they answer "not a member" for ever.
+	Unresolved int `json:"unresolved,omitempty"`
+}
+
+// MaxUnresolvedNames bounds the unresolved names that /info and the log list.
+const MaxUnresolvedNames = 5
+
+// unresolvedSegments returns the sorted, distinct segment names that the flags use and the flag set cannot resolve.
+func unresolvedSegments(uses map[string]segUse) []string {
+	seen := map[string]struct{}{}
+
+	for _, use := range uses {
+		for _, name := range use.missing {
+			seen[name] = struct{}{}
+		}
+	}
+
+	return slices.Sorted(maps.Keys(seen))
+}
+
+// withUnresolved adds the unresolved names of a flag set to the counts of its segments (which are nil for a flag set
+// with no segments object).
+func withUnresolved(counts *SegmentCounts, uses map[string]segUse) *SegmentCounts {
+	names := unresolvedSegments(uses)
+	if len(names) == 0 {
+		return counts
+	}
+
+	if counts == nil {
+		counts = &SegmentCounts{}
+	}
+
+	counts.Unresolved = len(names)
+	counts.UnresolvedNames = names[:min(len(names), MaxUnresolvedNames)]
+
+	return counts
 }
 
 func (s *SetSegments) counts() *SegmentCounts {
@@ -248,6 +288,7 @@ func flagSignatures(refs map[string][]string, segments *SetSegments) map[string]
 // in a store) and whether one cannot be resolved by the flag set (no source defines it).
 type segUse struct {
 	names      []string
+	missing    []string
 	dynamic    bool
 	unresolved bool
 }
@@ -268,6 +309,7 @@ func flagUses(refs map[string][]string, segments *SetSegments) map[string]segUse
 		for _, name := range names {
 			if segments == nil || segments.Catalog == nil {
 				use.unresolved = true
+				use.missing = append(use.missing, name)
 
 				continue
 			}
@@ -277,6 +319,7 @@ func flagUses(refs map[string][]string, segments *SetSegments) map[string]segUse
 			switch {
 			case !ok:
 				use.unresolved = true
+				use.missing = append(use.missing, name)
 			case def.Type != segment.TypeFile:
 				use.dynamic = true
 			}
