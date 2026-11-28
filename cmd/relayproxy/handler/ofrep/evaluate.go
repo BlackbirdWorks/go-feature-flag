@@ -149,6 +149,10 @@ func (h *EvaluateCtrl) Evaluate(w http.ResponseWriter, r *http.Request) error {
 		metadata[LegacyMetadataCacheable] = true
 	}
 
+	if !h.legacyMetadataOnly {
+		metadata = flagstate.WithSegmentStatus(metadata, flagValue.SegmentStatus)
+	}
+
 	return writeJSON(w, http.StatusOK, model.OFREPEvaluateSuccessResponse{
 		Key:      flagKey,
 		Value:    flagValue.Value,
@@ -214,7 +218,7 @@ func (h *EvaluateCtrl) BulkEvaluate(w http.ResponseWriter, r *http.Request) erro
 			Value:        value,
 			Reason:       val.Reason,
 			Variant:      val.VariationType,
-			Metadata:     val.Metadata,
+			Metadata:     h.bulkMetadata(&val),
 			ErrorCode:    val.ErrorCode,
 			ErrorDetails: val.ErrorDetails,
 		})
@@ -319,4 +323,14 @@ func writeJSON(w http.ResponseWriter, code int, v any) error {
 	}
 
 	return nil
+}
+
+// bulkMetadata is the metadata of a flag of a bulk evaluation: the metadata of the evaluation, which carries the
+// segment status when the lookups were not healthy, unless the Semaphore metadata is disabled.
+func (h *EvaluateCtrl) bulkMetadata(val *flagstate.FlagState) map[string]any {
+	if h.legacyMetadataOnly {
+		delete(val.Metadata, flagstate.MetadataSegmentStatus)
+	}
+
+	return val.Metadata
 }

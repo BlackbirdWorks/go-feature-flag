@@ -547,7 +547,11 @@ func TestE2EEngine(t *testing.T) {
 
 	catalog, err := segment.NewCatalog(
 		segment.Definition{Name: segBeta, Type: segment.TypeRedis},
-		segment.Definition{Name: "blocked", Type: segment.TypeRedis},
+		segment.Definition{
+			Name:    "blocked",
+			Type:    segment.TypeRedis,
+			OnError: segment.OnErrorUnknown,
+		}, // the deny rule opts in
 	)
 	require.NoError(t, err)
 

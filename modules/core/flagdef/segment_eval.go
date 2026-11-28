@@ -101,11 +101,12 @@ func (q *queryContext) logContext() context.Context {
 // When a term is reached, every term of the rule is looked up, in one call, which is the only allocation: the slice
 // that the provider fills. A term whose attribute is missing, empty or not an identifier is not a member of anything
 // and a segment that the Service does not define matches nobody: neither is looked up. A term whose lookup cannot be
-// answered (no provider, a failing or panicking provider, an ended context, an invalid state) is unknown, then the
-// failure policy of its segment applies. The rule is then evaluated again, whole, left to right, with the answers:
-// an unknown term does not stop the evaluation ("unknown or x" and "unknown and x" evaluate x), an operand that is
-// reached and fails makes the rule fail (an error is never an unknown result, whatever Rule.OnError says), and an
-// operand that the answers make unnecessary is not evaluated.
+// answered (no provider, a failing or panicking provider, an ended context, an invalid state) is unanswered, then the
+// failure policy of its segment applies (not a member by default; unknown only for a segment with OnErrorUnknown).
+// The rule is then evaluated again, whole, left to right, with the answers: an unknown term does not stop the
+// evaluation ("unknown or x" and "unknown and x" evaluate x), an operand that is reached and fails makes the rule fail
+// (an error is never an unknown result, whatever Rule.OnError says), and an operand that the answers make
+// unnecessary is not evaluated.
 func (q *queryContext) resolveSegments(
 	terms []parser.SegmentTerm,
 	states []parser.SegmentState,
@@ -249,9 +250,11 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 		ctx = context.Background()
 	}
 
+	var stale bool
+
 	err := ctx.Err()
 	if err == nil {
-		err = q.callProvider(ctx, lookups)
+		stale, err = q.callProvider(ctx, lookups)
 	}
 
 	if err != nil {
@@ -271,6 +274,9 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	}
 
 	status := segment.StatusHealthy
+	if stale {
+		status = segment.StatusStale
+	}
 
 	for i := range lookups {
 		if !lookups[i].State.Valid() {
@@ -299,19 +305,32 @@ var errProviderPanic = errors.New("the segment provider panicked")
 
 // callProvider calls the provider, a panic being an error. Only the type of the panic value is reported: it can
 // hold identifiers.
-func (q *queryContext) callProvider(ctx context.Context, lookups []segment.Lookup) (err error) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			err = fmt.Errorf("%w: %T", errProviderPanic, rec)
+func (q *queryContext) callProvider(ctx context.Context, lookups []segment.Lookup) (bool, error) {
+	var (
+		stale bool
+		err   error
+	)
+
+	func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				stale, err = false, fmt.Errorf("%w: %T", errProviderPanic, rec)
+			}
+		}()
+
+		callErr := q.segments.Contains(ctx, lookups)
+		if callErr != nil {
+			err = fmt.Errorf("the segment provider failed: %w", callErr)
+
+			return
 		}
+
+		// Stale is part of the provider: a panic here is a provider that panicked, and is not trusted
+		reporter, ok := q.segments.(segment.StaleReporter)
+		stale = ok && reporter.Stale()
 	}()
 
-	err = q.segments.Contains(ctx, lookups)
-	if err != nil {
-		return fmt.Errorf("the segment provider failed: %w", err)
-	}
-
-	return nil
+	return stale, err
 }
 
 // failurePolicy applies the failure policy of the segment name to an unanswered lookup.

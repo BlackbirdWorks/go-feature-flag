@@ -146,23 +146,38 @@ func NewEvaluator(svc *flagdef.Service, cfg *EvaluatorConfig) *Evaluator {
 const (
 	// MetadataCacheable is the Semaphore key.
 	MetadataCacheable = "semaphore_cacheable"
+	// MetadataSegmentStatus is the Semaphore key of the health of the segment lookups of an evaluation: STALE,
+	// NOT_CONFIGURED or STORE_ERROR, the worst of the segments of the evaluation (the names of LaunchDarkly's
+	// bigSegmentsStatus). A healthy evaluation, and one that looked at no segment, do not carry it.
+	MetadataSegmentStatus = "semaphore_segmentStatus"
 	// LegacyMetadataCacheable is the legacy key, always sent.
 	LegacyMetadataCacheable = "gofeatureflag_cacheable"
 )
 
 // ResponseMetadata returns the metadata of the OFREP response of an evaluation: the metadata of the result plus, for
 // a cacheable result, the legacy key and (unless DisableSemaphoreMetadata is set) the Semaphore key, as the version 1
-// handler adds them. The metadata map of a result is owned by the caller (see [Evaluator]), so the keys are added
+// handler adds them, and (unless DisableSemaphoreMetadata is set) [MetadataSegmentStatus] for an evaluation that looked
+// at a segment. The metadata map of a result is owned by the caller (see [Evaluator]), so the keys are added
 // to it without a copy and the flag is never touched; a result without metadata gets a new map only when it is
 // cacheable.
 func (e *Evaluator) ResponseMetadata(res *model.RawVarResult) map[string]any {
 	metadata := res.Metadata
-	if !res.Cacheable {
+	withStatus := res.SegmentStatus.Reported() && !e.legacyMetadataOnly
+
+	if !res.Cacheable && !withStatus {
 		return metadata
 	}
 
 	if metadata == nil {
-		metadata = make(map[string]any, 2) //nolint:mnd // the two cacheable keys
+		metadata = make(map[string]any, 3) //nolint:mnd // the cacheable keys and the segment status
+	}
+
+	if withStatus {
+		metadata[MetadataSegmentStatus] = res.SegmentStatus.String()
+	}
+
+	if !res.Cacheable {
+		return metadata
 	}
 
 	if !e.legacyMetadataOnly {

@@ -128,7 +128,8 @@ func TestSegmentsThroughTheClient(t *testing.T) {
 	catalog, err := segment.NewCatalog(
 		segment.Definition{Name: segBetaUsers, Type: segment.TypeFile},
 		segment.Definition{Name: segChurned, Type: segment.TypeFile},
-		segment.Definition{Name: "blocked", Type: segment.TypeFile},
+		// the deny rule opts in to unknown
+		segment.Definition{Name: "blocked", Type: segment.TypeFile, OnError: segment.OnErrorUnknown},
 	)
 	require.NoError(t, err)
 
