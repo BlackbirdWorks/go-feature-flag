@@ -39,6 +39,9 @@ const (
 	ReasonSizeMismatch = "size-mismatch"
 	// ReasonUnknownConnection is an object of a connection the reader has no store for.
 	ReasonUnknownConnection = "unknown-connection"
+	// ReasonUnsupportedVersion is an object whose content version is newer than this reader supports: it is not
+	// requested, keeping its last good content as stale (or missing if none).
+	ReasonUnsupportedVersion = string(controlplane.CodeUnsupportedVersion)
 )
 
 // ObjectState is what a snapshot says about one object name.
