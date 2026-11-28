@@ -171,59 +171,136 @@ func TestAnonymousFlagSetFollowsReloadsAndGenerations(t *testing.T) {
 	assert.Nil(t, harness.holder.Load().Status.Anonymous)
 }
 
-// Await returns when the runtime serves the generation, or when the engine rejected it, and not before.
-func TestEngineAwait(t *testing.T) {
+func revision(c *flagruntime.Content, n uint64) *flagruntime.Content {
+	c.Revision = n
+
+	return c
+}
+
+// await runs Await in a goroutine and returns the channel of its answer.
+func await(t *testing.T, eng *flagruntime.Engine, holder *flagruntime.Holder, rev uint64) chan flagruntime.Reload {
+	t.Helper()
+
+	out := make(chan flagruntime.Reload, 1)
+
+	go func() {
+		got, err := eng.Await(t.Context(), rev)
+		assert.NoError(t, err)
+
+		// what the call answers is what the runtime serves: the recovered flags are there when it returns
+		flagSet, ok := holder.Load().FlagSets["a"]
+		assert.True(t, ok && flagSet.Flags != nil)
+
+		if ok {
+			assert.Contains(t, flagSet.Flags, "x", "the flags served when the call returned")
+		}
+
+		out <- got
+	}()
+
+	return out
+}
+
+// Await waits for the revision of a snapshot, not for a generation: an object that recovers at the generation the
+// runtime already serves is a revision of its own, decided only when the engine applied it, and the engine that
+// keeps the latest content only answers the waiters of the revisions it dropped.
+func TestEngineAwaitsTheRevision(t *testing.T) {
 	t.Parallel()
 
-	harness := newRig(t, flagruntime.Hooks{})
+	gate := make(chan struct{})
+	entered := make(chan struct{}, 8)
+
+	t.Cleanup(func() {
+		select {
+		case <-gate:
+		default:
+			close(gate)
+		}
+	})
+
+	harness := newRig(t, flagruntime.Hooks{BeforeSwap: func(candidate *flagruntime.Runtime) error {
+		if candidate.Snapshot >= 2 {
+			entered <- struct{}{}
+
+			<-gate
+		}
+
+		return nil
+	}})
 	harness.start()
 
-	res := harness.feed(content(1, simpleObjs(t, 1)))
+	stale := flagruntime.Object{Kind: flagruntime.KindFlags, State: flagruntime.ObjectStale, Reason: "gone"}
+	res := harness.feed(revision(content(1, simpleObjs(t, 1).with(objs{"f1": stale})), 1))
 	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
 	applied, err := harness.eng.Await(t.Context(), 1)
 	require.NoError(t, err)
 	assert.Equal(t, flagruntime.OutcomeApplied, applied.Outcome)
-	assert.Equal(t, uint64(1), applied.Generation)
 
-	// a generation that is not there yet: the call waits for the round that applies it
-	waited := make(chan flagruntime.Reload, 1)
-
-	go func() {
-		got, awaitErr := harness.eng.Await(t.Context(), 2)
-		assert.NoError(t, awaitErr)
-
-		waited <- got
-	}()
+	// the object recovers at the same generation: the runtime serves generation 1 all along, the revision 2 is not
+	// decided before the engine applied it
+	harness.eng.Submit(revision(content(1, simpleObjs(t, 1)), 2))
 
 	select {
-	case <-waited:
-		require.FailNow(t, "the call returned before the generation was applied")
-	default:
+	case <-entered:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "the engine did not reach the swap")
 	}
 
-	res = harness.feed(content(2, simpleObjs(t, 2)))
+	// a call that is cancelled while the engine is paused is not answered with a decision: there is none yet
+	cancelled, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err = harness.eng.Await(cancelled, 2)
+	require.ErrorIs(t, err, context.Canceled, "the recovery is not decided before the engine applied it")
+
+	waited := await(t, harness.eng, harness.holder, 2)
+
+	assert.Empty(t, harness.holder.Load().FlagSets["a"].Flags, "the flag set serves no flag before the apply")
+
+	// the revisions 3 and 4 wait while the engine is paused: it keeps the latest, and both waiters are answered
+	harness.eng.Submit(revision(content(2, simpleObjs(t, 2)), 3))
+	harness.eng.Submit(revision(content(3, simpleObjs(t, 3)), 4))
+
+	third, fourth := await(t, harness.eng, harness.holder, 3), await(t, harness.eng, harness.holder, 4)
+
+	close(gate)
+
+	for name, ch := range map[string]chan flagruntime.Reload{"2": waited, "3": third, "4": fourth} {
+		select {
+		case got := <-ch:
+			assert.Equal(t, flagruntime.OutcomeApplied, got.Outcome, "revision "+name)
+		case <-time.After(5 * time.Second):
+			require.FailNow(t, "a call did not return", "revision %s", name)
+		}
+	}
+
+	assert.Contains(t, harness.holder.Load().FlagSets["a"].Flags, "x", "the flag set serves the recovered flags")
+}
+
+// A content the engine rejects is a decision too, with its code; a cancelled context ends the wait.
+func TestEngineAwaitRejectedAndCancelled(t *testing.T) {
+	t.Parallel()
+
+	harness := newRig(t, flagruntime.Hooks{})
+	harness.start()
+
+	res := harness.feed(revision(content(1, simpleObjs(t, 1)), 1))
 	require.Equal(t, flagruntime.OutcomeApplied, res.Outcome)
 
-	select {
-	case got := <-waited:
-		assert.Equal(t, uint64(2), got.Generation)
-		assert.Equal(t, flagruntime.OutcomeApplied, got.Outcome)
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "the call did not return when the generation was applied")
-	}
-
-	// a generation the engine rejects is decided: the call returns the rejection
-	bad := content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}}))
+	bad := revision(content(2, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}})), 2)
 	res = harness.feed(bad)
 	require.Equal(t, flagruntime.OutcomeRejected, res.Outcome)
 
-	rejected, err := harness.eng.Await(t.Context(), 3)
+	rejected, err := harness.eng.Await(t.Context(), 2)
 	require.NoError(t, err)
 	assert.Equal(t, flagruntime.OutcomeRejected, rejected.Outcome)
-	assert.NotEmpty(t, rejected.Code)
+	assert.Equal(t, flagruntime.CodeInvalidContent, rejected.Code)
 
-	// and the call ends with its context
+	none, err := harness.eng.Await(t.Context(), 0)
+	require.NoError(t, err, "revision 0 has nothing to wait for")
+	assert.Equal(t, flagruntime.OutcomeApplied, none.Outcome)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 

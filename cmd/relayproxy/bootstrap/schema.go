@@ -266,7 +266,7 @@ func storeRules(root *jsonschema.Schema) {
 
 		addresses, _ := def.Properties.Get("addresses")
 		addresses.MinItems = new(uint64(1))
-		addresses.Items = &jsonschema.Schema{Type: "string", Pattern: `^(\[[^\s@\]]+\]|[^\s@:\[\]]+):[0-9]+$`}
+		addresses.Items = &jsonschema.Schema{Type: "string", Pattern: `^(\[[^\s@\]]+\]|[^\s@:\[\]]+):(0|[1-9][0-9]*)$`}
 	}
 
 	two := uint64(minClusterAddresses)

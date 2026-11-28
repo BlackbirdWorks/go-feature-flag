@@ -90,37 +90,29 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // is bounded by the number of flag sets, and no name is lost. Events still in the pending table when Run returns
 // are dropped, and the channel is closed.
 type Engine struct {
-	logger  *slog.Logger
-	holder  *Holder
-	builder *Builder
-	content chan *Content
-	boot    chan *bootstrap.Config
-	changes chan Change
-	queue   *pendingQueue
-	// announced holds exactly the flag set names for which an event was delivered, or waits in the queue with
-	// content, and that no delivered Removed event followed. A pending change that cancels out for a flag set
-	// that the consumer never heard of drops the name as well. The map is bounded by the live flag sets and the
-	// removals that wait.
-	announced map[string]struct{}
-	baseline  *bootstrap.Config
-	cur       *Runtime
-	last      atomic.Pointer[RoundResult]
-	// roundDone is closed, and replaced, at the end of every round: [Engine.Await] waits on it.
-	roundDone atomic.Pointer[chan struct{}]
-	rejected  *Reload
-	// running describes the content that runs, to tell a repeat, a state change and a conflict apart at the same
-	// generation.
-	running map[string]runningObject
-	hooks   Hooks
-	secrets bootstrap.LoadOptions
-	// withdrawnCap is the cap of the withdrawn list of the status.
-	withdrawnCap int
-	changeBuf    int
-	snapshot     uint64
-	// bootstrapped is true once a round that carried a bootstrap file ended, whatever its outcome.
-	bootstrapped atomic.Bool
-	// roundHadBoot is set by round for finish; the engine goroutine only.
-	roundHadBoot bool
+	hooks         Hooks
+	last          atomic.Pointer[RoundResult]
+	rejected      *Reload
+	content       chan *Content
+	boot          chan *bootstrap.Config
+	changes       chan Change
+	queue         *pendingQueue
+	announced     map[string]struct{}
+	baseline      *bootstrap.Config
+	cur           *Runtime
+	running       map[string]runningObject
+	builder       *Builder
+	roundDone     atomic.Pointer[chan struct{}]
+	logger        *slog.Logger
+	holder        *Holder
+	decided       atomic.Pointer[decision]
+	secrets       bootstrap.LoadOptions
+	withdrawnCap  int
+	changeBuf     int
+	snapshot      uint64
+	roundRevision uint64
+	bootstrapped  atomic.Bool
+	roundHadBoot  bool
 }
 
 // NewEngine returns an engine that stores into holder. svc validates the flags and owns the compiled-query
@@ -210,29 +202,32 @@ func (e *Engine) Result() RoundResult {
 	return RoundResult{}
 }
 
-// Await returns when the runtime serves the generation or a later one (the applied Reload), or when the engine
-// rejected that generation (the rejected Reload, with its code): what the relay serves is then decided. It waits on
-// the end of the rounds, never polls, and ends with ctx. The generation 0 is served from the start.
-func (e *Engine) Await(ctx context.Context, generation uint64) (Reload, error) {
+// decision is what the engine decided of the content of one revision: applied (the runtime serves it, or a later
+// one), ignored (it changed nothing) or rejected, with its code.
+type decision struct {
+	reload   Reload
+	revision uint64
+}
+
+// Await returns when the engine has decided the content of the revision, or of a later one (the later content
+// replaces it: the engine keeps the latest only): the Reload is the decision, applied, ignored or rejected with its
+// code. Revision 0 means nothing to wait for. It waits on the end of the rounds, never polls, and ends with ctx.
+func (e *Engine) Await(ctx context.Context, revision uint64) (Reload, error) {
+	if revision == 0 {
+		return e.holder.Load().Status.LastReload, nil
+	}
+
 	for {
 		done := *e.roundDone.Load()
 
-		if current := e.holder.Load(); current.Generation >= generation {
-			return current.Status.LastReload, nil
-		}
-
-		if res := e.Result(); res.Outcome == OutcomeRejected && res.Generation == generation {
-			return res.Reload, nil
-		}
-
-		if rejected := e.holder.Load().Status.LastRejected; rejected != nil && rejected.Generation == generation {
-			return *rejected, nil
+		if decided := e.decided.Load(); decided != nil && decided.revision >= revision {
+			return decided.reload, nil
 		}
 
 		select {
 		case <-done:
 		case <-ctx.Done():
-			return Reload{}, fmt.Errorf("waiting for the generation %d: %w", generation, ctx.Err())
+			return Reload{}, fmt.Errorf("waiting for the revision %d: %w", revision, ctx.Err())
 		}
 	}
 }
@@ -318,6 +313,11 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	)
 
 	e.roundHadBoot = cfg != nil
+
+	e.roundRevision = 0
+	if content != nil {
+		e.roundRevision = content.Revision
+	}
 
 	if content != nil {
 		plan = e.planContent(ctx, content)
@@ -553,7 +553,11 @@ func withChecksums(content *Content) *Content {
 		return content
 	}
 
-	out := &Content{Generation: content.Generation, Objects: make(map[string]Object, len(content.Objects))}
+	out := &Content{
+		Generation: content.Generation,
+		Revision:   content.Revision,
+		Objects:    make(map[string]Object, len(content.Objects)),
+	}
 
 	for name, obj := range content.Objects {
 		if obj.state() == ObjectOK {
@@ -769,6 +773,11 @@ func (e *Engine) finish(ctx context.Context, results []Reload, applied *Reload, 
 	}
 
 	e.last.Store(&result)
+
+	if e.roundRevision > 0 {
+		// before the end of the round is signalled: a waiter that wakes up reads this decision
+		e.decided.Store(&decision{revision: e.roundRevision, reload: final})
+	}
 
 	next := make(chan struct{})
 	close(*e.roundDone.Swap(&next))

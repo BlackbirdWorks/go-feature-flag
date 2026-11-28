@@ -406,43 +406,28 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			offered := make(chan uint64, 16)
+			// the change of generation 1 is held back by the hook until the four clients are registered: they all get
+			// it, and the counts below are exact
+			held := make(chan struct{})
 			rig := startRelay(t, &rigOptions{
-				extra:     "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n",
-				broadcast: func(change flagruntime.Change) { offered <- change.Generation },
+				extra: "auth:\n  anonymousFlagSet: tenant\n  adminKeys: [" + adminKey + "]\n",
+				broadcast: func(change flagruntime.Change) {
+					if change.Generation == 1 {
+						<-held
+					}
+				},
 			})
+			t.Cleanup(func() {
+				select {
+				case <-held:
+				default:
+					close(held)
+				}
+			})
+
 			rig.awaitGeneration(1)
 
 			rel := <-rig.started
-
-			// awaitOffered waits until the core handed the change of the generation to the streams, and until the
-			// streams delivered it
-			awaitDelivered := func(generation uint64) {
-				t.Helper()
-
-				for {
-					select {
-					case got := <-offered:
-						if got < generation {
-							continue
-						}
-					case <-time.After(waitBound):
-						require.FailNow(
-							t,
-							"the core did not hand the change to the streams",
-							"generation %d",
-							generation,
-						)
-					}
-
-					break
-				}
-
-				require.Eventually(t, rel.streams.Idle, waitBound, time.Millisecond, "the change was delivered")
-			}
-
-			// the change of generation 1 reaches no client: they connect after it was delivered
-			awaitDelivered(1)
 
 			anonWS, anonSSE := dialWebsocket(t, rig.url, ""), dialSSE(t, rig.url, "")
 			keyedWS, keyedSSE := dialWebsocket(t, rig.url, tenantKey), dialSSE(t, rig.url, tenantKey)
@@ -451,9 +436,18 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 				return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 2}
 			}, waitBound, time.Millisecond, "the four clients are registered")
 
+			close(held)
+
+			for _, client := range []*streamClient{anonWS, keyedWS} {
+				client.awaitEvent(t, `"added":{"f"`)
+			}
+
+			for _, client := range []*streamClient{anonSSE, keyedSSE} {
+				client.awaitEvent(t, "refetchEvaluation")
+			}
+
 			rig.store.publish(2)
 			rig.poll(2)
-			awaitDelivered(2)
 
 			// the message of the websocket carries the new value of the flag: it is the change of generation 2
 			anonWS.awaitEvent(t, `"v":2`)
@@ -469,17 +463,16 @@ func TestRunClosesTheAnonymousStreamsWhenTheAccessEnds(t *testing.T) {
 
 			rig.store.publish(3)
 			rig.pollNext(3)
-			awaitDelivered(3)
 
 			keyedWS.awaitEvent(t, `"v":3`)
 			keyedSSE.awaitEvent(t, "refetchEvaluation")
 
-			// exact counts: one message per published generation for the clients with a key, and the one of
-			// generation 2 for the clients that were closed before generation 3
-			assert.Equal(t, int64(1), anonWS.received.Load(), "messages of the closed websocket client")
-			assert.Equal(t, int64(1), anonSSE.received.Load(), "messages of the closed SSE client")
-			assert.Equal(t, int64(2), keyedWS.received.Load(), "messages of the websocket client with a key")
-			assert.Equal(t, int64(2), keyedSSE.received.Load(), "messages of the SSE client with a key")
+			// exact counts: one message per generation for the clients with a key, and the ones of generations 1 and 2
+			// for the clients that were closed before generation 3
+			assert.Equal(t, int64(2), anonWS.received.Load(), "messages of the closed websocket client")
+			assert.Equal(t, int64(2), anonSSE.received.Load(), "messages of the closed SSE client")
+			assert.Equal(t, int64(3), keyedWS.received.Load(), "messages of the websocket client with a key")
+			assert.Equal(t, int64(3), keyedSSE.received.Load(), "messages of the SSE client with a key")
 			assert.Equal(t, corehttp.ClientCounts{Websocket: 1, SSE: 1}, rel.streams.Connected())
 		})
 	}

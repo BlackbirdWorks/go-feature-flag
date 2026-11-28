@@ -64,7 +64,7 @@ func TestOverlappingListenersAreRefused(t *testing.T) {
 	}{
 		{name: "IPv4 wildcard and loopback on one port", api: wildcard1031, ops: loopback1031, wantErr: true},
 		{name: "loopback and IPv4 wildcard on one port", api: loopback1031, ops: wildcard1031, wantErr: true},
-		{name: "empty host and loopback on one port", api: ":1031", ops: loopback1031, wantErr: true},
+		{name: "empty host and loopback on one port", api: defaultAPI, ops: loopback1031, wantErr: true},
 		{name: "IPv6 wildcard and IPv4 loopback (dual stack)", api: "[::]:1031", ops: loopback1031, wantErr: true},
 		{name: "IPv4 wildcard and a name", api: wildcard1031, ops: "localhost:1031", wantErr: true},
 		{name: "IPv4 wildcard and IPv6 loopback", api: wildcard1031, ops: "[::1]:1031"},
@@ -134,6 +134,41 @@ func TestOpsListenerHasItsOwnAddress(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, "0.0.0.0:1", cfg.Server.Listeners[0].Address)
 			assert.Equal(t, tt.wantOpsValue, cfg.Server.Listeners[1].Address)
+		})
+	}
+}
+
+// A port is written as digits, with no sign and no leading zero: the loader compares the written form and the server
+// binds the number, so 01031 and 1031 would hide an overlap.
+func TestListenerPortsAreWrittenPlainly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		address string
+		wantErr bool
+	}{
+		{name: "written plainly", address: defaultAPI},
+		{name: "a leading zero", address: ":01031", wantErr: true},
+		{name: "a sign", address: ":+1031", wantErr: true},
+		{name: "a hex form", address: ":0x407", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			doc := "version: 2\nserver:\n  listeners:\n    - {name: a, address: \"" + tt.address + "\"}\n"
+
+			_, err := bootstrap.Parse([]byte(doc), nil, options(nil, nil, false))
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.NotNil(t, findError(t, err, bootstrap.ErrInvalidValue, "server.listeners[0].address"))
+
+				return
+			}
+
+			require.NoError(t, err)
 		})
 	}
 }

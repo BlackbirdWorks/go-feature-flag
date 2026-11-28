@@ -277,11 +277,21 @@ func covers(wide, other string) bool {
 	return false
 }
 
+// plainPort reports whether a port is written as digits only, with no sign and no leading zero: 1031, not +1031 or
+// 01031 (the loader compares the written form, the server binds the number).
+func plainPort(port string) bool {
+	if port == "" || strings.IndexFunc(port, func(r rune) bool { return r < '0' || r > '9' }) >= 0 {
+		return false
+	}
+
+	return port == "0" || port[0] != '0'
+}
+
 func (v *validator) address(path, address string, idx int, seen map[string]int) {
 	_, port, err := net.SplitHostPort(address)
 
 	n, perr := strconv.Atoi(port)
-	if err != nil || perr != nil || n < 0 || n > maxPort {
+	if err != nil || perr != nil || !plainPort(port) || n < 0 || n > maxPort {
 		v.failf(path, ErrInvalidValue, "expected host:port such as :1031")
 
 		return
@@ -326,7 +336,7 @@ func (v *validator) httpURL(path, value string) {
 func (v *validator) hostPort(path, value string) {
 	host, port, err := net.SplitHostPort(value)
 	portNumber, portErr := strconv.Atoi(port)
-	signed := strings.IndexFunc(port, func(r rune) bool { return r < '0' || r > '9' }) >= 0
+	signed := !plainPort(port)
 
 	switch {
 	case strings.Contains(value, "@"):

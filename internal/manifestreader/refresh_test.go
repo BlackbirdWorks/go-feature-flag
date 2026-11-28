@@ -105,6 +105,9 @@ func TestReader_RefreshesDoNotPostponeARetry(t *testing.T) {
 		require.NoError(t, err, tt.name)
 		assert.Equal(t, manifestreader.PollNotModified, result.Poll.Result, tt.name)
 
+		// the reader entered its next wait, and took the time it started on: the clock moves only after that
+		rdr.settle()
+
 		manifestGets, objectGets := 0, 0
 
 		for _, c := range store.takeCalls() {

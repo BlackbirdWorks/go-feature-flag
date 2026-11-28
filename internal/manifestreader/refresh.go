@@ -18,7 +18,10 @@ type RefreshResult struct {
 	// Generation is the generation of the held manifest after the round, zero before the first accepted one.
 	Generation uint64 `json:"generation"`
 	// Changed says that the round accepted a manifest of another generation than the one held before it.
-	Changed bool `json:"changed"`
+	Changed bool
+	// Revision is the number of the last snapshot the reader emitted, zero before the first: the snapshot the round
+	// produced, or the one that was already out when it produced none.
+	Revision uint64 `json:"changed"`
 }
 
 // refreshCall is the waiters of one round: they all get its result.
@@ -87,14 +90,14 @@ func (r *Reader) Refresh(ctx context.Context) (RefreshResult, error) {
 }
 
 // complete gives the result of a round to the waiters, if any.
-func (t *refresher) complete(result RefreshResult) {
+func (t *refresher) complete(result *RefreshResult) {
 	t.mu.Lock()
 	call := t.current
 	t.current = nil
 	t.mu.Unlock()
 
 	if call != nil {
-		call.result = result
+		call.result = *result
 
 		// the request that was waiting for this round is answered: it needs no round of its own
 		select {
@@ -112,6 +115,7 @@ func (r *Reader) roundResult(before uint64) RefreshResult {
 
 	return RefreshResult{
 		Poll: status.Poll, Generation: status.Manifest.Generation, Changed: status.Manifest.Generation != before,
+		Revision: r.revision,
 	}
 }
 
