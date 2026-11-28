@@ -578,12 +578,18 @@ func TestE2EWriterACL(t *testing.T) {
 			require.NoError(t, importErr)
 
 			for _, target := range []*segmentadmin.Target{set, keys} {
-				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\ntwo\n")), false,
+				_, importErr = segmentadmin.Edit(
+					ctx,
+					back.store,
+					target,
+					newReader(t, stringsReader("one\ntwo\n")),
+					false,
+					segmentadmin.EditOptions{},
+				)
+				require.NoError(t, importErr)
+				_, importErr = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\n")), true,
 					segmentadmin.EditOptions{})
-				require.NoError(t, err)
-				_, err = segmentadmin.Edit(ctx, back.store, target, newReader(t, stringsReader("one\n")), true,
-					segmentadmin.EditOptions{})
-				require.NoError(t, err)
+				require.NoError(t, importErr)
 
 				stat, statErr := segmentadmin.Stat(ctx, back.store, target, 100)
 				require.NoError(t, statErr)
