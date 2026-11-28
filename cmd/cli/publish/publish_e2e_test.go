@@ -6,9 +6,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,9 +24,11 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/helper"
 	"github.com/blackbirdworks/semaphore/cmd/cli/publish"
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
 	"github.com/blackbirdworks/semaphore/internal/connection"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/testhelpers/gopherstack"
 )
 
@@ -522,4 +526,100 @@ func TestE2EVerifyReportsAnUndefinedSegment(t *testing.T) {
 	out, err := runCLI(t, env.deps, verifyWord, optConfig, env.config)
 	require.Error(t, err, out)
 	assert.Contains(t, out+err.Error(), "segment ghost: is not defined")
+}
+
+const (
+	e2ePublicSets = "apiVersion: semaphore/v1\nkind: FlagSet\nflagSets:\n" +
+		"  - name: public-one\n    sources: [public-one]\n  - name: public-two\n    sources: [public-two]\n"
+	e2ePublicFlags = "shared:\n  variations: {\"on\": true, \"off\": false}\n  defaultRule: {variation: \"on\"}\n"
+	e2ePublicFixed = "other:\n  variations: {\"on\": true, \"off\": false}\n  defaultRule: {variation: \"on\"}\n"
+)
+
+// servedPublicFlags feeds the published generation to the engine of the relay and returns the flag keys that a request
+// without an API key is served.
+func (e *e2eEnv) servedPublicFlags(t *testing.T) []string {
+	t.Helper()
+
+	manifest := e.readManifest(t)
+	content := &flagruntime.Content{Generation: manifest.Generation, Objects: map[string]flagruntime.Object{}}
+
+	for i := range manifest.Objects {
+		entry := &manifest.Objects[i]
+		content.Objects[entry.Name] = flagruntime.Object{
+			Kind: entry.Kind, Format: entry.Format, Bytes: e.get(t, entry.Key),
+		}
+	}
+
+	rounds := make(chan flagruntime.RoundResult, 1)
+	holder := flagruntime.NewHolder()
+	svc := flagdef.NewService()
+	t.Cleanup(svc.Close)
+
+	engine := flagruntime.NewEngine(slog.New(slog.DiscardHandler), svc, holder,
+		flagruntime.WithHooks(flagruntime.Hooks{AfterRound: func(res flagruntime.RoundResult) { rounds <- res }}))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		engine.Run(ctx)
+	}()
+
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
+
+	engine.Submit(content)
+
+	select {
+	case res := <-rounds:
+		require.Equal(t, flagruntime.OutcomeApplied, res.Outcome, res.Detail)
+	case <-time.After(e2eBound):
+		require.FailNow(t, "the relay did not apply the generation")
+	}
+
+	set, route := holder.Load().Route("")
+	require.Equal(t, flagruntime.RouteFlagSet, route)
+
+	keys := make([]string, 0, len(set.Flags))
+	for key := range set.Flags {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	return keys
+}
+
+const e2eBound = 10 * time.Second
+
+// Two flag sets without API keys that define the same flag key are refused before anything is written, the way the
+// relay would reject the generation; once the key is made unique the tree is published, and the relay serves both
+// flags to a request without a key.
+func TestE2EPublishRefusesAFlagKeySharedByKeylessFlagSets(t *testing.T) {
+	t.Parallel()
+
+	env := newE2E(t)
+	env.write(t, "flags/public-one.yaml", e2ePublicFlags)
+	env.write(t, "flags/public-two.yaml", e2ePublicFlags)
+	env.write(t, "flagsets/public.yaml", e2ePublicSets)
+
+	out, err := runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.Error(t, err, out)
+	assert.Equal(t, helper.ExitInvalid, codeOf(err))
+	assert.Contains(t, err.Error(),
+		"flag shared: defined in the keyless flag sets public-one (flag object public-one) and public-two")
+	assert.Zero(t, env.count.put.Load(), "nothing is written")
+
+	env.write(t, "flags/public-two.yaml", e2ePublicFixed)
+
+	out, err = runCLI(t, env.deps, env.dir, optConfig, env.config)
+	require.NoError(t, err, out)
+	assert.Equal(t, []string{"other", "shared"}, env.servedPublicFlags(t))
+
+	out, err = runCLI(t, env.deps, verifyWord, optConfig, env.config)
+	require.NoError(t, err, out)
 }

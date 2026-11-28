@@ -96,7 +96,7 @@ func newHarness(t *testing.T, tree fs.FS) *harness {
 	t.Helper()
 
 	rig := &harness{fake: s3fake.New(manifestKey), trees: map[string]fs.FS{srcDir: tree}}
-	rig.fake.Bucket = "acme" // the bucket that withTarget names: a call for another one is a missing bucket
+	rig.fake.Bucket = bucketName // the bucket that withTarget names: a call for another one is a missing bucket
 
 	rig.deps = publish.DefaultDeps()
 	rig.deps.OpenDir = func(dir string) fs.FS {
@@ -195,7 +195,7 @@ func assertOpened(t *testing.T, want string, opened []string, succeeded bool) {
 }
 
 func withTarget(args ...string) []string {
-	return slices.Concat(args, []string{optBucket, "acme", optRegion, regionUSEast})
+	return slices.Concat(args, []string{optBucket, bucketName, optRegion, regionUSEast})
 }
 
 func treeOf(files map[string]string) fstest.MapFS {
