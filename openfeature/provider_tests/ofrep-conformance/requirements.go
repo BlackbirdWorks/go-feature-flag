@@ -19,9 +19,12 @@ const (
 	kindParam    = "param"
 	kindSecurity = "security"
 	kindBranch   = "value"
+	kindEnum     = "enum"
 
 	codeDefaultName = "codeDefaultFlag"
 	schemaSuccess   = "evaluationSuccess"
+	schemaFailure   = "evaluationFailure"
+	schemaNotFound  = "flagNotFound"
 )
 
 // ResponseID identifies a documented response: operation and status code.
@@ -44,6 +47,9 @@ func ParamID(method, path, location, name string) string {
 	return fmt.Sprintf("%s %s %s %s:%s", kindParam, strings.ToUpper(method), path, location, name)
 }
 
+// EnumID identifies one value of an enumerated property of a response: "reason" or "errorCode".
+func EnumID(property, value string) string { return fmt.Sprintf("%s %s %s", kindEnum, property, value) }
+
 // SecurityID identifies a security scheme.
 func SecurityID(name string) string { return kindSecurity + " " + name }
 
@@ -63,8 +69,9 @@ func canonicalHeader(name string) string {
 
 // Requirements lists everything the document defines that a conformance suite has to exercise: every response
 // (status code) of every operation, each header and JSON schema of those responses, each request parameter, each
-// security scheme, and each value type of a successful evaluation. The values of the enumerations (`reason`,
-// `errorCode`) are checked on every response by the validator. The list is sorted.
+// security scheme, each value type of a successful evaluation, and each value of the `reason` and
+// `errorCode` enumerations (a case records those it asserts with [EnumID]; the validator checks every response against
+// them as well). The list is sorted.
 func (s *Spec) Requirements() []string {
 	var ids []string
 
@@ -82,7 +89,40 @@ func (s *Spec) Requirements() []string {
 		ids = append(ids, BranchID(name))
 	}
 
+	for _, spot := range []struct{ schemaName, property string }{
+		{schemaSuccess, "reason"}, {schemaFailure, "errorCode"}, {schemaNotFound, "errorCode"},
+	} {
+		for _, val := range s.propertyEnum(spot.schemaName, spot.property) {
+			ids = append(ids, EnumID(spot.property, val))
+		}
+	}
+
 	return uniqueSorted(ids)
+}
+
+func (s *Spec) propertyEnum(schemaName, property string) []string {
+	sch := s.doc.Components.Schemas[schemaName]
+	if sch == nil {
+		return nil
+	}
+
+	var out []string
+
+	collect := func(from *schema) {
+		if prop := from.Properties[property]; prop != nil {
+			for _, val := range prop.Enum {
+				out = append(out, fmt.Sprint(val))
+			}
+		}
+	}
+
+	collect(sch)
+
+	for _, part := range sch.AllOf {
+		collect(part)
+	}
+
+	return out
 }
 
 func (s *Spec) operationRequirements(path, method string, oper *operation) []string {
@@ -309,7 +349,7 @@ func observedItem(item map[string]any) []string {
 		}
 
 		return []string{BranchID("integerFlag")}
-	case map[string]any:
+	case map[string]any, []any:
 		return []string{BranchID("objectFlag")}
 	}
 

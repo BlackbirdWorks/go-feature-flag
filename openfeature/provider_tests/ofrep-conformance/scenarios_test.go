@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ofrepconformance "github.com/blackbirdworks/semaphore/openfeature/provider_tests/ofrep-conformance"
 )
 
 const (
@@ -23,6 +25,7 @@ type scenario struct {
 	Body     map[string]any `json:"body"`
 	Metadata map[string]any `json:"metadata"`
 	Name     string         `json:"name"`
+	Source   string         `json:"source"`
 	Flag     string         `json:"flag"`
 	Bulk     string         `json:"bulk"`
 	Absent   []string       `json:"absent"`
@@ -42,11 +45,20 @@ func loadScenarios(t *testing.T) []scenario {
 	require.NoError(t, json.Unmarshal(raw, &table))
 	require.NotEmpty(t, table.Scenarios)
 
+	for idx := range table.Scenarios {
+		assert.Contains(
+			t,
+			[]string{"spec", "provider", "relay"},
+			table.Scenarios[idx].Source,
+			table.Scenarios[idx].Name,
+		)
+	}
+
 	return table.Scenarios
 }
 
 // assertFields checks the fields a scenario expects of one evaluation result.
-func assertFields(t *testing.T, got map[string]any, scen *scenario, withReason bool) {
+func assertFields(t *testing.T, rec *recorder, got map[string]any, scen *scenario, withReason bool) {
 	t.Helper()
 
 	for field, want := range scen.Body {
@@ -54,7 +66,10 @@ func assertFields(t *testing.T, got map[string]any, scen *scenario, withReason b
 			continue
 		}
 
-		assert.Equal(t, want, got[field], "field %s of %v", field, got)
+		if assert.Equal(t, want, got[field], "field %s of %v", field, got) &&
+			(field == jsonReasonField || field == jsonErrorCodeField) {
+			rec.add([]string{ofrepconformance.EnumID(field, text(want))})
+		}
 	}
 
 	for _, field := range scen.Absent {
@@ -93,7 +108,7 @@ func conformanceScenarios(t *testing.T, hns *harness) {
 				headers: keyHeader(), body: string(body),
 			})
 			assert.Equal(t, scen.Status, res.status, string(res.body))
-			assertFields(t, decodeObject(t, res.body), &scen, true)
+			assertFields(t, hns.rec, decodeObject(t, res.body), &scen, true)
 		})
 
 		t.Run("bulk: "+scen.Name, func(t *testing.T) {
@@ -115,7 +130,7 @@ func conformanceScenarios(t *testing.T, hns *harness) {
 				assert.NotContains(t, item, jsonValueField)
 			case bulkSame:
 				require.True(t, found)
-				assertFields(t, item, &scen, true)
+				assertFields(t, hns.rec, item, &scen, true)
 			}
 		})
 	}

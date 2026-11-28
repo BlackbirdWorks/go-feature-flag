@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ofrepconformance "github.com/blackbirdworks/semaphore/openfeature/provider_tests/ofrep-conformance"
 )
 
 const (
@@ -182,7 +184,9 @@ func conformanceWire(t *testing.T, hns *harness) {
 			}
 
 			if tt.wantErrorCode != "" {
-				assert.Equal(t, tt.wantErrorCode, parsed[jsonErrorCodeField])
+				if assert.Equal(t, tt.wantErrorCode, parsed[jsonErrorCodeField]) {
+					hns.rec.add([]string{ofrepconformance.EnumID(jsonErrorCodeField, tt.wantErrorCode)})
+				}
 			}
 
 			if tt.wantKey != "" {
@@ -241,6 +245,18 @@ func conformanceBulkETag(t *testing.T, hns *harness) {
 	}
 
 	assert.NotEqual(t, etag, otherETag)
+
+	t.Run("the tag on the second line of the header", func(t *testing.T) {
+		t.Parallel()
+
+		res := hns.send(t, &request{
+			method: http.MethodPost, url: bulkURL, headers: keyHeader(), body: userOneCtxJSON,
+			repeated: map[string][]string{headerIfNoneMatch: {`"a"`, etag}},
+		})
+		assert.Equal(t, http.StatusNotModified, res.status)
+		assert.Equal(t, etag, res.header.Get("ETag"))
+		assert.Empty(t, res.body)
+	})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

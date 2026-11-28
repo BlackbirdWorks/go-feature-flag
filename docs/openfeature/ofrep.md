@@ -73,7 +73,7 @@ The conformance suite (`task ofrep-conformance`, also part of `go test ./...`) s
 
 - Both operations and every status code the relay sends (`200`, `304`, `400`, `401`, `403`, `404`), with the response schema, the `ETag` header, the `Content-Type` and the error bodies.
 - All value types (boolean, string, integer, float, object, and no `value` for a disabled flag), the `reason` and `errorCode` enumerations, and `metadata` value types.
-- The behaviour of the protocol, as a language neutral table (`openfeature/provider_tests/ofrep-scenarios`: the fixture flags and the expected `value`, `variant`, `reason`, `metadata` and errors of each scenario, for a single and for a bulk evaluation): every value type, targeting rules on string, number, boolean, nested and date-time attributes, percentage rollouts (stable for a key, different across keys), default rule, disabled flag, scheduled and progressive rollouts, flag metadata, flag not found, missing and invalid targeting keys.
+- The behaviour of the protocol, as a language neutral table (`openfeature/provider_tests/ofrep-scenarios`: the fixture flags and the expected `value`, `variant`, `reason`, `metadata` and errors of each scenario, for a single and for a bulk evaluation): every value type (arrays included), targeting rules on string, number, boolean, nested and date-time attributes, percentage rollouts (stable for a key, different across keys), default rule, disabled flag, scheduled and progressive rollouts, flag metadata, flag not found, missing and invalid targeting keys.
 - Request handling: missing, null or malformed `context`, wrong content type, empty and oversized bodies, unknown fields, a flag key that needs URL escaping, other HTTP methods.
 - Authentication: `X-API-Key` and `Authorization: Bearer`, with and without keys (public flag sets), and an admin key.
 - `If-None-Match` (strong, weak, list, `*`) and the `flagConfigEtag` and `flagConfigLastModified` query parameters.
@@ -81,6 +81,14 @@ The conformance suite (`task ofrep-conformance`, also part of `go test ./...`) s
 - The OpenAPI document that the relay publishes about itself agrees with the pinned one for these paths.
 
 A coverage test lists every operation, status code, header, schema, parameter, security scheme and value type of the pinned document and fails when one has no case, so a new version of the document cannot be adopted with silent gaps. Two responses cannot be provoked: the relay has no rate limit, so it never answers `429` (and sends no `Retry-After`), and it answers `500` only for a fault of its own.
+
+### Array values
+
+The pinned document types the value of an object flag as `object` and has no array type. The relay returns a JSON array as is when a flag's variation is a list: every official OFREP provider accepts it as an object value, and `GO Feature Flag` sends arrays. The conformance validator follows the document with this one named deviation, scoped to the `value` of the object flag; a test pins the list of deviations.
+
+### Warm-up
+
+Before a flag set has loaded its flags, a single evaluation answers `404` with `FLAG_NOT_FOUND`, and a bulk evaluation answers `200` with no flags: the document defines no `503` for these operations.
 
 ## Evaluation context
 

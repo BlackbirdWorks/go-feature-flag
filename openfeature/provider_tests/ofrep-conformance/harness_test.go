@@ -58,7 +58,9 @@ type harness struct {
 }
 
 type request struct {
-	headers     map[string]string
+	headers map[string]string
+	// repeated are header fields sent on several lines.
+	repeated    map[string][]string
 	method      string
 	url         string
 	body        string
@@ -102,6 +104,12 @@ func (h *harness) send(t *testing.T, call *request) response {
 
 	for key, val := range call.headers {
 		req.Header.Set(key, val)
+	}
+
+	for key, lines := range call.repeated {
+		for _, line := range lines {
+			req.Header.Add(key, line)
+		}
 	}
 
 	resp, err := (&http.Client{Timeout: httpClientTimeout}).Do(req)
@@ -198,9 +206,14 @@ func (h *harness) observe(t *testing.T, req *http.Request, status int, hdr http.
 		return
 	}
 
-	if !h.spec.HasResponse(template, req.Method, status) {
+	// the document defines the POST operations only: another method is no operation of the protocol
+	if req.Method != http.MethodPost {
 		return
 	}
+
+	require.True(t, h.spec.HasResponse(template, req.Method, status),
+		"%s %s answered %d, a status the pinned document does not define for it: %s", req.Method, req.URL.Path,
+		status, string(body))
 
 	require.NoError(t, h.spec.ValidateResponse(template, req.Method, status, hdr, body),
 		"%s %s -> %d: %s", req.Method, req.URL.Path, status, string(body))

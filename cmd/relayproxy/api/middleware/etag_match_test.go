@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/api/middleware"
 )
@@ -41,4 +42,50 @@ func TestETagMatches(t *testing.T) {
 			assert.Equal(t, tt.want, middleware.ETagMatches(tt.ifNoneMatch, tt.etag))
 		})
 	}
+}
+
+const tagA = `"a"`
+
+func TestETagMatchesAny(t *testing.T) {
+	t.Parallel()
+
+	const tag = `"12-abc"`
+
+	tests := []struct {
+		name  string
+		lines []string
+		want  bool
+	}{
+		{name: "one line, the tag", lines: []string{tag}, want: true},
+		{name: "two lines, the tag on the second", lines: []string{tagA, tag}, want: true},
+		{name: "two lines, a list on the second", lines: []string{tagA, `"b", ` + tag}, want: true},
+		{name: "two lines, star on the first", lines: []string{"*", tagA}, want: true},
+		{name: "two lines, no match", lines: []string{tagA, `"b"`}, want: false},
+		{name: "no line", lines: nil, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, middleware.ETagMatchesAny(tt.lines, tag))
+		})
+	}
+}
+
+// BenchmarkETagMatchesAny pins the common path of a request, one line with one tag: it allocates nothing.
+func BenchmarkETagMatchesAny(b *testing.B) {
+	const tag = `"12-abc"`
+
+	lines := []string{tag}
+
+	b.ReportAllocs()
+
+	var matched bool
+
+	for range b.N {
+		matched = middleware.ETagMatchesAny(lines, tag)
+	}
+
+	require.True(b, matched, "the tag did not match")
 }

@@ -80,6 +80,15 @@ func exempt() map[string]string {
 		out[ofrepconformance.SchemaID(http.MethodPost, path, http.StatusInternalServerError)] = noFault
 	}
 
+	out[ofrepconformance.EnumID("reason", "UNKNOWN")] = "the engine maps the reasons UNKNOWN and OFFLINE to UNKNOWN, " +
+		"and no flag evaluation of a running relay ends with one of them (the handler unit tests cover the mapping)"
+	out[ofrepconformance.EnumID("errorCode", "PARSE_ERROR")] = "the relay never sends PARSE_ERROR: a flag " +
+		"that cannot be parsed is rejected when the flags are loaded, a request body that cannot be parsed is " +
+		"INVALID_CONTEXT"
+	out[ofrepconformance.EnumID("errorCode", "GENERAL")] = "GENERAL answers a request without a flag key, which " +
+		"the router refuses before the handler (404), and an evaluation without a service, which a running relay " +
+		"does not have"
+
 	return out
 }
 

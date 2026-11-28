@@ -365,9 +365,10 @@ func bindBody(w http.ResponseWriter, r *http.Request, target any) error {
 }
 
 // flagSetError turns the failure to find the flag set of a request into the error to send. A key that
-// authenticated and routes to no flag set (an admin key) may not evaluate flags: the client is forbidden to.
+// authenticated and is an admin key may not evaluate flags: the client is forbidden to. Every other failure keeps
+// its own status.
 func flagSetError(err *helper.HTTPError) error {
-	if err.Code == http.StatusBadRequest {
+	if errors.Is(err, service.ErrAdminKey) {
 		return fmt.Errorf("refusing the key: %w", helper.NewHTTPError(http.StatusForbidden,
 			"the API key does not give access to a flag set"))
 	}

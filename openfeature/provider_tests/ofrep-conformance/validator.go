@@ -129,6 +129,8 @@ type schema struct {
 	OneOf                []*schema          `yaml:"oneOf"`
 	Required             []string           `yaml:"required"`
 	Enum                 []any              `yaml:"enum"`
+	// allowArray is set by a deviation: see [Deviations].
+	allowArray bool
 }
 
 type additionalProps struct {
@@ -175,15 +177,25 @@ func LoadSpec(path string) (*Spec, error) {
 
 // ParseSpec parses an OpenAPI YAML document.
 func ParseSpec(raw []byte) (*Spec, error) {
+	err := checkKeywords(raw)
+	if err != nil {
+		return nil, err
+	}
+
 	var doc openAPIDoc
 
-	err := yaml.Unmarshal(raw, &doc)
+	err = yaml.Unmarshal(raw, &doc)
 	if err != nil {
 		return nil, fmt.Errorf("unmarshal OpenAPI spec: %w", err)
 	}
 
 	if len(doc.Paths) == 0 || len(doc.Components.Schemas) == 0 {
 		return nil, fmt.Errorf("%w: missing paths or component schemas", errInvalidSpec)
+	}
+
+	err = applyDeviations(&doc)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Spec{doc: doc}, nil
@@ -404,6 +416,10 @@ func (s *Spec) validateSchema(sch *schema, val any) error {
 		}
 
 		return s.validateSchema(target, val)
+	}
+
+	if isDeviantArray(sch, val) {
+		return nil
 	}
 
 	err := s.validateComposite(sch, val)
@@ -754,4 +770,11 @@ func (s *Spec) validateArray(itemSchema *schema, val any) error {
 	}
 
 	return nil
+}
+
+// isDeviantArray reports whether the value is the array that a deviation accepts for the schema.
+func isDeviantArray(sch *schema, val any) bool {
+	_, isList := val.([]any)
+
+	return isList && sch.allowArray
 }

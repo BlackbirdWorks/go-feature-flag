@@ -17,6 +17,15 @@ static_object:
     config: {name: "semaphore", retries: 3, nested: {on: true}}
     other: {name: "other"}
   defaultRule: {variation: config}
+static_array:
+  variations:
+    list: ["a", "b"]
+    empty: []
+  defaultRule: {variation: list}
+static_empty_array:
+  variations:
+    empty: []
+  defaultRule: {variation: empty}
 targeted_string:
   variations: {pro: "pro-plan", free: "free-plan"}
   targeting:

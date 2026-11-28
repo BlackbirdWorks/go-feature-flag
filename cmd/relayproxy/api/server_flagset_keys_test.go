@@ -48,7 +48,7 @@ func TestFlagsetMode_EvaluationKeysOutsideFlagsets(t *testing.T) {
 	t.Cleanup(sseService.Close)
 	proxyConf.flags = mock.NewNamed(t, mock.Named{
 		Name: "tenant", APIKeys: []string{flagSetKey}, Config: mock.FileConfig(fixtures.FlagConfigYAMLParentPath),
-	})
+	}).WithAdminKeys(adminKey)
 
 	srv := newTestServer(t, proxyConf, &service.Services{
 		WebsocketService: wsService,
