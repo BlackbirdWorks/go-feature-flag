@@ -59,12 +59,8 @@ type Listener struct {
 	Protocols []string `json:"protocols,omitempty" jsonschema:"enum=http1,enum=h2c,uniqueItems=true" yaml:"protocols,omitempty"` //nolint:lll // struct tags can not be wrapped
 }
 
-// Auth holds the admin API keys and the anonymous access.
+// Auth holds the admin API keys.
 type Auth struct {
-	// AnonymousFlagSet names the flag set that serves the requests without an API key: evaluation, bulk, OFREP and
-	// the change streams, never the admin endpoints. A request with a key never falls back to it. Empty (the
-	// default) means every request needs a key.
-	AnonymousFlagSet string `json:"anonymousFlagSet,omitempty" yaml:"anonymousFlagSet,omitempty"`
 	// AdminKeys are plain strings or secret references. They are never printed.
 	AdminKeys []AdminKey `json:"adminKeys,omitempty" yaml:"adminKeys,omitempty"`
 }

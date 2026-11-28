@@ -296,12 +296,10 @@ type contentPlan struct {
 }
 
 type bootPlan struct {
-	admin map[string]struct{}
-	// anonymous is the name of the flag set that serves the requests without a key, empty for none.
-	anonymous string
-	pending   []string
-	res       Reload
-	apply     bool
+	admin   map[string]struct{}
+	pending []string
+	res     Reload
+	apply   bool
 }
 
 // round runs one reconcile round for the inputs it was woken with.
@@ -335,7 +333,6 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 	}
 
 	bootChanged := boot.apply && (!maps.Equal(boot.admin, e.cur.AdminKeys) ||
-		boot.anonymous != e.cur.AnonymousName() ||
 		!slices.Equal(boot.pending, e.cur.Status.PendingRestart))
 
 	if plan.built == nil && !bootChanged {
@@ -345,7 +342,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		return
 	}
 
-	veto, events := e.swap(ctx, &plan, &boot)
+	veto, events := e.swap(&plan, &boot)
 	if veto != nil {
 		e.finish(ctx, append(results, *veto), nil, 0)
 
@@ -369,8 +366,7 @@ func (e *Engine) adoptBaseline(boot *bootPlan, cfg *bootstrap.Config) {
 
 // swap assembles the candidate and stores it with one atomic store. It returns the rejection when the
 // BeforeSwap hook refused the candidate; nothing is stored then and the builder is not committed.
-func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*Reload, int) {
-	previous := e.cur
+func (e *Engine) swap(plan *contentPlan, boot *bootPlan) (*Reload, int) {
 	candidate := e.assemble(plan.built, boot)
 
 	if e.hooks.BeforeSwap != nil {
@@ -390,8 +386,6 @@ func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*
 	e.holder.store(candidate)
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
-
-	e.warnAnonymous(ctx, previous, candidate)
 
 	if e.hooks.AfterSwap != nil {
 		e.hooks.AfterSwap(candidate)
@@ -413,26 +407,22 @@ func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*
 func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 	base := e.cur
 	status := *base.Status
-	name := base.AnonymousName()
 	next := &Runtime{
 		FlagSets: base.FlagSets, ByKey: base.ByKey, AdminKeys: base.AdminKeys, Generation: base.Generation,
-		Snapshot: e.snapshot + 1,
+		Public: base.Public, Snapshot: e.snapshot + 1,
 	}
 
 	if built != nil {
 		next.FlagSets, next.ByKey, next.Generation = built.Runtime.FlagSets, built.Runtime.ByKey, built.Runtime.Generation
 		status.FlagSets, status.Objects = built.Runtime.Status.FlagSets, built.Runtime.Status.Objects
 		status.Entries, status.Withdrawn = built.Runtime.Status.Entries, built.Runtime.Status.Withdrawn
+		next.Public, status.Public = built.Runtime.Public, built.Runtime.Status.Public
 	}
 
 	if boot.apply {
 		next.AdminKeys = boot.admin
 		status.PendingRestart = boot.pending
-		name = boot.anonymous
 	}
-
-	next.Anonymous = anonymousSet(name, next.FlagSets)
-	status.Anonymous = anonymousStatus(next.Anonymous, next.FlagSets)
 
 	status.Generation, status.Snapshot = next.Generation, next.Snapshot
 	status.LastRejected = e.rejected
@@ -513,7 +503,7 @@ func (e *Engine) planBootstrap(cfg *bootstrap.Config) bootPlan {
 	}
 
 	return bootPlan{
-		admin: admin, anonymous: cfg.Auth.AnonymousFlagSet, pending: pendingRestart(base, cfg), apply: true,
+		admin: admin, pending: pendingRestart(base, cfg), apply: true,
 	}
 }
 

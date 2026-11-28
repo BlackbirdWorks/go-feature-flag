@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/pprof"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -46,6 +47,9 @@ type Streams struct {
 	ws   stream.WebsocketService
 	sse  stream.SSEService
 	lane [2]*lane
+	// publicClosed is set by [Streams.Revalidate] while the runtime has no public flags: the changes of the public flag
+	// set that are still queued then are not sent, so that no client without a key gets one after its access ended.
+	publicClosed atomic.Bool
 }
 
 // NewStreams returns the streams on the stream package services, built with its options. The workers carry the
@@ -82,14 +86,23 @@ func NewStreamsWith(cfg *StreamsConfig) *Streams {
 	return out
 }
 
-// Revalidate closes the streams of the clients without a key that the runtime does not entitle anymore: all of them
-// when it names no anonymous flag set or its flag set is not held, the ones of another flag set when it names a
-// different one. The clients with a key are not touched. Set it as the AfterSwap hook of the core: it runs before the
+// Revalidate closes the streams of the clients without a key when the runtime has no public flags anymore. The
+// clients with a key are not touched. Set it as the AfterSwap hook of the core: it runs before the
 // changes of the swap are queued, so a closed client gets none of them.
 func (s *Streams) Revalidate(rt *flagruntime.Runtime) {
 	keep := ""
-	if anon := rt.Status.Anonymous; anon != nil && anon.State != flagruntime.StateMissing {
-		keep = anon.FlagSet
+	if rt.Public != nil {
+		keep = flagruntime.PublicName
+	}
+
+	s.publicClosed.Store(keep == "")
+
+	if keep == "" {
+		// what waits for the clients without a key is dropped with them: nothing queued before the withdrawal can
+		// reach a client that connects after the public flags are back
+		for _, l := range s.lane {
+			l.discard(flagruntime.PublicName)
+		}
 	}
 
 	s.ws.DisconnectAnonymous(keep)
@@ -111,7 +124,7 @@ func (s *Streams) Connected() ClientCounts {
 // tells the client to fetch again, the websocket message carries the diff, so the diffs are merged to their net
 // effect). When more flag sets wait than the bound, the oldest is dropped and counted.
 func (s *Streams) Broadcast(change flagruntime.Change) {
-	if !change.Diff.HasDiff() {
+	if !change.Diff.HasDiff() || (change.FlagSet == flagruntime.PublicName && s.publicClosed.Load()) {
 		return
 	}
 
@@ -224,6 +237,20 @@ func (l *lane) offer(change *flagruntime.Change) {
 	case l.wake <- struct{}{}:
 	default:
 	}
+}
+
+// discard drops the change that waits for a flag set.
+func (l *lane) discard(name string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if _, waiting := l.pending[name]; !waiting {
+		return
+	}
+
+	delete(l.pending, name)
+
+	l.order = slices.DeleteFunc(l.order, func(queued string) bool { return queued == name })
 }
 
 func (l *lane) close() {

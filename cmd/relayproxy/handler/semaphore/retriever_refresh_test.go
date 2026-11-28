@@ -2,6 +2,7 @@ package semaphore_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -45,6 +46,8 @@ func Test_retriever_refresh_Handler_valid(t *testing.T) {
 
 	assert.NotEqual(t, previousRefresh, defaultFlagset.GetCacheRefreshDate())
 }
+
+const codeBuildFailed = "build-failed"
 
 // refresherResolver is a resolver that polls on request.
 type refresherResolver struct {
@@ -103,11 +106,11 @@ func Test_retriever_refresh_Handler_polls(t *testing.T) {
 			name: "a generation the engine rejected",
 			resolver: refresherResolver{outcome: service.RefreshOutcome{
 				Result: manifestreader.PollUpdated, Generation: 5, Changed: true, Applied: false, AppliedGeneration: 5,
-				Rejection: "build-failed",
+				Rejection: codeBuildFailed,
 			}},
 			wantBody: controller.RetrieverRefreshResponse{
 				Result: manifestreader.PollUpdated, Generation: 5, Changed: true, Refreshed: true, Reason: "",
-				Applied: new(false), AppliedGeneration: 5, Rejection: "build-failed",
+				Applied: new(false), AppliedGeneration: 5, Rejection: codeBuildFailed,
 			},
 		},
 		{
@@ -139,4 +142,20 @@ func Test_retriever_refresh_Handler_polls(t *testing.T) {
 			assert.Equal(t, tt.wantBody, out.Body)
 		})
 	}
+}
+
+// The field names of the answer are the contract of the endpoint: they are pinned here, whatever the types behind them.
+func Test_retriever_refresh_answer_field_names(t *testing.T) {
+	t.Parallel()
+
+	body := controller.RetrieverRefreshResponse{
+		Result: manifestreader.PollUpdated, Reason: "r", Generation: 3, Changed: true, Refreshed: true,
+		Applied: new(false), AppliedGeneration: 2, Rejection: codeBuildFailed,
+	}
+
+	data, err := json.Marshal(body)
+	require.NoError(t, err)
+
+	assert.JSONEq(t, `{"result":"updated","reason":"r","generation":3,"changed":true,"refreshed":true,`+
+		`"applied":false,"appliedGeneration":2,"rejection":"build-failed"}`, string(data))
 }
