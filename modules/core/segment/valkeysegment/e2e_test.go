@@ -134,7 +134,7 @@ func e2eProvider(tb testing.TB, opt *valkey.ClientOption, opts *valkeysegment.Op
 	tb.Helper()
 
 	if opts == nil {
-		opts = &valkeysegment.Options{}
+		opts = &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown}
 	}
 
 	if opts.Segments == nil {
@@ -184,7 +184,7 @@ func TestE2EContains(t *testing.T) {
 				{
 					name:    "missing key is unknown",
 					lookups: []segment.Lookup{lk(segGhost, idAlice)},
-					opts: &valkeysegment.Options{
+					opts: &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown,
 						Segments: map[string]valkeysegment.SegmentOptions{segGhost: {}},
 					},
 					wantStates: []segment.State{segment.Unknown},
@@ -239,7 +239,7 @@ func TestE2EOneRoundTrip(t *testing.T) {
 		lookups[i] = lk(segBeta, "id"+strconv.Itoa(i))
 	}
 
-	prov := e2eProvider(t, opt, &valkeysegment.Options{Timeout: e2eTimeout})
+	prov := e2eProvider(t, opt, &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Timeout: e2eTimeout})
 
 	// the first use of a connection writes its setup: warm it before counting
 	require.NoError(t, prov.Init(context.Background()))
@@ -271,7 +271,11 @@ func TestE2EServerStopped(t *testing.T) {
 	opt := srv.option(plainDial)
 	load(t, seed(t, opt), keyBeta, idAlice)
 
-	prov := e2eProvider(t, opt, &valkeysegment.Options{Timeout: 2 * time.Second})
+	prov := e2eProvider(
+		t,
+		opt,
+		&valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Timeout: 2 * time.Second},
+	)
 	before := []segment.Lookup{lk(segBeta, idAlice)}
 
 	require.NoError(t, prov.Contains(context.Background(), before))
@@ -409,7 +413,11 @@ func TestE2ECluster(t *testing.T) {
 	loadKey(t, client, flagPrefix+idAlice)
 	loadKey(t, client, flagPrefix+"bob")
 
-	prov := e2eProvider(t, opt, &valkeysegment.Options{Segments: segs, Timeout: e2eTimeout})
+	prov := e2eProvider(
+		t,
+		opt,
+		&valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Segments: segs, Timeout: e2eTimeout},
+	)
 
 	require.NoError(t, prov.Init(context.Background()))
 

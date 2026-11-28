@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ const (
 type stubServer struct {
 	ln       net.Listener
 	sets     map[string]map[string]bool
+	values   map[string]string   // string keys: the version keys
+	sorted   map[string][]string // the sorted members of a set, cached for SSCAN, dropped when the set is written
 	keys     map[string]bool
 	counts   map[string]int
 	failSeg  map[string]bool
@@ -42,6 +45,7 @@ type stubServer struct {
 	wg       sync.WaitGroup
 	mu       sync.Mutex
 	writes   atomic.Int64 // writes of the client side connections, see clientOption
+	pageSize int          // the most members of an SSCAN page, zero means the COUNT of the command
 	allow    int          // data commands still answered before the connection is cut, when cutting
 	stopOnce sync.Once
 	failed   bool
@@ -56,8 +60,14 @@ func newStubServer(tb testing.TB) *stubServer {
 	require.NoError(tb, err)
 
 	srv := &stubServer{
-		ln: ln, sets: map[string]map[string]bool{}, keys: map[string]bool{}, counts: map[string]int{},
-		failSeg: map[string]bool{}, conns: map[net.Conn]struct{}{},
+		ln:      ln,
+		sets:    map[string]map[string]bool{},
+		values:  map[string]string{},
+		sorted:  map[string][]string{},
+		keys:    map[string]bool{},
+		counts:  map[string]int{},
+		failSeg: map[string]bool{},
+		conns:   map[net.Conn]struct{}{},
 	}
 
 	srv.wg.Add(1)
@@ -392,12 +402,8 @@ func (s *stubServer) handle(conn net.Conn, args []string) (string, bool) {
 		}
 
 		return "+PONG\r\n", true
-	case "SMISMEMBER", "EXISTS":
-		if garbage != "" && (only == "" || strings.EqualFold(only, name)) {
-			return garbage, true
-		}
-
-		return s.read(name, args[1:]), true
+	case "SMISMEMBER", "EXISTS", "SSCAN", "GET":
+		return s.readData(name, args, garbage, only), true
 	}
 
 	return "-ERR unknown command\r\n", true
@@ -449,6 +455,8 @@ func (s *stubServer) setMembers(key string, ids ...string) {
 	defer s.mu.Unlock()
 
 	s.sets[key] = map[string]bool{}
+	delete(s.sorted, key)
+
 	for _, id := range ids {
 		s.sets[key][id] = true
 	}
@@ -490,5 +498,96 @@ func (s *stubServer) clientOption() *valkey.ClientOption {
 
 			return &countingConn{Conn: conn, writes: &s.writes}, nil
 		},
+	}
+}
+
+// get answers GET from the string keys: a bulk string, or nil for a missing key.
+func (s *stubServer) get(key string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	val, ok := s.values[key]
+	if !ok {
+		return "$-1\r\n"
+	}
+
+	return "$" + strconv.Itoa(len(val)) + "\r\n" + val + "\r\n"
+}
+
+// sscan answers one SSCAN page over the sorted members of a set: the cursor is an index.
+func (s *stubServer) sscan(args []string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	members, ok := s.sorted[args[0]]
+	if !ok {
+		members = make([]string, 0, len(s.sets[args[0]]))
+		for member := range s.sets[args[0]] {
+			members = append(members, member)
+		}
+
+		slices.Sort(members)
+
+		s.sorted[args[0]] = members
+	}
+
+	page := s.pageSize
+	if page == 0 {
+		page, _ = strconv.Atoi(args[3]) // SSCAN key cursor COUNT n
+	}
+
+	start, _ := strconv.Atoi(args[1])
+	end := min(start+page, len(members))
+	next := "0"
+
+	if end < len(members) {
+		next = strconv.Itoa(end)
+	}
+
+	var out strings.Builder
+
+	out.WriteString("*2\r\n$" + strconv.Itoa(len(next)) + "\r\n" + next + "\r\n*" + strconv.Itoa(end-start) + "\r\n")
+
+	for _, member := range members[start:end] {
+		out.WriteString("$" + strconv.Itoa(len(member)) + "\r\n" + member + "\r\n")
+	}
+
+	return out.String()
+}
+
+// seed writes a set (none when ids is empty, as in a real server) and bumps the version key of the segment.
+func (s *stubServer) seed(name string, ids []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	key := "seg:{" + name + "}"
+	delete(s.sets, key)
+	delete(s.sorted, key)
+
+	if len(ids) > 0 {
+		s.sets[key] = map[string]bool{}
+		for _, id := range ids {
+			s.sets[key][id] = true
+		}
+
+		sorted := slices.Clone(ids)
+		slices.Sort(sorted)
+		s.sorted[key] = slices.Compact(sorted) // sorted ahead of the first page, which has a short deadline
+	}
+
+	s.values["seg:"+name+":version"] = "v" + strconv.Itoa(len(s.counts)+int(s.writes.Add(1)))
+}
+
+// readData answers SSCAN and GET, or the garbage when it is aimed at the command.
+func (s *stubServer) readData(name string, args []string, garbage, only string) string {
+	switch {
+	case garbage != "" && (only == "" || strings.EqualFold(only, name)):
+		return garbage
+	case name == nameGet:
+		return s.get(args[1])
+	case name == "SSCAN":
+		return s.sscan(args[1:])
+	default:
+		return s.read(name, args[1:])
 	}
 }

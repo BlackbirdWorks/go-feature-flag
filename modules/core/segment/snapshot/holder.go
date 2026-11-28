@@ -182,6 +182,11 @@ func (h *Holder) Refresh(ctx context.Context) error {
 		return h.markMissing(cur, "", fmt.Errorf("snapshot of segment %q: %w", h.name, err))
 	}
 
+	noVersion := errors.Is(err, segment.ErrNoVersion)
+	if noVersion {
+		version, err = "", nil // nothing tells a change: the members are pulled on every refresh
+	}
+
 	if err != nil {
 		return h.fail(ctx, cur, ClassVersion, err)
 	}
@@ -189,7 +194,7 @@ func (h *Holder) Refresh(ctx context.Context) error {
 	// "missing" is a state of the holder, not a version: after a missing answer the token says nothing (a segment that
 	// comes back may carry the very token it had, or the same absent token), so the members are pulled again until the
 	// store has the segment.
-	if cur != nil && cur.set != nil && !cur.missing && cur.version == version {
+	if upToDate(cur, version, noVersion) {
 		held := *cur // a poll that worked: the outage is over
 		held.lastErr = ClassNone
 
@@ -268,6 +273,7 @@ func (h *Holder) pull(ctx context.Context) (*segment.MemberSet, Class, error) {
 func (h *Holder) fail(ctx context.Context, cur *snap, class Class, err error) error {
 	if ctx.Err() != nil {
 		class = ClassCanceled
+		err = fmt.Errorf("snapshot of segment %q: %w", h.name, ctx.Err()) // the end of the context is the cause
 	}
 
 	held := snap{lastErr: class}
@@ -308,4 +314,10 @@ func (h *Holder) markMissing(cur *snap, version string, err error) error {
 	}
 
 	return err
+}
+
+// upToDate tells whether the held set is the one that the version names: a set is held, the segment is not in the
+// missing state (a token says nothing about a segment that came back), and the store has a version that did not move.
+func upToDate(cur *snap, version string, noVersion bool) bool {
+	return !noVersion && cur != nil && cur.set != nil && !cur.missing && cur.version == version
 }

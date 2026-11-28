@@ -52,7 +52,10 @@ func (prov *benchPipe) Exec(context.Context) ([]redis.Cmder, error) {
 func BenchmarkContains(b *testing.B) {
 	for _, cnt := range []int{1, 8} {
 		b.Run(strconv.Itoa(cnt)+"lookups", func(b *testing.B) {
-			prov, err := redissegment.New(benchClient{}, &redissegment.Options{Segments: twoSegments()})
+			prov, err := redissegment.New(
+				benchClient{},
+				&redissegment.Options{Segments: twoSegments()},
+			)
 			require.NoError(b, err)
 
 			lookups := make([]segment.Lookup, cnt)

@@ -33,8 +33,10 @@ type Client interface {
 }
 
 type segmentConfig struct {
-	key    string
-	layout Layout
+	key        string
+	versionKey string
+	layout     Layout
+	snapshot   bool
 }
 
 // Provider is a [segment.Provider] over Valkey (or Redis) through valkey-go. It is safe for concurrent use.
@@ -102,13 +104,13 @@ func New(client Client, opts *Options) (*Provider, error) {
 	}
 
 	if prov.missing == "" {
-		prov.missing = MissingUnknown
+		prov.missing = MissingNotMember
 	}
 
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())
 
 	for name, so := range opts.Segments {
-		cfg := &segmentConfig{layout: so.Layout, key: so.Key}
+		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey, snapshot: so.Snapshot}
 		if cfg.layout == "" {
 			cfg.layout = LayoutSet
 		}
@@ -187,6 +189,11 @@ func buildClientOption(clientOpt *valkey.ClientOption, opts *Options) valkey.Cli
 	owned.AlwaysPipelining = opts.Pipelining == "" || opts.Pipelining == PipeliningAlways
 	owned.DisableAutoPipelining = false
 	owned.BlockingPipeline = opts.BlockingPipeline
+
+	if replicas := owned.SendToReplicas; replicas != nil {
+		// a snapshot read (SSCAN, GET of the version key) always goes to the primary: a cursor belongs to one node
+		owned.SendToReplicas = func(cmd valkey.Completed) bool { return !isSnapshotCommand(cmd) && replicas(cmd) }
+	}
 
 	if owned.BlockingPipeline == 0 {
 		owned.BlockingPipeline = math.MaxInt // a batch of any size stays on the shared connection

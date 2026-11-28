@@ -22,11 +22,11 @@ const (
 type MissingKey string
 
 const (
-	// MissingUnknown answers Unknown: the segment is not loaded. It is the default, and it is fail-closed because
-	// the engine applies the failure policy to it. An empty set does not exist in Valkey, so an emptied segment is
-	// also Unknown.
+	// MissingUnknown answers Unknown: the segment is not loaded, and the engine applies the failure policy to it. It
+	// is an opt-in, fail-closed. An empty set does not exist in Valkey, so an emptied segment is also Unknown.
 	MissingUnknown MissingKey = "unknown"
-	// MissingNotMember answers NotMember: a missing key is an empty segment. It saves the EXISTS command.
+	// MissingNotMember answers NotMember: a missing key is an empty segment. It is the default and saves the EXISTS
+	// command.
 	MissingNotMember MissingKey = "notMember"
 )
 
@@ -50,6 +50,14 @@ type SegmentOptions struct {
 	// <KeyPrefix>{<name>} for a set (the name is a hash tag, so a temporary key named with the same tag lands in
 	// the same cluster slot and RENAME works) and <KeyPrefix><name>: for keys.
 	Key string
+	// VersionKey (optional) is the key that holds the version of the segment: a string that the writer of the members
+	// changes whenever it changes them. [Provider.Version] reads it with GET; a missing key is the fixed version
+	// [segment.AbsentVersion], not an error. Without it Version fails with [ErrNoVersionKey].
+	VersionKey string
+	// Snapshot makes Init probe the commands of the snapshot mode on this segment: SSCAN of the set, and GET of the
+	// version key when there is one. A user that may only run the lookup commands then fails at the start, with an
+	// error that names the command, not at the first pull.
+	Snapshot bool
 }
 
 // Options configures a Provider.
@@ -62,7 +70,7 @@ type Options struct {
 	Observer Observer
 	// KeyPrefix is the default prefix of the keys. Empty means DefaultKeyPrefix.
 	KeyPrefix string
-	// MissingKey is what a missing set key means. Empty means MissingUnknown.
+	// MissingKey is what a missing set key means. Empty means MissingNotMember.
 	MissingKey MissingKey
 	// Atomic answers each set segment with one Lua script (EVAL) that checks the key and the ids in one atomic
 	// step, instead of SMISMEMBER and EXISTS in the pipeline. A set that is deleted while the call runs is then
