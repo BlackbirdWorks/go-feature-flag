@@ -348,6 +348,11 @@ tasks:
     cmds:
       - 'GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench -bench Benchmark -cpu 2 -run=^$$'
 
+  segment-bench:
+    desc: Import two million ids into a real Valkey and log the duration, the server peak memory and the longest stall (needs Docker)
+    cmds:
+      - 'GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=docker,bench -count=1 -timeout=10m -v -run TestImportLarge ./modules/core/segment/segmentadmin'
+
   test-reload-load:
     desc: 60 s load test of the reload (constant request rate, a reload every 200 ms), prints the p99 inside and outside the reloads
     cmds:

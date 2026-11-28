@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/blackbirdworks/semaphore/cmd/cli/cliapp"
 	"github.com/blackbirdworks/semaphore/cmdhelpers/buildinfo"
@@ -16,13 +18,17 @@ var (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+
 	code := cliapp.Main(
-		context.Background(),
+		ctx,
 		os.Args[1:],
 		os.Stdout,
 		os.Stderr,
 		os.LookupEnv,
 		cliapp.Build{Version: version, Commit: commit, Date: date},
 	)
+
+	stop()
 	os.Exit(code)
 }

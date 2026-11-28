@@ -25,42 +25,48 @@ type redisHandle struct {
 	atomic  bool
 }
 
+// RedisOptions is the go-redis option of a connection: the addresses, the credentials, TLS and the timeouts. The relay
+// and the segment tool of the CLI dial with it.
+func RedisOptions(conn *bootstrap.RedisConnection, secrets bootstrap.LoadOptions) (*redis.UniversalOptions, error) {
+	password, err := conn.Password.Resolve(secrets)
+	if err != nil && conn.Password.IsSet() {
+		return nil, fmt.Errorf("password: %w", err)
+	}
+
+	var tlsCfg *tls.Config
+
+	if tlsEnabled(conn.TLS) {
+		tlsCfg, err = tlsConfig(conn.TLS, secrets)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	opts := &redis.UniversalOptions{
+		Addrs: conn.Addresses, DB: conn.DB, Username: conn.Username, Password: password.Reveal(),
+		TLSConfig: tlsCfg, IsClusterMode: conn.Cluster, ContextTimeoutEnabled: true,
+	}
+	if conn.MaxRetries != nil {
+		opts.MaxRetries = *conn.MaxRetries
+	}
+
+	if conn.PoolSize != nil {
+		opts.PoolSize = *conn.PoolSize
+	}
+
+	if t := conn.Timeouts; t != nil {
+		opts.DialTimeout, opts.ReadTimeout, opts.WriteTimeout = durationOf(t.Connect), durationOf(t.Read),
+			durationOf(t.Write)
+	}
+
+	return opts, nil
+}
+
 func redisDialer(conn *bootstrap.RedisConnection, secrets bootstrap.LoadOptions) Dialer {
 	return func(context.Context) (Handle, error) {
-		password, err := conn.Password.Resolve(secrets)
-		if err != nil && conn.Password.IsSet() {
-			return nil, fmt.Errorf("password: %w", err)
-		}
-
-		var tlsCfg *tls.Config
-
-		if tlsEnabled(conn.TLS) {
-			tlsCfg, err = tlsConfig(conn.TLS, secrets)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		opts := &redis.UniversalOptions{
-			Addrs: conn.Addresses, DB: conn.DB, Username: conn.Username, Password: password.Reveal(),
-			TLSConfig: tlsCfg, IsClusterMode: conn.Cluster, ContextTimeoutEnabled: true,
-		}
-		if conn.MaxRetries != nil {
-			opts.MaxRetries = *conn.MaxRetries
-		}
-
-		if conn.PoolSize != nil {
-			opts.PoolSize = *conn.PoolSize
-		}
-
-		if t := conn.Timeouts; t != nil {
-			opts.DialTimeout, opts.ReadTimeout, opts.WriteTimeout = durationOf(
-				t.Connect,
-			), durationOf(
-				t.Read,
-			), durationOf(
-				t.Write,
-			)
+		opts, err := RedisOptions(conn, secrets)
+		if err != nil {
+			return nil, err
 		}
 
 		// go-redis connects on the first command: the dial itself cannot fail for a reachable configuration

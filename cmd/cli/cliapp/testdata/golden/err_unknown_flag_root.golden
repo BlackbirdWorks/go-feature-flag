@@ -30,5 +30,19 @@ Commands:
     Print the effective bootstrap file: defaults and environment overrides
     applied, secrets redacted
 
+  segment add --segments=STRING --segment=STRING [<id> ...] [flags]
+    Add ids to the segment and bump its version key
+
+  segment remove --segments=STRING --segment=STRING [<id> ...] [flags]
+    Remove ids from the segment and bump its version key
+
+  segment stat --segments=STRING --segment=STRING [flags]
+    Show whether the segment exists, how many members it has, its version and
+    its ttl
+
+  segment import --segments=STRING --segment=STRING --from=STRING [flags]
+    Replace the members of a segment from a file or standard input, with an
+    atomic swap (a temporary key, then RENAME)
+
 Run "semaphore-cli <command> --help" for more information on a command.
   ERROR   error executing command: usage: unknown flag --not-a-flag

@@ -18,6 +18,21 @@ const (
 	LayoutKeys Layout = "keys"
 )
 
+// DefaultKey is the key of a segment whose definition names none: <prefix>{<name>} for a set (the name is a hash tag,
+// so a temporary key with the same tag lands in the same cluster slot and RENAME works) and <prefix><name>: for the
+// keys layout. An empty prefix means [DefaultKeyPrefix]. The providers and the tools that write members use it.
+func DefaultKey(prefix, name string, layout Layout) string {
+	if prefix == "" {
+		prefix = DefaultKeyPrefix
+	}
+
+	if layout == LayoutKeys {
+		return prefix + name + ":"
+	}
+
+	return prefix + "{" + name + "}"
+}
+
 // MissingKey is what a lookup of a set segment becomes when the key of the set does not exist.
 type MissingKey string
 

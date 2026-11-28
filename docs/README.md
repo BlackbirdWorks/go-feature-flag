@@ -72,5 +72,5 @@ Plain-Markdown documentation for the relay proxy and the Go engine.
 - [JsonLogic behaviour changes (`jsonlogic` v3.11.0)](migration/jsonlogic-3-11.md)
 
 ## Tooling
-- [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md), [publish](tooling/publish.md), [config](tooling/config.md)
+- [Command line](tooling/cli.md): [evaluate](tooling/evaluate.md), [lint](tooling/linter.md), [generate](tooling/generate.md), [publish](tooling/publish.md), [config](tooling/config.md), [segment](tooling/segment.md)
 - [Auto-complete (JSON schema)](tooling/autocomplete.md)
