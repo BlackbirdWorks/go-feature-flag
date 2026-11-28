@@ -187,7 +187,7 @@ func (b *Builder) Build(ctx context.Context, content *Content) (*Built, error) {
 	// The set of names changed when a name was added or removed, whatever its kind. Names are compared exactly:
 	// when no name of the content is new and the counts equal those of the running state, the sets are equal.
 	namesChanged := sums.addedFlags || sums.nFlags != len(stg.prev.objects)
-	if namesChanged || sums.addedDocs || sums.nDocs != len(stg.prev.docs) || sums.nSegs != len(stg.prev.segs) {
+	if namesChanged || stg.namesChanged(&sums) {
 		stg.removeGone(content)
 	}
 
@@ -231,6 +231,7 @@ type scanSums struct {
 	nFlags     int
 	nDocs      int
 	nSegs      int
+	addedSegs  bool
 	addedFlags bool
 	addedDocs  bool
 }
@@ -259,6 +260,8 @@ func (st *stage) scan(content *Content) scanSums {
 			sums.nSegs++
 
 			prev := st.prev.segs[name]
+			sums.addedSegs = sums.addedSegs || prev == nil
+
 			next := st.segObject(name, &obj, prev)
 
 			if next != prev {
@@ -433,4 +436,9 @@ func (b *Builder) now() time.Time {
 	}
 
 	return clock.Now()
+}
+
+// namesChanged tells whether a flag-set document or a segments object was added or removed.
+func (st *stage) namesChanged(sums *scanSums) bool {
+	return sums.addedDocs || sums.nDocs != len(st.prev.docs) || sums.addedSegs || sums.nSegs != len(st.prev.segs)
 }

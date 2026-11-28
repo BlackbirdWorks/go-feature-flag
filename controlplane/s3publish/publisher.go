@@ -75,8 +75,9 @@ func (c *counter) requests() Requests {
 // Publisher publishes to one bucket and channel. It holds no mutable state: it is safe for concurrent use and
 // two publishers (or two processes) on one bucket are what the conditional writes protect against.
 type Publisher struct {
-	// verified are the objects that Verify read, kept for Config.CheckAll
+	// verified are the objects that Verify read, kept for Config.CheckAll; objects of one checksum share one body
 	verified []Object
+	bodies   map[string][]byte
 	api      API
 	cfg      Config
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/internal/cache"
+	"github.com/blackbirdworks/semaphore/modules/core/dto"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
@@ -104,7 +105,8 @@ type FlagFile struct {
 
 // SegmentFile is one segments object of a flag set.
 type SegmentFile struct {
-	// Doc is the decoded document.
+	// Doc is the decoded document. Nil means that the object was not read (another connection, skipped by Verify):
+	// the names that it could define are unknown, so a reference is not reported as undefined while one is not read.
 	Doc *controlplane.SegmentsDocument
 	// Name is the name of the manifest object.
 	Name string
@@ -154,6 +156,26 @@ func (e *ReferenceError) Error() string {
 // Is reports a match with ErrSegments.
 func (*ReferenceError) Is(target error) bool { return target == ErrSegments }
 
+// Unwrap lists the problems as errors of their own, so that a report can show one line for each.
+func (e *ReferenceError) Unwrap() []error {
+	out := make([]error, len(e.Problems))
+	for i := range e.Problems {
+		out[i] = &referenceProblemError{set: e.FlagSet, problem: e.Problems[i]}
+	}
+
+	return out
+}
+
+// referenceProblemError is one problem of a ReferenceError as an error.
+type referenceProblemError struct {
+	set     string
+	problem ReferenceProblem
+}
+
+func (e *referenceProblemError) Error() string {
+	return (&ReferenceError{FlagSet: e.set, Problems: []ReferenceProblem{e.problem}}).Error()
+}
+
 // CheckSegmentReferences checks the segments of one flag set: a segment name must be defined once in all its
 // segment sources, and every segment("name") that a targeting rule of a flag uses must be defined there. A flag
 // set that has no segment source and no rule that uses a segment is fine. The queries are read with the engine's own
@@ -162,7 +184,15 @@ func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentF
 	out := &ReferenceError{FlagSet: flagSet}
 	defined := map[string]string{}
 
+	unknown := false
+
 	for i := range sources {
+		if sources[i].Doc == nil {
+			unknown = true
+
+			continue
+		}
+
 		for j := range sources[i].Doc.Segments {
 			name := sources[i].Doc.Segments[j].Name
 			if first, dup := defined[name]; dup {
@@ -181,8 +211,16 @@ func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentF
 	svc := flagdef.NewService()
 	defer svc.Close()
 
-	for i := range flags {
-		out.Problems = append(out.Problems, unresolved(svc, &flags[i], defined)...)
+	// the rules that matter are those of the flags that the flag set serves: a later source wins on a duplicate key
+	effective, objects := effectiveFlags(flags)
+
+	if unknown {
+		effective = nil // a name could be defined in a source that was not read
+	}
+
+	for _, key := range slices.Sorted(maps.Keys(effective)) {
+		flagDto := effective[key]
+		out.Problems = append(out.Problems, unresolvedIn(svc, objects[key], key, &flagDto, defined)...)
 	}
 
 	if len(out.Problems) == 0 {
@@ -192,46 +230,72 @@ func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentF
 	return out
 }
 
-// unresolved returns the references of the flags of one file that are not defined.
-func unresolved(svc *flagdef.Service, file *FlagFile, defined map[string]string) []ReferenceProblem {
-	dtos, err := cache.ConvertToFlagStruct(file.Body, file.Format)
-	if err != nil {
-		return nil // the flag object itself is checked by Check
+// Winners tells, for each flag key of the flag files of a flag set (in the order of its sources), the name of the
+// object whose definition the flag set serves: a later source wins on a duplicate key. It follows the merge of the
+// relay; a test of the relay keeps the two together. A file that does not decode has no flag here.
+func Winners(flags []FlagFile) map[string]string {
+	_, objects := effectiveFlags(flags)
+
+	return objects
+}
+
+// effectiveFlags merges the flags of the files in order, the later definition winning, and names the object of each.
+func effectiveFlags(files []FlagFile) (map[string]dto.DTO, map[string]string) {
+	flags := map[string]dto.DTO{}
+	objects := map[string]string{}
+
+	for i := range files {
+		dtos, err := cache.ConvertToFlagStruct(files[i].Body, files[i].Format)
+		if err != nil {
+			continue // the flag object itself is checked by Check
+		}
+
+		for key := range dtos {
+			flags[key] = dtos[key]
+			objects[key] = files[i].Name
+		}
 	}
+
+	return flags, objects
+}
+
+// unresolvedIn returns the references of one flag that are not defined.
+func unresolvedIn(
+	svc *flagdef.Service,
+	object, key string,
+	flagDto *dto.DTO,
+	defined map[string]string,
+) []ReferenceProblem {
+	internal := flagDto.Convert()
+	rules := internal.GetRules()
 
 	var problems []ReferenceProblem
 
-	for _, key := range slices.Sorted(maps.Keys(dtos)) {
-		flagDto := dtos[key]
-		internal := flagDto.Convert()
-		rules := internal.GetRules()
+	reported := map[string]bool{}
 
-		reported := map[string]bool{}
+	for index := range rules {
+		one := internal
+		one.Rules = &[]flagdef.Rule{rules[index]}
+		one.Scheduled = nil
 
-		for index := range rules {
-			one := internal
-			one.Rules = &[]flagdef.Rule{rules[index]}
-			one.Scheduled = nil
-
-			for _, name := range one.SegmentNames(svc) {
-				if _, ok := defined[name]; !ok {
-					reported[name] = true
-					problems = append(problems, ReferenceProblem{
-						Object: file.Name, Flag: key, Rule: index, Segment: name,
-						Reason: "is not defined in the segment sources of the flag set",
-					})
-				}
-			}
-		}
-
-		// the rules that a scheduled step adds
-		for _, name := range internal.SegmentNames(svc) {
-			if _, ok := defined[name]; !ok && !reported[name] {
+		for _, name := range one.SegmentNames(svc) {
+			if _, ok := defined[name]; !ok {
+				reported[name] = true
 				problems = append(problems, ReferenceProblem{
-					Object: file.Name, Flag: key, Rule: -1, Segment: name,
-					Reason: "is not defined in the segment sources of the flag set (used by a scheduled step)",
+					Object: object, Flag: key, Rule: index, Segment: name,
+					Reason: "is not defined in the segment sources of the flag set",
 				})
 			}
+		}
+	}
+
+	// the rules that a scheduled step adds
+	for _, name := range internal.SegmentNames(svc) {
+		if _, ok := defined[name]; !ok && !reported[name] {
+			problems = append(problems, ReferenceProblem{
+				Object: object, Flag: key, Rule: -1, Segment: name,
+				Reason: "is not defined in the segment sources of the flag set (used by a scheduled step)",
+			})
 		}
 	}
 

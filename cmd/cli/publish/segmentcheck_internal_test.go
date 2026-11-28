@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 
 const (
 	objSegs         = "segs"
+	objSets         = "sets"
 	flagsUsingGhost = "f:\n  variations: {\"on\": true, \"off\": false}\n  targeting:\n" +
 		"    - name: r\n      query: targetingKey in segment(\"ghost\")\n      variation: \"on\"\n" +
 		"  defaultRule: {variation: \"off\"}\n"
@@ -35,10 +37,28 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 		Body:   []byte(segmentsWithGhost),
 	}
 	set := s3publish.Object{
-		Name:   "sets",
+		Name:   objSets,
 		Kind:   controlplane.KindFlagSets,
 		Format: controlplane.FormatYAML,
 		Body:   []byte(setListing),
+	}
+
+	otherSegs := s3publish.Object{
+		Name: objSegs, Kind: controlplane.KindSegments, Format: controlplane.FormatYAML,
+		Body: []byte("apiVersion: semaphore/v1\nkind: Segments\nsegments:\n  - name: other\n    members: []\n"),
+	}
+	// "shadow" defines the flag f without a segment rule
+	shadow := s3publish.Object{
+		Name: "shadow", Kind: controlplane.KindFlags, Format: controlplane.FormatYAML,
+		Body: []byte("f:\n  variations: {\"on\": true, \"off\": false}\n  defaultRule: {variation: \"off\"}\n"),
+	}
+	setTwo := s3publish.Object{
+		Name: objSets, Kind: controlplane.KindFlagSets, Format: controlplane.FormatYAML,
+		Body: []byte(strings.Replace(setListing, "sources: [flags]", "sources: [flags, shadow]", 1)),
+	}
+	setTwoReversed := s3publish.Object{
+		Name: objSets, Kind: controlplane.KindFlagSets, Format: controlplane.FormatYAML,
+		Body: []byte(strings.Replace(setListing, "sources: [flags]", "sources: [shadow, flags]", 1)),
 	}
 
 	tests := []struct {
@@ -48,25 +68,37 @@ func TestCheckReferencesLooksOnlyAtWhatResolves(t *testing.T) {
 	}{
 		{name: "everything is defined", objects: []s3publish.Object{flags, segs, set}},
 		{
-			name:    "the segment source is missing: left to the validation of the documents",
+			name:    "the segment source is not read (verify skips another connection): its names are unknown",
 			objects: []s3publish.Object{flags, set},
-			wantErr: "segment ghost: is not defined",
 		},
 		{
-			name: "a segment source that does not decode is left to its own validation",
+			name: "a segment source that does not decode is left to its own validation: its names are unknown",
 			objects: []s3publish.Object{
 				flags,
 				{Name: objSegs, Kind: controlplane.KindSegments, Body: []byte("segments: [")},
 				set,
 			},
+		},
+		{
+			name:    "a segment that is defined nowhere, all sources read (publish)",
+			objects: []s3publish.Object{flags, otherSegs, set},
 			wantErr: "segment ghost: is not defined",
+		},
+		{
+			name:    "the shadowed flag uses the missing segment, the winner does not: nothing to report",
+			objects: []s3publish.Object{flags, shadow, otherSegs, setTwo},
+		},
+		{
+			name:    "the winner uses the missing segment: reported",
+			objects: []s3publish.Object{shadow, flags, otherSegs, setTwoReversed},
+			wantErr: "flag f, rule 0: segment ghost: is not defined",
 		},
 		{
 			name: "a flag-set document that does not decode is left to its own validation",
 			objects: []s3publish.Object{
 				flags,
 				segs,
-				{Name: "sets", Kind: controlplane.KindFlagSets, Body: []byte("flagSets: [")},
+				{Name: objSets, Kind: controlplane.KindFlagSets, Body: []byte("flagSets: [")},
 			},
 		},
 		{

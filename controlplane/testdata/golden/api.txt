@@ -342,11 +342,13 @@ func (*Error) Is(target error) bool
 func (*ReferenceError) Is(target error) bool
 func (e *Error) Error() string
 func (e *ReferenceError) Error() string
+func (e *ReferenceError) Unwrap() []error
 func (p FlagProblem) Message() string
 func Check(body []byte, format string) error
 func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentFile) error
 func CheckSegments(body []byte) error
 func Definition(seg *"github.com/blackbirdworks/semaphore/controlplane".SegmentDefinition) ("github.com/blackbirdworks/semaphore/modules/core/segment".Definition, bool)
+func Winners(flags []FlagFile) map[string]string
 type Error struct {
 	Problems []FlagProblem
 }
@@ -410,6 +412,7 @@ const (
 	StatusWouldUpload	Status	= "would-upload"
 )
 const DefaultConcurrency = 8
+const MaxCheckAllProblems = 20
 const MaxHookDetail = 200
 func (e *OperationError) Error() string
 func (e *OperationError) Unwrap() error

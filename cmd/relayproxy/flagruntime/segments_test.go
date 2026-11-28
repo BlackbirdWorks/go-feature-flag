@@ -1,6 +1,7 @@
 package flagruntime_test
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
+	"github.com/blackbirdworks/semaphore/controlplane/flagcheck"
+	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 )
 
 const (
@@ -157,4 +160,126 @@ func TestASegmentsObjectThatWasNeverGoodDegradesOnlyTheFlagSetsThatListIt(t *tes
 	built = buildAndCommit(t, builder, content(3, gone))
 	assert.NotContains(t, built.Runtime.Status.Objects, segObject)
 	assert.NotNil(t, built.Runtime.FlagSets["a"], "the flag set keeps the flags it had")
+}
+
+func TestASwapOfSegmentsObjectsDropsTheOldOneAndDegradesTheFlagSetsThatListIt(t *testing.T) {
+	t.Parallel()
+
+	builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+	first := objs{
+		"f1": flagsObj(
+			1,
+			"x",
+		),
+		"f2":      flagsObj(1, "z"),
+		segObject: segObj(goodSegments),
+		setsName:  withSegmentSources(t),
+	}
+
+	built := buildAndCommit(t, builder, content(1, first))
+	require.NotNil(t, built.Runtime.Status.Objects[segObject])
+
+	// one object goes and another one comes: the number of segments objects does not change
+	swapped := objs{
+		"f1": flagsObj(2, "x"), "f2": first["f2"], "other-people": segObj(goodSegments), setsName: first[setsName],
+	}
+
+	built = buildAndCommit(t, builder, content(2, swapped))
+
+	assert.NotContains(
+		t,
+		built.Runtime.Status.Objects,
+		segObject,
+		"the object that the manifest no longer lists is dropped",
+	)
+	assert.Contains(t, built.Runtime.Status.Objects, "other-people")
+
+	var unresolved []flagruntime.EntryProblem
+
+	for _, entry := range built.Runtime.Status.Entries {
+		if entry.Code == controlplane.CodeUnresolvedSource {
+			unresolved = append(unresolved, entry)
+		}
+	}
+
+	require.Len(t, unresolved, 1, "the flag set that lists the removed name is unresolved")
+	assert.Contains(t, unresolved[0].Reason, `"people" is not an object of kind segments`)
+
+	// it keeps the flags it had: the new value of f1 is not served to it
+	flag := built.Runtime.FlagSets["a"].Flags["x"]
+	require.NotNil(t, flag)
+	assert.Contains(t, mustVariations(flag), "v", "the flag set keeps its last good flags")
+	assert.EqualValues(t, 1, variationValue(flag), "the content of the last good generation, not the new f1")
+	assert.EqualValues(
+		t,
+		1,
+		variationValue(built.Runtime.FlagSets["b"].Flags["z"]),
+		"the other flag set is not affected",
+	)
+}
+
+func mustVariations(flag *flagdef.InternalFlag) map[string]*any { return flag.GetVariations() }
+
+func variationValue(flag *flagdef.InternalFlag) any {
+	return *flag.GetVariations()["v"]
+}
+
+// TestTheCheckOfTheCliPicksTheFlagsThatTheRelayServes keeps flagcheck.Winners (the effective flags of the reference
+// check) and the merge of the relay together: for every flag key, the object that the check names is the one whose
+// definition the relay serves.
+func TestTheCheckOfTheCliPicksTheFlagsThatTheRelayServes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		sources []string
+	}{
+		{name: "in order", sources: []string{"f1", "f2", "f3"}},
+		{name: "reversed", sources: []string{"f3", "f2", "f1"}},
+		{name: "one source", sources: []string{"f2"}},
+	}
+
+	// f1 defines x, y; f2 defines y, z; f3 defines z, w: each object has its own value, to tell the winner
+	files := map[string]flagruntime.Object{
+		"f1": flagsObj(1, "x", "y"), "f2": flagsObj(2, "y", "z"), "f3": flagsObj(3, "z", "w"),
+	}
+	values := map[string]int{"f1": 1, "f2": 2, "f3": 3}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			builder := flagruntime.NewBuilder(newService(t), flagruntime.BuilderOptions{})
+			published := objs{
+				setsName: setsObj(t, controlplane.FlagSet{Name: "s", Sources: tt.sources, APIKeys: []string{keyA}}),
+			}
+			maps.Copy(published, files)
+
+			built := buildAndCommit(t, builder, content(1, published))
+
+			var checked []flagcheck.FlagFile
+
+			for _, name := range tt.sources {
+				checked = append(checked, flagcheck.FlagFile{Name: name, Format: "yaml", Body: files[name].Bytes})
+			}
+
+			winners := flagcheck.Winners(checked)
+			require.NotEmpty(t, winners)
+
+			for key, object := range winners {
+				served := built.Runtime.FlagSets["s"].Flags[key]
+				require.NotNil(t, served, key)
+				assert.EqualValues(
+					t,
+					values[object],
+					variationValue(served),
+					"the flag %s: the relay serves the object %s",
+					key,
+					object,
+				)
+			}
+
+			assert.Len(t, built.Runtime.FlagSets["s"].Flags, len(winners))
+		})
+	}
 }

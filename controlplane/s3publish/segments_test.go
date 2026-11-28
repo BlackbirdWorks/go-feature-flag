@@ -2,6 +2,7 @@ package s3publish_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/controlplane/s3publish"
+	"github.com/blackbirdworks/semaphore/testhelpers/s3fake"
 )
 
 const (
@@ -265,4 +267,157 @@ func TestVerifyRunsCheckAllOnTheObjectsItRead(t *testing.T) {
 			assert.Equal(t, tt.wantProblems, append([]s3publish.Problem{}, report.Problems...))
 		})
 	}
+}
+
+// seedSharedObject seeds a bucket whose manifest lists names that all point at one object.
+func seedSharedObject(t *testing.T, names int, body []byte) *s3fake.Fake {
+	t.Helper()
+
+	fake := newFake()
+	key := objectKey(t, body)
+	fake.Seed(key, body)
+
+	manifest := &controlplane.Manifest{Channel: testChannel, Generation: 1}
+
+	for i := range names {
+		manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
+			Name: fmt.Sprintf("flags-%03d", i), Kind: controlplane.KindFlags, Connection: testConnection, Key: key,
+			Format: controlplane.FormatYAML, Checksum: controlplane.ChecksumOf(body), Size: int64(len(body)),
+		})
+	}
+
+	data, err := controlplane.MarshalManifest(manifest)
+	require.NoError(t, err)
+	fake.Seed(manifestKey, data)
+
+	return fake
+}
+
+func TestVerifyKeepsOneBodyForObjectsOfOneChecksum(t *testing.T) {
+	t.Parallel()
+
+	const names = 512
+
+	body := flagsBody(t, "shared")
+	fake := seedSharedObject(t, names, body)
+
+	var (
+		count     int
+		distinct  = map[*byte]struct{}{}
+		retained  int
+		nonShared int
+	)
+
+	pub := newPublisher(t, fake, func(cfg *s3publish.Config) {
+		cfg.CheckAll = func(all []s3publish.Object) error {
+			count = len(all)
+
+			for i := range all {
+				distinct[&all[i].Body[0]] = struct{}{}
+				retained += len(all[i].Body)
+
+				if len(all[i].Body) != len(body) {
+					nonShared++
+				}
+			}
+
+			return nil
+		}
+	})
+
+	report, err := pub.Verify(t.Context())
+	require.NoError(t, err)
+	assert.Empty(t, report.Problems)
+	assert.Equal(t, names, count, "every name is given to the hook")
+	assert.Len(t, distinct, 1, "one body in memory for the 512 names")
+	assert.Zero(t, nonShared)
+	assert.Equal(t, names*len(body), retained, "the hook sees the content of each name, the memory holds it once")
+}
+
+func TestVerifyBoundsTheBodiesItKeepsForCheckAll(t *testing.T) {
+	t.Parallel()
+
+	first, second := flagsBody(t, "first"), flagsBody(t, "second")
+	fake := newFake()
+
+	manifest := &controlplane.Manifest{Channel: testChannel, Generation: 1}
+
+	for i, body := range [][]byte{first, second} {
+		key := objectKey(t, body)
+		fake.Seed(key, body)
+
+		manifest.Objects = append(manifest.Objects, controlplane.ManifestObject{
+			Name: fmt.Sprintf("flags-%d", i), Kind: controlplane.KindFlags, Connection: testConnection, Key: key,
+			Format: controlplane.FormatYAML, Checksum: controlplane.ChecksumOf(body), Size: int64(len(body)),
+		})
+	}
+
+	data, err := controlplane.MarshalManifest(manifest)
+	require.NoError(t, err)
+	fake.Seed(manifestKey, data)
+
+	called := false
+
+	pub := newPublisher(t, fake, func(cfg *s3publish.Config) {
+		cfg.MaxTotalBytes = int64(len(first)) + 1 // room for one of the two bodies
+		cfg.CheckAll = func([]s3publish.Object) error {
+			called = true
+
+			return nil
+		}
+	})
+
+	report, err := pub.Verify(t.Context())
+	require.NoError(t, err)
+	require.NotEmpty(t, report.Problems)
+	assert.Equal(
+		t,
+		"manifest",
+		report.Problems[0].Object,
+		"the sum of the distinct objects is over the limit of the reader",
+	)
+	assert.Contains(t, report.Problems[0].Detail, "over the limit")
+	assert.False(t, called, "the hook does not run on a part of the objects")
+	assert.Zero(t, report.Checked, "no object was read: no memory was spent on them")
+}
+
+type manyError struct{ list []error }
+
+func (manyError) Error() string     { return "many" }
+func (m manyError) Unwrap() []error { return m.list }
+
+var errProblem = errors.New("problem")
+
+func TestVerifyReportsOneProblemForEachErrorOfCheckAll(t *testing.T) {
+	t.Parallel()
+
+	fake := newFake()
+	objects := objectsWithSegments(t, validSegments())
+
+	_, err := newPublisher(t, fake, nil).Publish(t.Context(), s3publish.Request{Objects: objects})
+	require.NoError(t, err)
+
+	errs := make([]error, 30)
+	for i := range errs {
+		errs[i] = fmt.Errorf("%w number %d", errProblem, i)
+	}
+
+	pub := newPublisher(t, fake, func(cfg *s3publish.Config) {
+		cfg.CheckAll = func([]s3publish.Object) error { return errors.Join(errs[:10]...) }
+	})
+
+	report, err := pub.Verify(t.Context())
+	require.NoError(t, err)
+	assert.Len(t, report.Problems, 10, "ten errors, ten problems, none cut")
+
+	pub = newPublisher(t, fake, func(cfg *s3publish.Config) {
+		cfg.CheckAll = func([]s3publish.Object) error { return manyError{list: errs} }
+	})
+
+	report, err = pub.Verify(t.Context())
+	require.NoError(t, err)
+	require.Len(t, report.Problems, s3publish.MaxCheckAllProblems+1)
+	assert.Equal(t, "problem number 0", report.Problems[0].Detail)
+	assert.Equal(t, "problem number 19", report.Problems[s3publish.MaxCheckAllProblems-1].Detail)
+	assert.Equal(t, "and 10 more", report.Problems[s3publish.MaxCheckAllProblems].Detail)
 }

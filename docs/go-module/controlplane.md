@@ -140,12 +140,17 @@ segments:
   `missingKey` is `notMember` (default) or `unknown`. `version` is `value` or `key` (not both) with an optional
   `interval` (`100ms` to `24h`, needs `key`). `cache` (`maxEntries`, `ttl`) is for the `lookup` mode only.
 - `onError`: `unknown` (default), `notMember` or `member`.
-- The relay accepts a published segments object: it decodes and validates it, keeps its last good content when a later
-  version is invalid, shows it in `/info`, and resolves the `segmentSources` of the flag sets that list it. Evaluation of
-  the segments follows in a later change; today they are not used.
+- The relay tracks segments objects: it decodes and validates each one, keeps its last good content when a later
+  version is invalid, shows it in `/info`, and resolves the `segmentSources` of the flag sets that list it. A segment
+  source that is unresolved (removed, or never good) degrades the flag sets that list it: they keep their last good
+  flags, or are not served when they never had any. Evaluation with the segments comes in the next release step; today
+  they are tracked, not used.
 - `semaphore-cli publish` and `publish verify` also run the engine checks of the `flagcheck` package: a segment
-  definition that the engine rejects, a `segment("name")` of a flag rule that no segment source of its flag set defines,
-  and a name that two segment sources of one flag set define are errors.
+  definition that the engine rejects, a `segment("name")` of a rule of a flag that the flag set serves (the later
+  source wins on a duplicate flag key, as in the relay) that no segment source of the flag set defines, and a name that
+  two segment sources of one flag set define are errors. `verify` skips the objects of other connections: the names
+  that such a segment source could define are unknown, so nothing is reported as undefined while one is not read, and
+  the report lists the skipped objects.
 
 ### Flag object
 

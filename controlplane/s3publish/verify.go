@@ -266,7 +266,30 @@ func (p *Publisher) entryProblem(obj *controlplane.ManifestObject) string {
 	return ""
 }
 
-// checkAll runs Config.CheckAll on the objects that were read, and returns its problem, placed at pos.
+// retain keeps a body for Config.CheckAll once for each checksum: a second object of the same content shares the body
+// of the first, so the memory held is the sum over the distinct checksums, the sum that the limits of the manifest
+// count and bound before any object is read.
+func (p *Publisher) retain(sum string, body []byte) []byte {
+	if held, ok := p.bodies[sum]; ok {
+		return held
+	}
+
+	if p.bodies == nil {
+		p.bodies = map[string][]byte{}
+	}
+
+	p.bodies[sum] = body
+
+	return body
+}
+
+// MaxCheckAllProblems is the most problems that Verify reports for the errors of Config.CheckAll; the rest is
+// counted in one more problem ("and N more").
+const MaxCheckAllProblems = 20
+
+// checkAll runs Config.CheckAll on the objects that were read, and returns one problem for each error that it
+// reports, placed at pos. An error that joins several (errors.Join, or an error with an Unwrap() []error) is one
+// problem for each of them, in order; after MaxCheckAllProblems of them the count of the others is one last problem.
 func (p *Publisher) checkAll(pos int) []positioned {
 	if p.cfg.CheckAll == nil {
 		return nil
@@ -277,9 +300,39 @@ func (p *Publisher) checkAll(pos int) []positioned {
 		return nil
 	}
 
-	return []positioned{{pos: pos, problem: Problem{
-		Object: "objects", Code: ProblemInvalidContent, Detail: hookText(err),
-	}}}
+	all := flatten(err)
+	shown := all[:min(len(all), MaxCheckAllProblems)]
+	out := make([]positioned, 0, len(shown)+1)
+
+	for _, each := range shown {
+		out = append(out, positioned{pos: pos, problem: Problem{
+			Object: "objects", Code: ProblemInvalidContent, Detail: hookText(each),
+		}})
+	}
+
+	if more := len(all) - len(shown); more > 0 {
+		out = append(out, positioned{pos: pos, problem: Problem{
+			Object: "objects", Code: ProblemInvalidContent, Detail: fmt.Sprintf("and %d more", more),
+		}})
+	}
+
+	return out
+}
+
+// flatten lists the leaves of an error that joins others.
+func flatten(err error) []error {
+	multi, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		return []error{err}
+	}
+
+	var out []error
+
+	for _, each := range multi.Unwrap() {
+		out = append(out, flatten(each)...)
+	}
+
+	return out
 }
 
 // verifyObject checks one object and returns its problems and, for a readable flag-set document, the document.
@@ -328,9 +381,11 @@ func (p *Publisher) verifyObject(
 	}
 
 	if p.cfg.CheckAll != nil {
+		held := p.retain(obj.Checksum.Value, body)
+
 		p.verified = append(
 			p.verified,
-			Object{Name: obj.Name, Kind: obj.Kind, Format: obj.Format, Source: obj.Key, Body: body},
+			Object{Name: obj.Name, Kind: obj.Kind, Format: obj.Format, Source: obj.Key, Body: held},
 		)
 	}
 

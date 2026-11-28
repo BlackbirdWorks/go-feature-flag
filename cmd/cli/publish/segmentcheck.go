@@ -69,11 +69,16 @@ func checkFlagSetReferences(set *controlplane.FlagSet, byName map[string]*s3publ
 	for _, name := range set.SegmentSources {
 		obj, ok := byName[name]
 		if !ok || obj.Kind != controlplane.KindSegments {
+			// not read (another connection, skipped by verify): its names are unknown
+			segments = append(segments, flagcheck.SegmentFile{Name: name})
+
 			continue
 		}
 
 		doc, _, err := controlplane.UnmarshalSegments(obj.Body)
 		if err != nil {
+			segments = append(segments, flagcheck.SegmentFile{Name: name})
+
 			continue
 		}
 
