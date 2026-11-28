@@ -3,7 +3,7 @@
 A static segment is a segment of type `file`: its members ship with the flag configuration and are held in the memory of the process as a hash set. See [Segments](segments.md) for what a segment is, the rule syntax and the three answers.
 
 - Use it for small lists that change rarely (an internal testers list, a handful of accounts).
-- A lookup is a hash lookup in memory: no network, so the answer is never unknown because of a store. It is unknown only when no provider holds the segment.
+- A lookup is a hash lookup in memory: no network, so the answer is never missing because of a store. It is not a member when no provider holds the segment (unknown only for a segment with `onError: unknown`, see [Failure policy of a segment](segments.md#failure-policy-of-a-segment)).
 - Memory grows with the list. For a large or fast changing audience use a [dynamic segment](segments-dynamic.md).
 - Freshness is the time of the last load of the member file.
 

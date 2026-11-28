@@ -84,7 +84,10 @@ type Holder struct {
 	refresh sync.Mutex
 }
 
-var _ segment.Provider = (*Holder)(nil)
+var (
+	_ segment.Provider      = (*Holder)(nil)
+	_ segment.StaleReporter = (*Holder)(nil)
+)
 
 // New returns a holder of the segment name, empty until the first successful Refresh.
 func New(name string, src segment.SnapshotSource, opts Options) (*Holder, error) {
@@ -142,6 +145,14 @@ func (h *Holder) Contains(ctx context.Context, lookups []segment.Lookup) error {
 	}
 
 	return nil
+}
+
+// Stale reports whether the held set is served after a failed refresh: the last known good set, older than it should
+// be. It implements [segment.StaleReporter]. A segment that is missing is an answer, not a stale set.
+func (h *Holder) Stale() bool {
+	cur := h.cur.Load()
+
+	return cur != nil && cur.set != nil && !cur.missing && cur.lastErr != ClassNone
 }
 
 // Status returns the state of the holder.

@@ -12,6 +12,7 @@ import (
 	"github.com/blackbirdworks/semaphore/ffcontext"
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/modules/core/model"
+	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
 func shapesSet(tb testing.TB) *flagruntime.FlagSet {
@@ -288,6 +289,27 @@ func TestEvaluator_ResponseMetadata(t *testing.T) {
 				flagruntime.MetadataCacheable:       true,
 				flagruntime.LegacyMetadataCacheable: true,
 			},
+		},
+		{
+			name: "segment status, not cacheable", in: model.RawVarResult{SegmentStatus: segment.StatusStale},
+			wantKeys: map[string]any{flagruntime.MetadataSegmentStatus: "STALE"},
+		},
+		{
+			name: "segment status and cacheable, with metadata",
+			in: model.RawVarResult{
+				Cacheable: true, SegmentStatus: segment.StatusStoreError, Metadata: map[string]any{"a": 1},
+			},
+			wantKeys: map[string]any{
+				"a":                                 1,
+				flagruntime.MetadataSegmentStatus:   "STORE_ERROR",
+				flagruntime.MetadataCacheable:       true,
+				flagruntime.LegacyMetadataCacheable: true,
+			},
+		},
+		{name: "healthy segment status is not reported", in: model.RawVarResult{SegmentStatus: segment.StatusHealthy}},
+		{
+			name: "segment status, Semaphore keys disabled",
+			in:   model.RawVarResult{SegmentStatus: segment.StatusStoreError}, disable: true,
 		},
 		{
 			name: "cacheable, Semaphore key disabled", in: model.RawVarResult{Cacheable: true}, disable: true,

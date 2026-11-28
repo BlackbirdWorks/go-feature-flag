@@ -106,10 +106,10 @@ const (
 type OnError string
 
 const (
-	// OnErrorUnknown keeps the lookup Unknown: the rule that depends on it does not match, unless the rule says
-	// onError: match. It is the default.
+	// OnErrorUnknown keeps the lookup Unknown (the opt-in of the three-valued logic): the rule that depends on it does
+	// not match, unless the rule says onError: match. It is not the default: the default is OnErrorNotMember.
 	OnErrorUnknown OnError = "unknown"
-	// OnErrorNotMember turns an Unknown lookup into NotMember.
+	// OnErrorNotMember turns an Unknown lookup into NotMember. It is the default, as in LaunchDarkly.
 	OnErrorNotMember OnError = "notMember"
 	// OnErrorMember turns an Unknown lookup into Member.
 	OnErrorMember OnError = "member"
@@ -134,7 +134,7 @@ type Definition struct {
 	Name string
 	// Type is the kind of store of the members.
 	Type Type
-	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorUnknown.
+	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorNotMember.
 	OnError OnError
 	// Mode is how a segment that lives in a store is served. Empty means ModeSnapshot.
 	Mode Mode
@@ -169,11 +169,11 @@ func (d *Definition) Resolve(state State) State {
 	}
 
 	switch d.OnError {
-	case OnErrorNotMember:
-		return NotMember
+	case "", OnErrorNotMember:
+		return NotMember // the default, as in LaunchDarkly: what cannot be answered is not a member
 	case OnErrorMember:
 		return Member
-	case "", OnErrorUnknown:
+	case OnErrorUnknown:
 		return Unknown
 	}
 
@@ -220,20 +220,21 @@ func (c *Catalog) Has(name string) bool {
 	return ok
 }
 
-// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does, and
-// returns the state unchanged for a segment that the catalog does not define. It does not copy the definition: it is
-// for the evaluation path.
+// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does; a segment
+// that the catalog does not define (or no catalog) gets the default policy, not a member. It does not copy the
+// definition: it is for the evaluation path.
 func (c *Catalog) ResolveFor(name string, state State) State {
-	if c == nil {
+	if state != Unknown {
 		return state
 	}
 
-	def, ok := c.defs[name]
-	if !ok {
-		return state
+	if c != nil {
+		if def, ok := c.defs[name]; ok {
+			return def.Resolve(state)
+		}
 	}
 
-	return def.Resolve(state)
+	return NotMember // a segment that is not defined has no member: the default policy, as in LaunchDarkly
 }
 
 // Lookup returns the definition of the segment name.
@@ -272,6 +273,9 @@ const (
 	StatusNone Status = iota
 	// StatusHealthy means every lookup was answered.
 	StatusHealthy
+	// StatusStale means the answers were given from data that is older than it should be (a snapshot that could not be
+	// refreshed): they are used, the way a last known good set is.
+	StatusStale
 	// StatusNotConfigured means a rule used a segment but the evaluation had no provider.
 	StatusNotConfigured
 	// StatusStoreError means a lookup could not be answered by the provider.
@@ -283,6 +287,8 @@ func (s Status) String() string {
 	switch s {
 	case StatusHealthy:
 		return "HEALTHY"
+	case StatusStale:
+		return "STALE"
 	case StatusNotConfigured:
 		return "NOT_CONFIGURED"
 	case StatusStoreError:
@@ -292,6 +298,12 @@ func (s Status) String() string {
 	}
 
 	return ""
+}
+
+// Reported reports whether the status is worth telling the caller: a segment was looked up and the lookup was not
+// healthy. A healthy evaluation, and one that looked at no segment, report nothing.
+func (s Status) Reported() bool {
+	return s > StatusHealthy
 }
 
 // Worse returns the worse of the two statuses.

@@ -51,7 +51,8 @@ type Config struct {
 	// Default: nil
 	Segments *segment.Catalog
 	// SegmentProvider (optional) answers the membership lookups of the segment terms of the rules. Without one,
-	// a rule that depends on a segment does not match (unless it says onError: match).
+	// the lookups are not answered: a segment is not a member by default (a rule that matches its members does not
+	// match), unless its definition says OnError: unknown and the rule says onError: match.
 	// Default: nil
 	SegmentProvider segment.Provider
 	// PersistentFlagConfigurationFile (optional) if set Semaphore will store flags configuration in this file
