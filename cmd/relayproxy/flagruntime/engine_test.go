@@ -43,7 +43,12 @@ func TestEngineAppliesContentWithOneStore(t *testing.T) {
 
 	// the new flag set announces its flags: one event
 	want := flagruntime.RoundResult{
-		Outcome: flagruntime.OutcomeApplied, Code: flagruntime.CodeApplied, Generation: 7, Snapshot: 1, Events: 1,
+		Outcome:        flagruntime.OutcomeApplied,
+		Code:           flagruntime.CodeApplied,
+		Generation:     7,
+		Snapshot:       1,
+		Events:         1,
+		ContentApplied: true,
 	}
 
 	assert.Equal(t, want, res)
@@ -191,7 +196,7 @@ func TestEngineRejectedCandidateChangesNothing(t *testing.T) {
 		},
 		{
 			name:     "unknown object state",
-			bad:      content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: "bogus"}})),
+			bad:      content(3, simpleObjs(t, 2).with(objs{"f1": {Kind: flagruntime.KindFlags, State: objectBogus}})),
 			wantCode: flagruntime.CodeInvalidContent,
 		},
 		{

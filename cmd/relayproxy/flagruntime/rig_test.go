@@ -87,6 +87,9 @@ func newRigLogger(t *testing.T, logger *slog.Logger, hooks flagruntime.Hooks, op
 	return harness
 }
 
+// objectBogus is a state the engine does not know: content that carries it is rejected.
+const objectBogus flagruntime.ObjectState = "bogus"
+
 func (r *rig) start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.cancel = cancel

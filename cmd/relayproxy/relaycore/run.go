@@ -205,6 +205,10 @@ func (c *Core) releaseAll(ctx context.Context) {
 		c.registry.Unregister(c.collector)
 	}
 
+	if c.readerMetrics != nil {
+		c.registry.Unregister(c.readerMetrics)
+	}
+
 	if c.events != nil {
 		_, _ = c.events.Shutdown(ctx)
 	}

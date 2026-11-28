@@ -810,7 +810,7 @@ func TestRunAppliesTheOverridesOfTheFlags(t *testing.T) {
 
 	rig := startRelay(
 		t,
-		&rigOptions{manifestKey: "manifests/missing.yaml", flags: []string{"--manifest-key=" + manifestKey}},
+		&rigOptions{manifestKey: missingManifest, flags: []string{"--manifest-key=" + manifestKey}},
 	)
 	rig.awaitGeneration(1)
 
