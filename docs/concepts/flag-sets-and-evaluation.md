@@ -93,7 +93,7 @@ The flags are shared between flag sets that list the same object, and between ge
 | The enrichment | the evaluator: a deep copy of the input; `EvaluationContextEnrichment` returns a deep copy |
 
 - **Read only means: encode it, do not change it.** A handler that wants to change a value takes a copy with `flagdef.CloneValue` (values) or `flagdef.CloneMetadata` (metadata maps). The metadata keys that a handler adds to the metadata map of a result (the cacheable keys) are safe: the map is the caller's.
-- A write into a shared part would change what every other request, and the next generation, sees. The switch to config v2 will add a guard against it in the handlers, and until then the tests check that the evaluator never writes into the flags and that readers racing with reloads only read.
+- A write into a shared part would change what every other request, and the next generation, sees. The tests check that the evaluator never writes into the flags and that readers racing with reloads only read.
 - **One rule for the event, for every entry point** (`RawVariation` and the typed calls): a tracked event never holds a value that the caller owns. A value of the flag is shared and read only, so the event keeps it. A value that the caller owns gets a snapshot for the event: its own default (a flag that is not there, a disabled flag, an error of the evaluation, a value of another type) and, for a typed object or array call, the copy that the engine made for a scheduled flag. The result keeps the value as it is, so the default comes back as given. The snapshot copies `map[string]any`, `map[any]any` and `[]any` at every depth and keeps a nil one nil and of the same type (an exporter sees the same value as the caller's, and a null stays null); any other value (scalars, strings, a `[]string`, a struct) is returned as it is, by reference. The all-flags state does not track events. The exporter metadata map of the event is the one of the request context, as in version 1. The exporters must encode or copy what they keep.
 
 Measured cost (allocations per call, the engine alone against the evaluator): the evaluator adds none. For example a scalar flag costs 1 allocation (no metadata) or 6 (a rule, flat metadata), and so does the engine alone; the all-flags state costs what the engine alone costs for the same flags. A typed object or array call adds the one copy of the value (5 allocations for a small object); a scheduled flag adds none, as the engine copies its value already.
@@ -117,11 +117,9 @@ The evaluator calls an optional hook with the event of an evaluation that must b
 
 See [live reload](live-reload.md) for the engine and [control-plane polling](control-plane-polling.md) for the reader.
 
-## What changes at the cut-over
+## What the relay does
 
 - Flag sets and their API keys come from the published flag-set documents, not from the relay configuration file; the relay starts with no flag set (every key answers `401`).
 - The handlers call the evaluator on the flag set of the route, instead of a client per flag set.
 - The exporter hook, the readiness view and the observability endpoints use `Source.Status()`.
 - Admin keys stay in the bootstrap file.
-- The handlers will get a guard that fails a test when a handler writes into a result of the evaluator (the read-only contract above).
-- The `Last-Modified` header of the configuration endpoint will come from `FlagSet.ModifiedAt`.

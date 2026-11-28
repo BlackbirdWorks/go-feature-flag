@@ -9,31 +9,23 @@ Export evaluation data to a Kafka topic.
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 exporters:
-  - kind: kafka
+  evaluations:
+    kind: kafka
     kafka:
-      topic: "semaphore-events"
-      addresses:
-        - "localhost:9092"
-# ...
+      topic: semaphore-events
+      addresses: ["localhost:9092"]
 ```
 
-| Field name        | Mandatory | Type     | Default           | Description                                                                                                                                                                                                                            |
-|-------------------|:---------:|----------|-------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`            | Yes       | string   | **none**          | Value should be `kafka`.<br/>_This field is mandatory and describes which exporter you are using._                                                                                                                                       |
-| `kafka.topic`     | Yes       | string   | **none**          | Kafka topic to publish to.                                                                                                                                                                                                             |
-| `kafka.addresses` | Yes       | []string | **none**          | List of bootstrap addresses for the Kafka cluster.                                                                                                                                                                                     |
-| `kafka.config`    | No        | object   | _see description_ | Optional [Sarama configuration](https://pkg.go.dev/github.com/IBM/sarama#Config) for fine-tuning the Kafka producer. When omitted, defaults from [`sarama.NewConfig()`](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) are used. |
+- `kafka.topic` and `kafka.addresses` (required, each address `host:port`).
+- The producer settings of the Sarama configuration are keys of `kafka`, see [Kafka producer settings](../../relay-proxy/bootstrap-config.md). A zero or absent value keeps the Sarama default, and `Producer.Return.Successes` and `Producer.Return.Errors` are always `true`.
+- `format` is accepted and ignored: the events are always JSON.
 
-### How `kafka.config` is merged with the defaults
-
-- Configuration starts from [`sarama.NewConfig()`](https://pkg.go.dev/github.com/IBM/sarama#NewConfig) defaults, and any non-zero value you set in `kafka.config` overrides the default (for example, `Net.DialTimeout`, `Producer.Retry.Max`, `ClientID`, or `Version`).
-- Unset fields keep Sarama's defaults. Zero values (`0`, `""`, or `false`) cannot be distinguished from unset fields, so they also keep the defaults.
-- `Producer.Return.Successes` and `Producer.Return.Errors` are always forced to `true` because the exporter requires them.
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

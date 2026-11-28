@@ -13,8 +13,8 @@ manifest invalid).
 
 ## What it does
 
-The relay will learn what to serve from one small document, the **manifest**, that an external control plane
-publishes to S3 (the relay does not use the reader yet). The manifest lists the source objects (flag objects and flag-set documents) with a sha256 checksum each. The
+The relay learns what to serve from one small document, the **manifest**, that an external control plane
+publishes to S3 or a directory. The manifest lists the source objects (flag objects and flag-set documents) with a sha256 checksum each. The
 manifest reader:
 
 - polls the manifest with one conditional `GetObject` per interval (`If-None-Match` with the ETag it holds);
@@ -374,9 +374,8 @@ restored object is checked like a fetched one (the listed size, the object limit
   bounded reads. Not applied: directory durability, the lock, the removal of a crashed writer's temporary files, and the
   world-writable rule.
 
-**Caller policy.** `statedir.OpenOrDisable` is the constructor the relay will use when it switches to config v2
-(nothing in the relay uses the reader or the state directory yet). On `ErrUnsafe`, `ErrLocked`,
-`ErrForeignVersion` (or any other failure to open) the relay will run without a state directory: it will never fail to
+**Caller policy.** `statedir.OpenOrDisable` is the constructor the relay uses. On `ErrUnsafe`, `ErrLocked`,
+`ErrForeignVersion` (or any other failure to open) the relay runs without a state directory: it never fails to
 start. The helper logs once at error level and returns hooks that only report the refusal: the status has
 `State.Restore = "disabled"` and `State.DisabledReason` (`unsafe`, `locked`, `foreign-version`, `parent-sync`, `error`), and the
 restore metric shows `result="disabled"`.
@@ -401,8 +400,7 @@ number of series would grow with the manifest (up to 20000 objects) and with eve
 | `semaphore_manifest_state_saves_total` | counter | `result`: `ok`, `partial`, `error` | Writes of the state directory (only with one); `partial` is a write that kept only part of the objects (byte budget) |
 | `semaphore_manifest_state_restore_total` | counter | `result`: `restored`, `partial`, `empty`, `failed`, `disabled` | Restore at start (with a state directory, or `disabled` when it was refused) |
 
-They are not registered by `NewMetrics`: the relay will register them when it runs the reader, so the output of the
-running relay does not change before that.
+They are not registered by `NewMetrics`: the relay registers them when it runs the reader.
 
 ## Operations: a replica is behind
 

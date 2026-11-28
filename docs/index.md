@@ -31,7 +31,7 @@ features:
     details: Target users with query rules, consistent percentage splits, progressive ramps, scheduled rollouts, experimentation windows, and custom bucketing keys.
   - icon: 📡
     title: Export & Notify
-    details: Stream evaluation and tracking events to S3, Kinesis, Kafka, Pub/Sub, BigQuery, OpenTelemetry, or webhooks, and alert Slack, Discord, or Teams on changes.
+    details: Stream evaluation events to S3, Kinesis, Kafka, Pub/Sub, BigQuery, OpenTelemetry, or webhooks, and alert Slack, Discord, or Teams on changes.
   - icon: 🧩
     title: Embeddable Go Engine
     details: Embed the core evaluation engine directly inside Go services with no network hop when you do not need a separate proxy.

@@ -43,25 +43,23 @@ When `secret` / `Secret` is configured, the request includes the `X-Hub-Signatur
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 exporters:
-  - kind: webhook
-    endpointUrl: https://your-webhook-url.com/
-# ...
+  evaluations:
+    kind: webhook
+    endpointUrl: {fromEnv: EVALUATION_WEBHOOK_URL}
+    secret: {fromEnv: EVALUATION_WEBHOOK_SECRET}
+    headers:
+      X-Source: {fromEnv: EVALUATION_WEBHOOK_SOURCE}
 ```
 
-| Field name         | Mandatory | Type                | Default  | Description                                                                                               |
-|--------------------|:---------:|---------------------|----------|-----------------------------------------------------------------------------------------------------------|
-| `kind`             | Yes       | string              | **none** | Value should be `webhook`.<br/>_This field is mandatory and describes which exporter you are using._        |
-| `endpointUrl`      | Yes       | string              | **none** | Target URL of your webhook endpoint.                                                                      |
-| `flushInterval`    | No        | int                 | `60000`  | Interval in milliseconds before flushing events (flushes earlier if `maxEventInMemory` is reached first). |
-| `maxEventInMemory` | No        | int                 | `100000` | Maximum number of events buffered in memory before flushing.                                              |
-| `secret`           | No        | string              | **none** | Secret used to sign the request body and populate `X-Hub-Signature-256` (see [Signature](#signature)).    |
-| `meta`             | No        | map[string]string   | **none** | Extra key-value metadata included in the request payload.                                                 |
-| `headers`          | No        | map[string][]string | **none** | Custom HTTP headers sent with each webhook request.                                                       |
+- `endpointUrl` (required, a secret reference).
+- Optional: `secret` (signs the body, see [Signature](#signature)) and `headers` (a map of secret references).
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

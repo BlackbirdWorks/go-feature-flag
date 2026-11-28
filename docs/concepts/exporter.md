@@ -41,9 +41,7 @@ See [Configure exporters](../integrations/exporters/README.md) for setup example
 Set `eventType` on each exporter to choose which events it receives:
 
 - **`"feature"`** (default): one event per flag evaluation (flag key, variation, `userKey`, source). See [Flag usage tracking](../tracking/flag-usage-tracking.md).
-- **`"tracking"`**: custom outcome events sent via the [OpenFeature Tracking API](../tracking/tracking-api.md). Support depends on the exporter backend (for example, `OpenTelemetry` skips tracking events).
-
-You can configure two exporter entries pointing at the same backend—one for `"feature"` and one for `"tracking"`.
+- **`"tracking"`**: custom outcome events sent via the [OpenFeature Tracking API](../tracking/tracking-api.md). The Go module delivers them. The relay proxy accepts them on `POST /v1/data/collector` and drops them: an exporter with `eventType: tracking` fails to build.
 
 ## Event payload
 

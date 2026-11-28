@@ -1,4 +1,4 @@
-# Config v2 relay core
+# Relay core
 
 > Status: this is what the `semaphore` binary runs (`cmd/relayproxy/main.go` wires `relaycore`, `corehttp` and the HTTP
 > server). The version 1 configuration is not read: see [Run, reload and stop](bootstrap-config.md#run-reload-and-stop).

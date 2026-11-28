@@ -211,6 +211,8 @@ content of each document and that every flag-set source resolves, the flag-set d
 `manifest-invalid`. Objects of other connections are listed as skipped, and the text output says so. Same `--output` and target
 flags as `publish`.
 
+`publish verify` lists at most 20 cross-document problems (name collisions and reference errors share the limit), then one last problem that counts the others (`and N more`).
+
 - Like the relay, `verify` fails some entries alone and rejects the manifest for the others (a test pins this table):
 
   | Problem of an entry | Classification |

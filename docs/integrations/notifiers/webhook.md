@@ -92,23 +92,21 @@ Notifications can be delivered concurrently, so always verify each request's sig
 
 ## Configure the relay proxy
 
-Add the Webhook notifier to your relay proxy configuration file:
+Add the notifier to the `notifiers` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 notifiers:
-  - kind: webhook
-    endpointUrl: "https://example.com/hook"
-# ...
+  flag-changes:
+    kind: webhook
+    endpointUrl: {fromEnv: CHANGE_WEBHOOK_URL}
+    secret: {fromEnv: CHANGE_WEBHOOK_SECRET}
+    headers:
+      X-Source: {fromEnv: CHANGE_WEBHOOK_SOURCE}
 ```
 
-| Field name | Mandatory | Type | Default | Description |
-|---|:---:|---|---|---|
-| `kind` | Yes | string | **none** | Must be `webhook`. Identifies the notifier type. |
-| `endpointUrl` | Yes | string | **none** | Full URL that receives the `POST` request (see [Format](#format)). |
-| `secret` | No | string | **none** | Secret used to compute the `X-Hub-Signature-256` header (see [Signature](#signature)). |
-| `meta` | No | map[string]string | **none** | Extra key-value pairs included in the `meta` object of the payload. |
-| `headers` | No | map[string][]string | **none** | Extra HTTP headers sent with each webhook request. |
+- `endpointUrl` (required, a secret reference).
+- Optional: `secret` (signs the body, see [Signature](#signature)), `headers` (a map of secret references) and `meta`.
 
 ## Configure the Go module
 

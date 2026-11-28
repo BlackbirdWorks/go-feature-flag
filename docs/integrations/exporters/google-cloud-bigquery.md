@@ -9,52 +9,25 @@ The Google Cloud BigQuery exporter streams feature flag evaluation and tracking 
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 exporters:
-  - kind: bigquery
-    projectID: "my-project-id"
-    datasetID: "semaphore_events"
-    tableName: "feature_flag_evaluations"
-    googleCredentials: |
-      {"type":"service_account","project_id":"my-project-id"}
+  evaluations:
+    kind: bigquery
+    projectId: my-project
+    datasetId: semaphore
+    tableName: feature_flag_evaluations
     autoMigrate: true
-    eventType: "feature"
-# ...
 ```
 
-> [!NOTE]
-> Each relay proxy exporter targets a single `eventType` (defaulting to `feature`). To export **both** evaluation and tracking events, declare two BigQuery exporters:
->
-> ```yaml
-> # ...
-> exporters:
->   - kind: bigquery
->     projectID: "my-project-id"
->     datasetID: "semaphore_events"
->     tableName: "feature_flag_evaluations"
->     autoMigrate: true
->     eventType: "feature"
->   - kind: bigquery
->     projectID: "my-project-id"
->     datasetID: "semaphore_events"
->     tableName: "tracking_events"
->     autoMigrate: true
->     eventType: "tracking"
-> # ...
-> ```
+- `projectId` and `datasetId` (required).
+- Optional: `tableName`, `autoMigrate`, `googleCredentials` (a secret: `{fromEnv: NAME}` or `{fromFile: PATH}`).
 
-| Field name          | Mandatory | Type    | Default                    | Description                                                                                               |
-|---------------------|:---------:|---------|----------------------------|-----------------------------------------------------------------------------------------------------------|
-| `kind`              | Yes       | string  | **none**                   | Value should be `bigquery`.<br/>_This field is mandatory and describes which exporter you are using._       |
-| `projectID`         | Yes       | string  | **none**                   | ID of the GCP project containing the BigQuery dataset.                                                    |
-| `datasetID`         | Yes       | string  | **none**                   | BigQuery dataset where events are inserted.                                                               |
-| `tableName`         | No        | string  | `feature_flag_evaluations` | BigQuery table used by this exporter instance. Set to your tracking table for `eventType: "tracking"`.    |
-| `googleCredentials` | No        | string  | **none**                   | Google credentials JSON. If empty, Application Default Credentials are used.                              |
-| `autoMigrate`       | No        | boolean | `false`                    | When `true`, creates the dataset and target table if they do not exist.                                   |
-| `eventType`         | No        | string  | `feature`                  | Event type to export: `feature` for evaluation events or `tracking` for tracking events.                  |
+An exporter delivers events of one `eventType`. The relay serves `feature` events; an exporter with another `eventType` fails to build.
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 
