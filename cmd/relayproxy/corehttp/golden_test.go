@@ -268,7 +268,7 @@ func expectations() map[string]expectation {
 		"ofrep number rule":                  {`"value":42,"reason":"TARGETING_MATCH","variant":"high"`, ok},
 		"ofrep number default":               {`"value":1,"reason":"DEFAULT","variant":"low"`, ok},
 		"ofrep json object":                  {`"value":{"items":[1,2],"name":"on","nested":{"deep":true}}`, ok},
-		"ofrep disabled flag":                {`"value":null,"reason":"DISABLED"`, ok},
+		"ofrep disabled flag":                {`"key":"disabled-flag","reason":"DISABLED"`, ok},
 		"ofrep unknown flag":                 {`"errorCode":"FLAG_NOT_FOUND"`, notFound},
 		"ofrep rule without targeting key":   {`"reason":"TARGETING_MATCH"`, ok},
 		"ofrep bucket without targeting key": {`TARGETING_KEY_MISSING`, bad},

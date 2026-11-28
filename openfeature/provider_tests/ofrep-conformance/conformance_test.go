@@ -36,20 +36,23 @@ const (
 	reasonTargetMatch  = "TARGETING_MATCH"
 	variantTrue        = "True"
 
-	flagBoolMatch    = "bool_targeting_match"
-	flagDisabledBool = "disabled_bool"
-	flagStringKey    = "string_key"
-	flagIntegerKey   = "integer_key"
-	flagDoubleKey    = "double_key"
-	flagObjectKey    = "object_key"
-	flagEnrichment   = "flag-use-evaluation-context-enrichment"
-	flagSemver       = "boolean_semver_targeting_match"
+	flagBoolMatch         = "bool_targeting_match"
+	flagDisabledBool      = "disabled_bool"
+	flagDisabledFloat     = "disabled_float"
+	flagDisabledInt       = "disabled_int"
+	flagDisabledInterface = "disabled_interface"
+	flagDisabledString    = "disabled_string"
+	flagStringKey         = "string_key"
+	flagIntegerKey        = "integer_key"
+	flagDoubleKey         = "double_key"
+	flagObjectKey         = "object_key"
+	flagEnrichment        = "flag-use-evaluation-context-enrichment"
+	flagSemver            = "boolean_semver_targeting_match"
 
 	errCodeTargetingKeyMissing = "TARGETING_KEY_MISSING"
 	errCodeInvalidContext      = "INVALID_CONTEXT"
 	contentTypeJSON            = "application/json"
 	errSubstrOneOfFailed       = "value matched zero oneOf branches"
-	bugDisabledNull            = "#134"
 	bugDefaultReason           = "#135"
 	reasonDisabled             = "DISABLED"
 	reasonDefault              = "DEFAULT"
@@ -169,15 +172,16 @@ func TestOFREPConformance_SpecHeaders(t *testing.T) {
 }
 
 type singleFlagCase struct {
-	headers       map[string]string
-	wantFields    map[string]any
-	name          string
-	targetURL     string
-	flagKey       string
-	body          string
-	expectedBug   string
-	wantErrSubstr string
-	wantStatus    int
+	headers          map[string]string
+	wantFields       map[string]any
+	name             string
+	targetURL        string
+	flagKey          string
+	body             string
+	expectedBug      string
+	wantErrSubstr    string
+	wantAbsentFields []string
+	wantStatus       int
 }
 
 func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
@@ -292,17 +296,62 @@ func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
 			},
 		},
 		{
-			// Expected failure: #134 (returns "value": null instead of omitting "value").
-			name:          "disabled flag",
-			targetURL:     baseURL,
-			flagKey:       flagDisabledBool,
-			body:          defaultCtxJSON,
-			wantStatus:    http.StatusOK,
-			expectedBug:   bugDisabledNull,
-			wantErrSubstr: errSubstrOneOfFailed,
+			name:             "disabled bool flag",
+			targetURL:        baseURL,
+			flagKey:          flagDisabledBool,
+			body:             defaultCtxJSON,
+			wantStatus:       http.StatusOK,
+			wantAbsentFields: []string{jsonValueField},
 			wantFields: map[string]any{
 				jsonKeyField:    flagDisabledBool,
-				jsonValueField:  nil,
+				jsonReasonField: reasonDisabled,
+			},
+		},
+		{
+			name:             "disabled string flag",
+			targetURL:        baseURL,
+			flagKey:          flagDisabledString,
+			body:             defaultCtxJSON,
+			wantStatus:       http.StatusOK,
+			wantAbsentFields: []string{jsonValueField},
+			wantFields: map[string]any{
+				jsonKeyField:    flagDisabledString,
+				jsonReasonField: reasonDisabled,
+			},
+		},
+		{
+			name:             "disabled int flag",
+			targetURL:        baseURL,
+			flagKey:          flagDisabledInt,
+			body:             defaultCtxJSON,
+			wantStatus:       http.StatusOK,
+			wantAbsentFields: []string{jsonValueField},
+			wantFields: map[string]any{
+				jsonKeyField:    flagDisabledInt,
+				jsonReasonField: reasonDisabled,
+			},
+		},
+		{
+			name:             "disabled float flag",
+			targetURL:        baseURL,
+			flagKey:          flagDisabledFloat,
+			body:             defaultCtxJSON,
+			wantStatus:       http.StatusOK,
+			wantAbsentFields: []string{jsonValueField},
+			wantFields: map[string]any{
+				jsonKeyField:    flagDisabledFloat,
+				jsonReasonField: reasonDisabled,
+			},
+		},
+		{
+			name:             "disabled object flag",
+			targetURL:        baseURL,
+			flagKey:          flagDisabledInterface,
+			body:             defaultCtxJSON,
+			wantStatus:       http.StatusOK,
+			wantAbsentFields: []string{jsonValueField},
+			wantFields: map[string]any{
+				jsonKeyField:    flagDisabledInterface,
 				jsonReasonField: reasonDisabled,
 			},
 		},
@@ -398,20 +447,10 @@ func singleFlagTestCases(baseURL, authURL string) []singleFlagCase {
 }
 
 func patchKnownBugEntry(bug string, entry map[string]any) bool {
-	switch bug {
-	case bugDisabledNull:
-		val, hasValue := entry[jsonValueField]
-		if entry[jsonReasonField] == reasonDisabled && hasValue && val == nil {
-			delete(entry, jsonValueField)
+	if bug == bugDefaultReason && entry[jsonReasonField] == reasonDefault {
+		entry[jsonReasonField] = reasonStatic
 
-			return true
-		}
-	case bugDefaultReason:
-		if entry[jsonReasonField] == reasonDefault {
-			entry[jsonReasonField] = reasonStatic
-
-			return true
-		}
+		return true
 	}
 
 	return false
@@ -484,7 +523,7 @@ func runSingleFlagCase(t *testing.T, spec *ofrepconformance.Spec, baseURL string
 		require.NoError(t, valErr, "body: %s", string(body))
 	}
 
-	if len(testCase.wantFields) > 0 {
+	if len(testCase.wantFields) > 0 || len(testCase.wantAbsentFields) > 0 {
 		var parsed map[string]any
 		require.NoError(t, json.Unmarshal(body, &parsed))
 
@@ -492,6 +531,10 @@ func runSingleFlagCase(t *testing.T, spec *ofrepconformance.Spec, baseURL string
 			got, exists := parsed[key]
 			assert.True(t, exists, "missing field %s", key)
 			assert.Equal(t, want, got, "field %s", key)
+		}
+
+		for _, key := range testCase.wantAbsentFields {
+			assert.NotContains(t, parsed, key, "unexpected field %s", key)
 		}
 	}
 }
@@ -567,18 +610,18 @@ func assertActiveBulkFlags(t *testing.T, body []byte) {
 }
 
 type bulkTestCase struct {
-	headers           map[string]string
-	wantFlagErrors    map[string]string
-	wantReasonByKey   map[string]string
-	name              string
-	targetURL         string
-	body              string
-	expectedBug       string
-	wantErrSubstr     string
-	wantErrorCode     string
-	wantFlagKeys      []string
-	wantNullValueKeys []string
-	wantStatus        int
+	headers             map[string]string
+	wantFlagErrors      map[string]string
+	wantReasonByKey     map[string]string
+	name                string
+	targetURL           string
+	body                string
+	expectedBug         string
+	wantErrSubstr       string
+	wantErrorCode       string
+	wantFlagKeys        []string
+	wantAbsentValueKeys []string
+	wantStatus          int
 }
 
 func assertBulkBugResponse(
@@ -603,14 +646,6 @@ func assertBulkBugResponse(
 	assert.Contains(t, hdrs.Get("Content-Type"), contentTypeJSON)
 
 	flags := parseBulkFlags(t, body)
-	for _, key := range testCase.wantNullValueKeys {
-		entry, ok := flags[key]
-		require.True(t, ok, "missing expected flag %q", key)
-
-		val, hasValue := entry[jsonValueField]
-		assert.True(t, hasValue, "expected value field on %q", key)
-		assert.Nil(t, val, "flag %q", key)
-	}
 
 	for key, wantReason := range testCase.wantReasonByKey {
 		entry, ok := flags[key]
@@ -633,19 +668,38 @@ func assertBulkValidResponse(t *testing.T, body []byte, valErr error, testCase *
 		assert.Equal(t, testCase.wantErrorCode, errBody[jsonErrorCodeField])
 	}
 
-	if len(testCase.wantFlagKeys) > 0 || len(testCase.wantFlagErrors) > 0 {
-		flags := parseBulkFlags(t, body)
+	hasFlagChecks := len(testCase.wantFlagKeys) > 0 || len(testCase.wantFlagErrors) > 0 ||
+		len(testCase.wantAbsentValueKeys) > 0 || len(testCase.wantReasonByKey) > 0
+	if !hasFlagChecks {
+		return
+	}
+
+	flags := parseBulkFlags(t, body)
+
+	if len(testCase.wantFlagKeys) > 0 {
 		assert.Len(t, flags, len(testCase.wantFlagKeys))
 
 		for _, key := range testCase.wantFlagKeys {
 			assert.Contains(t, flags, key)
 		}
+	}
 
-		for key, wantErrCode := range testCase.wantFlagErrors {
-			entry, ok := flags[key]
-			require.True(t, ok, "missing expected error flag %q", key)
-			assert.Equal(t, wantErrCode, entry[jsonErrorCodeField], "flag %q", key)
-		}
+	for key, wantErrCode := range testCase.wantFlagErrors {
+		entry, ok := flags[key]
+		require.True(t, ok, "missing expected error flag %q", key)
+		assert.Equal(t, wantErrCode, entry[jsonErrorCodeField], "flag %q", key)
+	}
+
+	for _, key := range testCase.wantAbsentValueKeys {
+		entry, ok := flags[key]
+		require.True(t, ok, "missing expected flag %q", key)
+		assert.NotContains(t, entry, jsonValueField, "flag %q", key)
+	}
+
+	for key, wantReason := range testCase.wantReasonByKey {
+		entry, ok := flags[key]
+		require.True(t, ok, "missing expected flag %q", key)
+		assert.Equal(t, wantReason, entry[jsonReasonField], "flag %q", key)
 	}
 }
 
@@ -700,14 +754,24 @@ func TestOFREPConformance_Bulk(t *testing.T) {
 
 	tests := []bulkTestCase{
 		{
-			// Expected failure: #134 (disabled flags in store emit "value": null).
-			name:              "full store bulk evaluation",
-			targetURL:         baseURL,
-			body:              defaultCtxJSON,
-			wantStatus:        http.StatusOK,
-			expectedBug:       bugDisabledNull,
-			wantErrSubstr:     errSubstrOneOfFailed,
-			wantNullValueKeys: []string{flagDisabledBool},
+			name:       "full store bulk evaluation",
+			targetURL:  baseURL,
+			body:       defaultCtxJSON,
+			wantStatus: http.StatusOK,
+			wantAbsentValueKeys: []string{
+				flagDisabledBool,
+				flagDisabledFloat,
+				flagDisabledInt,
+				flagDisabledInterface,
+				flagDisabledString,
+			},
+			wantReasonByKey: map[string]string{
+				flagDisabledBool:      reasonDisabled,
+				flagDisabledFloat:     reasonDisabled,
+				flagDisabledInt:       reasonDisabled,
+				flagDisabledInterface: reasonDisabled,
+				flagDisabledString:    reasonDisabled,
+			},
 		},
 		{
 			// Expected failure: #135 (default-rule fallback emits "reason": "DEFAULT").
@@ -720,12 +784,13 @@ func TestOFREPConformance_Bulk(t *testing.T) {
 			wantReasonByKey: map[string]string{flagBoolMatch: reasonDefault},
 		},
 		{
-			name:           "bulk individual flag error item",
-			targetURL:      baseURL,
-			body:           `{"context":{"gofeatureflag":{"flagList":["bool_targeting_match"]}}}`,
-			wantStatus:     http.StatusOK,
-			wantFlagKeys:   []string{flagBoolMatch},
-			wantFlagErrors: map[string]string{flagBoolMatch: errCodeTargetingKeyMissing},
+			name:                "bulk individual flag error item",
+			targetURL:           baseURL,
+			body:                `{"context":{"gofeatureflag":{"flagList":["bool_targeting_match"]}}}`,
+			wantStatus:          http.StatusOK,
+			wantFlagKeys:        []string{flagBoolMatch},
+			wantFlagErrors:      map[string]string{flagBoolMatch: errCodeTargetingKeyMissing},
+			wantAbsentValueKeys: []string{flagBoolMatch},
 		},
 		{
 			name:          "missing context 400",

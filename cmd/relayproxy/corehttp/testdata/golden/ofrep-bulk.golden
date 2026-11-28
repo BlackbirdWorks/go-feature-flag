@@ -1,6 +1,6 @@
 status: 200
 Content-Type: application/json
-Etag: "807-a51c4c32a96dd3a107f76ad3cd7a3787628edf0a"
+Etag: "794-2a6e2311601109a74fe8039ced7789483d41defb"
 Vary: Origin
 
-{"flags":[{"key":"bool-flag","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"defaultValue":false,"description":"a boolean","evaluatedRuleName":"vip","team":"core"}},{"key":"bucket-flag","value":"a","reason":"SPLIT","variant":"a"},{"key":"disabled-flag","value":null,"reason":"DISABLED","variant":""},{"key":"json-flag","value":{"items":[1,2],"name":"on","nested":{"deep":true}},"reason":"STATIC","variant":"on"},{"key":"number-flag","value":1,"reason":"DEFAULT","variant":"low"},{"key":"scheduled-future-flag","value":"old","reason":"STATIC","variant":"old"},{"key":"scheduled-over-flag","value":"new","reason":"STATIC","variant":"new"},{"key":"string-flag","value":"alpha","reason":"STATIC","variant":"a"},{"key":"untracked-flag","value":"alpha","reason":"STATIC","variant":"a"}]}
+{"flags":[{"key":"bool-flag","value":true,"reason":"TARGETING_MATCH","variant":"enabled","metadata":{"defaultValue":false,"description":"a boolean","evaluatedRuleName":"vip","team":"core"}},{"key":"bucket-flag","value":"a","reason":"SPLIT","variant":"a"},{"key":"disabled-flag","reason":"DISABLED","variant":""},{"key":"json-flag","value":{"items":[1,2],"name":"on","nested":{"deep":true}},"reason":"STATIC","variant":"on"},{"key":"number-flag","value":1,"reason":"DEFAULT","variant":"low"},{"key":"scheduled-future-flag","value":"old","reason":"STATIC","variant":"old"},{"key":"scheduled-over-flag","value":"new","reason":"STATIC","variant":"new"},{"key":"string-flag","value":"alpha","reason":"STATIC","variant":"a"},{"key":"untracked-flag","value":"alpha","reason":"STATIC","variant":"a"}]}
