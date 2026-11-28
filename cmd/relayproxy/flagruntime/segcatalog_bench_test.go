@@ -49,9 +49,7 @@ func BenchmarkMembershipOnlyReload(b *testing.B) {
 					b.Context(),
 					content(uint64(i+2), base.with(objs{segObject: segObj(docs[i%2])})),
 				)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, err)
 
 				builder.Commit(built)
 			}
