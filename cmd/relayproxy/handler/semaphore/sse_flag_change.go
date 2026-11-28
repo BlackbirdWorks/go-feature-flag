@@ -64,7 +64,17 @@ func (h *SSEFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 	query.Del("apiKey")
 	r.URL.RawQuery = query.Encode()
 
-	h.sseService.ServeHTTP(w, r)
+	if apiKey == "" {
+		h.sseService.ServeHTTP(w, r)
+
+		return nil
+	}
+
+	h.sseService.ServeKeyed(w, r, apiKey, func() bool {
+		current, nameErr := h.flagsetManager.FlagSetName(apiKey)
+
+		return nameErr == nil && current == flagsetName
+	})
 
 	return nil
 }

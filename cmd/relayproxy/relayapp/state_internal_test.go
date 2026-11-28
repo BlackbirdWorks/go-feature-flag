@@ -266,42 +266,73 @@ func TestRunRestartLosesTheFlagsServedFromAnEarlierVersion(t *testing.T) {
 }
 
 // The write of the state directory is off the path of the swap: with the disk held in the middle of a write, the next
-// generation is applied and served all the same.
+// generations are applied and served all the same.
 func TestRunAppliesGenerationsWhileTheStateWriteIsHeld(t *testing.T) {
 	t.Parallel()
 
-	held := &heldFS{
-		FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{}),
-		closed: make(chan struct{}),
-	}
-	rig := startRelay(t, &rigOptions{
-		stateFS: held, flags: []string{"--state-dir=" + filepath.Join(t.TempDir(), "state")},
-	})
-
-	// registered after the rig: it runs first, the held write ends and the writer is joined before the directory goes
-	t.Cleanup(func() {
-		close(held.release)
-
-		select {
-		case <-held.closed:
-		case <-time.After(waitBound):
-			assert.Fail(t, "the state writer was not joined")
-		}
-	})
-
-	rig.awaitGeneration(1)
-
-	select {
-	case <-held.entered:
-	case <-time.After(waitBound):
-		require.FailNow(t, "no state write started", rig.stderr.String())
+	tests := []struct {
+		name string
+		// published are the values of the generations published while the write is held, in order
+		published       []int
+		wantStatus      int
+		wantValue       float64
+		wantGenerations int
+	}{
+		{name: "one generation", published: []int{5}, wantStatus: http.StatusOK, wantValue: 5, wantGenerations: 1},
+		{
+			name: "two generations, the last one is served", published: []int{5, 6}, wantStatus: http.StatusOK,
+			wantValue: 6, wantGenerations: 2,
+		},
 	}
 
-	// the disk does not answer: the next generations are still applied, and served
-	rig.store.publish(5)
-	rig.poll()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	status, value := rig.evaluate(tenantKey)
-	assert.Equal(t, http.StatusOK, status)
-	assert.InDelta(t, 5, value, 0, "the generation published while the write is held is served")
+			held := &heldFS{
+				FS: statedir.NewOSFS(), entered: make(chan struct{}), release: make(chan struct{}),
+				closed: make(chan struct{}),
+			}
+			rig := startRelay(t, &rigOptions{
+				stateFS: held, flags: []string{"--state-dir=" + filepath.Join(t.TempDir(), "state")},
+			})
+
+			// registered after the rig: it runs first, the held write ends and the writer is joined before the
+			// directory goes
+			t.Cleanup(func() {
+				close(held.release)
+
+				select {
+				case <-held.closed:
+				case <-time.After(waitBound):
+					assert.Fail(t, "the state writer was not joined")
+				}
+			})
+
+			rig.awaitGeneration(1)
+
+			select {
+			case <-held.entered:
+			case <-time.After(waitBound):
+				require.FailNow(t, "no state write started", rig.stderr.String())
+			}
+
+			// the disk does not answer: the next generations are still applied, and served
+			for index, value := range tt.published {
+				rig.store.publish(value)
+
+				if index == 0 {
+					rig.poll()
+				} else {
+					rig.pollNext(rig.store.gen)
+				}
+			}
+
+			assert.Len(t, tt.published, tt.wantGenerations)
+
+			status, value := rig.evaluate(tenantKey)
+			assert.Equal(t, tt.wantStatus, status)
+			assert.InDelta(t, tt.wantValue, value, 0, "the last generation published while the write is held is served")
+		})
+	}
 }

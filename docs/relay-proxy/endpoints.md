@@ -48,6 +48,23 @@ When running with [flag sets](../concepts/flagset.md), each stream is scoped to 
 - To watch multiple flag sets, open **one connection per flag set**, each using an API key for that flag set.
 
 > [!WARNING]
+### Open streams follow the keys
+
+An open stream has the rights of a new request. After a generation that removes an API key, moves it to another flag
+set or withdraws its flag set, every stream opened with that key (WebSocket and SSE) is closed at once and receives none
+of the changes of that generation. The client reconnects like any new request: a key that was removed, or whose flag set
+was withdrawn, is refused; a key that moved to another flag set reconnects and lands on its new flag set.
+
+- Other keys of the same flag set, and streams without a key (see public flags), are not touched.
+- A key rotation with an overlap (the old and the new key both valid in a generation) disconnects nobody; the old
+  streams end in the generation that drops the old key.
+- The relay keeps a keyed hash of the key a client authenticated with (never the key), and checks it when the runtime
+  is swapped, not per message. The check never waits for a client: the sockets are closed by a worker of their own.
+- A connection that registers with a key receives nothing until the relay checked the key again after the registration,
+  so a key revoked by a swap that ran before it never gets a change.
+- Every write of an SSE stream has a 10 second deadline, renewed per write: a client that stopped reading is dropped, and
+  a revoked stream ends at once even if its write is blocked on the network.
+
 > Older versions sent changes from every flag set to every WebSocket client. Open one connection per flag set if you need multiple sets.
 > The deprecated `/ws/v1/flag/change` endpoint follows the same rules; migrate clients to `/stream/v1/ws/flag/change`.
 
