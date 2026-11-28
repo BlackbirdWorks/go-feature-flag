@@ -57,14 +57,6 @@ func Definition(seg *controlplane.SegmentDefinition) (segment.Definition, bool) 
 	return def, true
 }
 
-// SegmentProblem is one segment that the engine rejects.
-type SegmentProblem struct {
-	// Err is the reason given by the engine.
-	Err error
-	// Segment is the name of the segment.
-	Segment string
-}
-
 // CheckSegments decodes a segments document, validates it with the rules of the controlplane package, and then
 // validates every segment with the validation of the engine, so that a segment that passes is not dropped when the
 // relay builds its catalog. It returns nil, or an error that matches ErrSegments.

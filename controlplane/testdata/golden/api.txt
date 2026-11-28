@@ -338,18 +338,52 @@ var (
 
 ## controlplane/flagcheck
 func (*Error) Is(target error) bool
+func (*ReferenceError) Is(target error) bool
 func (e *Error) Error() string
+func (e *ReferenceError) Error() string
 func (p FlagProblem) Message() string
 func Check(body []byte, format string) error
+func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentFile) error
+func CheckSegments(body []byte) error
+func Definition(seg *"github.com/blackbirdworks/semaphore/controlplane".SegmentDefinition) ("github.com/blackbirdworks/semaphore/modules/core/segment".Definition, bool)
 type Error struct {
 	Problems []FlagProblem
+}
+type FlagFile struct {
+	Name	string
+
+	Format	string
+
+	Body	[]byte
 }
 type FlagProblem struct {
 	Err	error
 
 	Flag	string
 }
+type ReferenceError struct {
+	FlagSet	string
+
+	Problems	[]ReferenceProblem
+}
+type ReferenceProblem struct {
+	Object	string
+
+	Flag	string
+
+	Segment	string
+
+	Reason	string
+
+	Rule	int
+}
+type SegmentFile struct {
+	Doc	*"github.com/blackbirdworks/semaphore/controlplane".SegmentsDocument
+
+	Name	string
+}
 var ErrInvalid = "errors".New("flagcheck: invalid flag file")
+var ErrSegments = "errors".New("flagcheck: invalid segments")
 
 ## controlplane/s3publish
 const (
