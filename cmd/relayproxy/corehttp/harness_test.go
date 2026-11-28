@@ -296,7 +296,7 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 		stateLine = "  stateDir: " + opts.stateDir + "\n"
 	}
 
-	rig.base = "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
+	rig.base = "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" + opts.connections +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n"
 

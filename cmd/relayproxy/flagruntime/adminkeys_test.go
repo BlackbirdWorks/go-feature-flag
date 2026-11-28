@@ -18,7 +18,10 @@ import (
 func TestEngine_AdminKeyCollision(t *testing.T) {
 	t.Parallel()
 
-	const secret = "ADMIN-SECRET-9"
+	const (
+		secret  = "ADMIN-SECRET-9"
+		secret2 = "ADMIN-SECRET-10"
+	)
 
 	tests := []struct {
 		name string
@@ -29,6 +32,7 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 		// keys of a in generation 2, again publishes generation 2 with the same keys.
 		keys, keysB, laterKeys []string
 		wantWarnings           int
+		wantAllDisabled        int
 		wantAPIKeys            int
 		wantAdmins             int
 		wantDisabled           int
@@ -41,32 +45,77 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 		wantOtherSet           bool
 	}{
 		{
-			name: "content", admin: secret, keys: []string{secret, keyA}, wantState: flagruntime.StateDegraded,
-			wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1, wantProblem: true, wantOtherSet: true,
+			name:            "content",
+			admin:           secret,
+			keys:            []string{secret, keyA},
+			wantState:       flagruntime.StateDegraded,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     1,
+			wantDisabled:    1,
+			wantGeneration:  1,
+			wantProblem:     true,
+			wantOtherSet:    true,
 		},
 		{
-			name: "logged once", admin: secret, keys: []string{secret, keyA}, again: true,
-			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 2,
-			wantProblem: true, wantOtherSet: true,
+			name:            "logged once",
+			admin:           secret,
+			keys:            []string{secret, keyA},
+			again:           true,
+			wantState:       flagruntime.StateDegraded,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     1,
+			wantDisabled:    1,
+			wantGeneration:  2,
+			wantProblem:     true,
+			wantOtherSet:    true,
 		},
 		{
-			name: "rotated away", admin: secret, reloadAdmin: "rotated-admin", keys: []string{secret, keyA},
-			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 2, wantAdmins: 1, wantGeneration: 1,
-			wantSecretSet: true, wantOtherSet: true,
+			name:            "rotated away",
+			admin:           secret,
+			reloadAdmin:     "rotated-admin",
+			keys:            []string{secret, keyA},
+			wantState:       flagruntime.StateServing,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     2,
+			wantAdmins:      1,
+			wantGeneration:  1,
+			wantSecretSet:   true,
+			wantOtherSet:    true,
 		},
 		{
-			name: "key leaves the flag set", admin: secret, keys: []string{secret, keyA}, laterKeys: []string{keyA},
-			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 1, wantAdmins: 1, wantGeneration: 2,
-			wantSecretAdm: true, wantOtherSet: true,
+			name:            "key leaves the flag set",
+			admin:           secret,
+			keys:            []string{secret, keyA},
+			laterKeys:       []string{keyA},
+			wantState:       flagruntime.StateServing,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     1,
+			wantAdmins:      1,
+			wantGeneration:  2,
+			wantSecretAdm:   true,
+			wantOtherSet:    true,
 		},
 		{
-			name: "introduced by reload", admin: adminOne, reloadAdmin: secret, keys: []string{secret, keyA},
-			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1,
-			wantProblem: true, wantOtherSet: true,
+			name:            "introduced by reload",
+			admin:           adminOne,
+			reloadAdmin:     secret,
+			keys:            []string{secret, keyA},
+			wantState:       flagruntime.StateDegraded,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     1,
+			wantDisabled:    1,
+			wantGeneration:  1,
+			wantProblem:     true,
+			wantOtherSet:    true,
 		},
 		{
 			name: "only key", admin: secret, keys: []string{secret}, wantState: flagruntime.StateDegraded,
-			wantWarnings: 1, wantDisabled: 1, wantGeneration: 1, wantProblem: true,
+			wantWarnings: 1, wantAllDisabled: 1, wantDisabled: 1, wantGeneration: 1, wantProblem: true,
 		},
 		{
 			name: "other admin keys work", admin: "x1, x2, x3, " + secret, keys: []string{secret},
@@ -74,9 +123,41 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 			wantProblem: true,
 		},
 		{
-			name: "prior problem is kept", admin: secret, keys: []string{keyA}, keysB: []string{keyA, secret},
-			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1,
-			wantProblemsB: 2, wantOtherSet: true,
+			name:            "prior problem is kept",
+			admin:           secret,
+			keys:            []string{keyA},
+			keysB:           []string{keyA, secret},
+			wantState:       flagruntime.StateServing,
+			wantWarnings:    1,
+			wantAllDisabled: 1,
+			wantAPIKeys:     1,
+			wantDisabled:    1,
+			wantGeneration:  1,
+			wantProblemsB:   2,
+			wantOtherSet:    true,
+		},
+		{
+			name:            "second key same set",
+			admin:           secret + ", " + secret2,
+			keys:            []string{secret},
+			laterKeys:       []string{secret, secret2},
+			wantState:       flagruntime.StateDegraded,
+			wantWarnings:    2,
+			wantAllDisabled: 1,
+			wantDisabled:    2,
+			wantGeneration:  2,
+			wantProblem:     true,
+		},
+		{
+			name:           "one of two keys",
+			admin:          secret + ", " + secret2,
+			keys:           []string{secret},
+			wantState:      flagruntime.StateDegraded,
+			wantWarnings:   1,
+			wantAdmins:     1,
+			wantDisabled:   1,
+			wantGeneration: 1,
+			wantProblem:    true,
 		},
 		{
 			name: "distinct keys", admin: secret, keys: []string{keyA}, wantState: flagruntime.StateServing,
@@ -141,6 +222,7 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 			assert.Equal(t, tt.wantSecretSet, secretSet)
 			assert.Equal(t, tt.wantOtherSet, otherSet)
 			assert.Equal(t, tt.wantWarnings, strings.Count(handler.text(), "an admin key is disabled"))
+			assert.Equal(t, tt.wantAllDisabled, strings.Count(handler.text(), "every admin key is disabled"))
 			assert.Len(t, current.AdminKeys, tt.wantAdmins)
 			assert.Equal(t, tt.wantDisabled, current.Status.DisabledAdminKeys)
 			assert.NotContains(t, handler.text(), secret)

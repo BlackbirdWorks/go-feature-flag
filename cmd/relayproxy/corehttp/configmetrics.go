@@ -24,6 +24,7 @@ const (
 	metricPresent     = "semaphore_flags_rejected"
 	metricObjects     = "semaphore_object_status"
 	metricObjectAge   = "semaphore_object_oldest_unapplied_age_seconds"
+	metricSummaries   = "semaphore_config_summaries_total"
 )
 
 // maxNamedResources caps the series of semaphore_resource_status: one per resource that is not ready, the first
@@ -46,6 +47,7 @@ func MetricNames() []string {
 	return []string{
 		metricGeneration, metricSnapshot, metricReloads, metricLastSuccess, metricAge, metricResources,
 		metricResource, metricPending, metricRejected, metricPresent, metricObjects, metricObjectAge,
+		metricSummaries,
 	}
 }
 
@@ -58,7 +60,7 @@ type ConfigCollector struct {
 	sums *summaries
 
 	generation, snapshot, reloads, lastSuccess, age, counts, named, pending *prom.Desc
-	rejected, present, objects, objectAge                                   *prom.Desc
+	rejected, present, objects, objectAge, summaries                        *prom.Desc
 }
 
 var _ prom.Collector = (*ConfigCollector)(nil)
@@ -97,6 +99,8 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 		objects: desc(metricObjects, "Source objects by state: ok, stale, missing, pending, invalid.", "state"),
 		objectAge: desc(metricObjectAge, "Seconds since the oldest object that is not ok left that state; 0 when "+
 			"every object is ok."),
+		summaries: desc(metricSummaries, "Status summaries built for the probes and the metrics: one per swapped "+
+			"runtime that a reader met, never one per scrape."),
 	}
 }
 
@@ -113,7 +117,7 @@ func NewConfigCollectorSharing(src StatusSource, ready *Readiness) *ConfigCollec
 func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
 	for _, d := range []*prom.Desc{
 		c.generation, c.snapshot, c.reloads, c.lastSuccess, c.age, c.counts, c.named, c.pending,
-		c.rejected, c.present, c.objects, c.objectAge,
+		c.rejected, c.present, c.objects, c.objectAge, c.summaries,
 	} {
 		out <- d
 	}
@@ -157,6 +161,7 @@ func (c *ConfigCollector) Collect(out chan<- prom.Metric) {
 	}
 
 	gauge(c.pending, pending)
+	counter(c.summaries, float64(c.sums.computed.Load()))
 
 	c.collectRejected(out, &status.Reloads, sum)
 
