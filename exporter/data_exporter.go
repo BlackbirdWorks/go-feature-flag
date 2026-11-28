@@ -47,7 +47,9 @@ type batchStore[T ExportableEvent] interface {
 
 // Config is the configuration of an exporter.
 type Config struct {
-	Exporter         CommonExporter
+	Exporter CommonExporter
+	// Now is the clock of the pause after a failed flush (see MaxFlushBackoff); nil is [time.Now]. A test injects it.
+	Now              func() time.Time
 	FlushInterval    time.Duration
 	MaxEventInMemory int64
 	// MaxQueuedEvents is the hard limit of events kept in memory while they wait to be exported.
@@ -57,7 +59,16 @@ type Config struct {
 	// MaxBytes, when above zero, makes the manager flush as soon as the events it holds for the exporter reach
 	// that size (see EventSize), whatever their count and the flush interval, and hands them over in batches of at
 	// most that size (an event larger than it goes alone). Zero: no byte limit.
+	//
+	// MaxBytes only works with the event store of the manager (NewManager): it needs the batch reading and the size
+	// of the events (ProcessPendingBatches, SetSizer), which the concrete store has and the EventStore interface does
+	// not. A store of your own that does not implement them ignores MaxBytes and hands the events over in one batch.
 	MaxBytes int64
+	// MaxFlushBackoff is the longest pause between the flushes that the event count triggers while the exporter keeps
+	// failing: the pause starts at one second, doubles with each failed flush up to this value, and the first
+	// success resets it. Zero, or a value up to one second, keeps the fixed pause of one second (the default
+	// outside the relay proxy).
+	MaxFlushBackoff time.Duration
 }
 
 type dataExporterImpl[T ExportableEvent] struct {

@@ -24,8 +24,9 @@ type managed struct {
 	// finished is closed when the instance finished closing.
 	finished chan struct{}
 	name     *nameEntry
-	// after is the timer of the block deadline, injected.
+	// after is the timer of the block deadline and now the clock that stamps it, injected.
 	after func(time.Duration) <-chan time.Time
+	now   func() time.Time
 	// retired is closed when the instance leaves the set: the goroutine that waits for room stops waiting. retire
 	// closes it.
 	retired <-chan struct{}
@@ -35,7 +36,7 @@ type managed struct {
 	// parked is the waiting room of the block policy: the events that found no room in the hand-off wait there,
 	// in the goroutine of the instance, so that no worker waits for a slow exporter. queued counts the batches
 	// in it (and the one being placed), blockers is the goroutine.
-	parked   chan []Event
+	parked   chan parkedBatch
 	instance *instanceStats
 	logger   *slog.Logger
 	// in is the hand-off: bounded, closed when the instance leaves the set.
@@ -91,7 +92,7 @@ func newManaged(
 	def *ExporterDef, mgr FeatureManager, entry *nameEntry, handoff, batch int, logger *slog.Logger,
 ) *managed {
 	return newManagedWith(def, mgr, entry, limits{
-		after: time.After, handoff: handoff, batch: batch, drain: DefaultDrainTimeout,
+		after: time.After, now: time.Now, handoff: handoff, batch: batch, drain: DefaultDrainTimeout,
 	}, logger)
 }
 
@@ -101,11 +102,16 @@ func newManagedWith(
 ) *managed {
 	life, retire := context.WithCancel(context.Background())
 
+	if sizes.now == nil {
+		sizes.now = time.Now
+	}
+
 	inst := &managed{
 		retired:     life.Done(),
 		retire:      retire,
 		stopRetries: sizes.stopRetries,
 		after:       sizes.after,
+		now:         sizes.now,
 		pipe:        def.Pipeline,
 		drain:       cmpOr(def.Pipeline.DrainTimeout, sizes.drain),
 		def:         *def,
@@ -136,7 +142,7 @@ func newManagedWith(
 	go inst.run()
 
 	if def.Pipeline.policy() == bootstrap.OverflowBlock {
-		inst.parked = make(chan []Event, parkedBatches)
+		inst.parked = make(chan parkedBatch, parkedBatches)
 
 		inst.blockers.Go(inst.park)
 	}
@@ -181,11 +187,16 @@ func (m *managed) fill(batch []Event) []Event {
 // limits are the sizes and the clock of the dispatcher that an instance takes.
 type limits struct {
 	after func(time.Duration) <-chan time.Time
+	now   func() time.Time
 	// stopRetries ends the retries of the exporter; it may be nil.
 	stopRetries    context.CancelFunc
 	handoff, batch int
 	drain          time.Duration
 }
+
+// defaultMaxFlushBackoff is the longest pause between the flushes of a failing exporter when the retry has no
+// maximum backoff.
+const defaultMaxFlushBackoff = 30 * time.Second
 
 // cmpOr returns value, or def when value is zero.
 func cmpOr(value, def time.Duration) time.Duration {
@@ -207,6 +218,12 @@ func (m *managed) dropOverflow() {
 // room of the instance (and drops it, counted as a block timeout, when the waiting room is full too). Every drop is
 // counted against the instance. The caller is a worker of the dispatcher: it never waits.
 func (m *managed) offer(events []Event) {
+	// the block deadline of a batch that is parked runs from here: stamped before the batch counts as handed
+	var parkedAt time.Time
+	if m.pipe.policy() == bootstrap.OverflowBlock {
+		parkedAt = m.now()
+	}
+
 	count := uint64(len(events))
 	m.instance.handed.Add(count)
 	m.name.stats.handed.Add(count)
@@ -215,7 +232,7 @@ func (m *managed) offer(events []Event) {
 
 	// the batches behind a parked one wait behind it, to keep the order of the events
 	if policy == bootstrap.OverflowBlock && m.queued.Load() > 0 {
-		m.parkBatch(events)
+		m.parkBatch(events, parkedAt)
 
 		return
 	}
@@ -229,7 +246,7 @@ func (m *managed) offer(events []Event) {
 
 		switch policy {
 		case bootstrap.OverflowBlock:
-			m.parkBatch(events[i:])
+			m.parkBatch(events[i:], parkedAt)
 
 			return
 		case bootstrap.OverflowDropOldest:
@@ -240,12 +257,19 @@ func (m *managed) offer(events []Event) {
 	}
 }
 
-// parkBatch puts a copy of the events in the waiting room, or drops them when it is full.
-func (m *managed) parkBatch(events []Event) {
+// parkedBatch is a batch in the waiting room, with the time its block deadline ends.
+type parkedBatch struct {
+	deadline time.Time
+	events   []Event
+}
+
+// parkBatch puts a copy of the events in the waiting room, stamped with its deadline (the block timeout from the
+// time it was offered), or drops them when it is full.
+func (m *managed) parkBatch(events []Event, parkedAt time.Time) {
 	m.queued.Add(1)
 
 	select {
-	case m.parked <- slices.Clone(events):
+	case m.parked <- parkedBatch{events: slices.Clone(events), deadline: parkedAt.Add(m.pipe.BlockTimeout)}:
 	default:
 		m.queued.Add(-1)
 		m.instance.blocked.Add(uint64(len(events)))
@@ -281,7 +305,7 @@ func (m *managed) park() {
 
 		select {
 		case batch := <-m.parked:
-			m.place(batch)
+			m.place(batch.events, batch.deadline)
 			m.queued.Add(-1)
 		case <-m.retired:
 			return
@@ -289,12 +313,19 @@ func (m *managed) park() {
 	}
 }
 
-// place waits for room in the hand-off for the events of a batch, until the block deadline of the batch: what
+// place waits for room in the hand-off for the events of a batch, until the block deadline of the batch (stamped when
+// it was parked): what
 // does not fit by then is dropped and counted as a block timeout. The end of the instance ends the wait; the
 // events it still holds are counted by the drain.
-func (m *managed) place(events []Event) {
-	deadline := m.after(m.pipe.BlockTimeout)
-	expired := false
+func (m *managed) place(events []Event, until time.Time) {
+	// what is left of the block timeout of the batch, which started when it was parked
+	remaining := until.Sub(m.now())
+	expired := remaining <= 0
+
+	var deadline <-chan time.Time
+	if !expired {
+		deadline = m.after(remaining)
+	}
 
 	for _, event := range events {
 		select {
@@ -361,6 +392,11 @@ func (m *managed) startClose(ctx context.Context) {
 		// the drain deadline of the exporter, from now, inside the deadline of ctx: it ends the retries
 		drain, cancel := context.WithTimeout(ctx, m.drain)
 		stop := context.AfterFunc(drain, m.stopRetries)
+
+		// a deadline that has passed already halts the exporter before anything of the close runs
+		if drain.Err() != nil {
+			m.stopRetries()
+		}
 
 		m.retire()
 

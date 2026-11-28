@@ -2,6 +2,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -26,8 +27,8 @@ type Pipeline struct {
 	MaxBytes int64
 }
 
-// RetryPolicy is the retry of a failed export: MaxAttempts counts the first attempt (0 turns the retry off, 1 drops
-// a failed batch at once), the wait before a retry starts at InitialBackoff, doubles up to MaxBackoff and carries
+// RetryPolicy is the retry of a failed export: MaxAttempts counts the first attempt (0 is one attempt, like 1: a failed
+// batch then follows Drop), the wait before a retry starts at InitialBackoff, doubles up to MaxBackoff and carries
 // jitter, and the waits of one batch add up to MaxElapsed at most (0: no cap).
 type RetryPolicy struct {
 	// Drop makes a batch that exhausts the retry dropped and counted as retry_exhausted; the default keeps it for
@@ -78,6 +79,20 @@ func PipelineOf(exp *bootstrap.Exporter) Pipeline {
 	return pipe
 }
 
+// errHalted is returned instead of an attempt that the drain deadline of the exporter forbids: the events stay with
+// the engine manager, which is closing, and the instance counts them as drain drops.
+var errHalted = errors.New("events: the drain deadline passed, no new attempt")
+
+// halted says whether the drain deadline of the exporter passed.
+func (c *countingExporter) halted() bool {
+	select {
+	case <-c.halt:
+		return true
+	default:
+		return false
+	}
+}
+
 const (
 	// backoffFactor is the growth of the wait of a retry.
 	backoffFactor = 2
@@ -123,13 +138,18 @@ func (c *countingExporter) exportBatch(
 ) error {
 	retry := &c.pipe.Retry
 	if retry.MaxAttempts <= 0 {
-		return c.attempt(ctx, logger, events)
+		return c.single(ctx, logger, events)
 	}
 
 	start := c.flushStart(ctx)
 	backoff := retry.InitialBackoff
 
 	for attempt := 1; ; attempt++ {
+		// after the drain deadline no attempt starts; one in flight may finish
+		if c.halted() {
+			return errHalted
+		}
+
 		err := c.attempt(ctx, logger, events)
 		if err == nil {
 			return nil
@@ -151,6 +171,20 @@ func (c *countingExporter) exportBatch(
 
 		backoff = nextBackoff(backoff, retry.MaxBackoff)
 	}
+}
+
+// single is one attempt, then the rule of onExhausted: the export of a pipeline without retry.
+func (c *countingExporter) single(ctx context.Context, logger *slog.Logger, events []exporter.ExportableEvent) error {
+	if c.halted() {
+		return errHalted
+	}
+
+	err := c.attempt(ctx, logger, events)
+	if err != nil && c.pipe.Retry.Drop {
+		return c.exhaust(ctx, logger, len(events), 1, err)
+	}
+
+	return err
 }
 
 // nextBackoff doubles the backoff up to the cap (an hour when there is none), without overflowing.

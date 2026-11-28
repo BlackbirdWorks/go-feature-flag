@@ -128,6 +128,8 @@ func (b Builder) exporter(
 		MaxEventInMemory: maxEventInMemory(exp),
 		MaxQueuedEvents:  0, // the default of the manager
 		MaxBytes:         pipe.MaxBytes,
+		MaxFlushBackoff:  0, // set by the dispatcher, with its clock
+		Now:              nil,
 	}, id.secrets)
 	def.Pipeline = pipe
 

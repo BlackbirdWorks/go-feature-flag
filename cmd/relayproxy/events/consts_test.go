@@ -25,6 +25,7 @@ const (
 	kindFile = "file"
 	keyFlag0 = "flag-0"
 	keyFlag4 = "flag-4"
+	keyFlag5 = "flag-5"
 
 	labelExporter = "exporter"
 	labelKind     = "kind"

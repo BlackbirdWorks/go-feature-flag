@@ -229,11 +229,16 @@ func (d *Dispatcher) launch(def *ExporterDef) *managed {
 	wrap.pipe, wrap.after, wrap.now, wrap.rnd = def.Pipeline, d.cfg.After, d.cfg.Now, d.cfg.Rand
 	wrap.halt = halt
 
-	mgr := d.cfg.NewManager(def.Name, def.Config, d.cfg.Logger.With(slog.String("exporter", def.Name)))
+	// the pause between the flushes of a failing exporter grows up to the longest retry wait, on the dispatcher clock
+	mgrCfg := def.Config
+	mgrCfg.Now = d.cfg.Now
+	mgrCfg.MaxFlushBackoff = cmpOr(def.Pipeline.Retry.MaxBackoff, defaultMaxFlushBackoff)
+
+	mgr := d.cfg.NewManager(def.Name, mgrCfg, d.cfg.Logger.With(slog.String("exporter", def.Name)))
 	mgr.Start()
 
 	inst := newManagedWith(def, mgr, entry, limits{
-		after: d.cfg.After, stopRetries: stopRetries, handoff: d.cfg.HandoffSize,
+		after: d.cfg.After, now: d.cfg.Now, stopRetries: stopRetries, handoff: d.cfg.HandoffSize,
 		batch: d.cfg.BatchSize, drain: d.cfg.DrainTimeout,
 	}, d.cfg.Logger)
 	entry.latest.Store(inst)

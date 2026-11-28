@@ -218,7 +218,7 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 		},
 		{
 			name: "dropOldest", policy: bootstrap.OverflowDropOldest,
-			wantKeys: []string{keyFlag0, keyFlag4, "flag-5"}, wantOverflow: 3, wantHanded: 6,
+			wantKeys: []string{keyFlag0, keyFlag4, keyFlag5}, wantOverflow: 3, wantHanded: 6,
 		},
 		{
 			name: "block deadline", policy: bootstrap.OverflowBlock, fired: true,
@@ -226,7 +226,7 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 		},
 		{
 			name: "block with room", policy: bootstrap.OverflowBlock,
-			wantKeys: []string{keyFlag0, eventOneKey, eventTwoKey, "flag-3", keyFlag4, "flag-5"}, wantHanded: 6,
+			wantKeys: []string{keyFlag0, eventOneKey, eventTwoKey, "flag-3", keyFlag4, keyFlag5}, wantHanded: 6,
 		},
 	}
 
@@ -244,7 +244,7 @@ func TestDispatcher_OverflowPolicy(t *testing.T) {
 			})
 
 			expDef := def("a", "v1")
-			expDef.Pipeline = events.Pipeline{Overflow: tt.policy, BlockTimeout: time.Second}
+			expDef.Pipeline = events.Pipeline{Overflow: tt.policy, BlockTimeout: time.Hour}
 
 			_, err := disp.Apply(context.Background(), []events.ExporterDef{expDef})
 			require.NoError(t, err)
@@ -444,11 +444,11 @@ func TestDispatcher_Drain(t *testing.T) {
 		wantCut       bool
 	}{
 		{name: "reload deadline passed", held: true, drain: time.Nanosecond, dispatchDrain: time.Hour, wantCut: true,
-			wantExported: 3},
+			wantDrained: 3},
 		{name: "reload within the deadline", drain: time.Hour, dispatchDrain: time.Nanosecond, wantExported: 3},
 		{
 			name: "shutdown deadline passed", shutdown: true, held: true, drain: time.Nanosecond,
-			dispatchDrain: time.Hour, wantCut: true, wantExported: 3,
+			dispatchDrain: time.Hour, wantCut: true, wantDrained: 3,
 		},
 		{
 			name: "shutdown within the deadline", shutdown: true, drain: time.Hour, dispatchDrain: time.Nanosecond,
@@ -467,6 +467,11 @@ func TestDispatcher_Drain(t *testing.T) {
 			exp := &gatedExporter{gate: gate, entered: entered}
 
 			fac := newFactory()
+			if tt.held {
+				// the last flush starts after the deadline passed: no attempt is made
+				fac.stopGate = newGate(t)
+			}
+
 			disp := startDispatcher(t, fac, &events.DispatcherConfig{
 				After: newTimers(false).after, Rand: halfRand, DrainTimeout: tt.dispatchDrain,
 			})
@@ -513,6 +518,10 @@ func TestDispatcher_Drain(t *testing.T) {
 			cut := await(t, closed, "the drain to end")
 
 			assert.Equal(t, tt.wantCut, cut)
+
+			if tt.held {
+				safeClose(fac.stopGate)
+			}
 
 			safeClose(gate)
 			require.NoError(t, disp.WaitDrains(bounded(t)))

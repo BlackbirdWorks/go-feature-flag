@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -143,7 +142,10 @@ type consumer struct {
 	// limit is the maximum number of pending events of the consumer, 0 means no limit of its own
 	// (see SetConsumerLimit).
 	limit int64
-	mutex sync.Mutex
+	// inFlight is the offset of the last event of the batch being exported (minOffset when none): those events are
+	// delivered, so the limit does not count them as given up.
+	inFlight int64
+	mutex    sync.Mutex
 }
 
 // AddConsumer is adding a new consumer to the Event store.
@@ -152,7 +154,7 @@ func (e *eventStoreImpl[T]) AddConsumer(consumerID string) {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
 
-	e.consumers[consumerID] = &consumer{Offset: e.lastOffset}
+	e.consumers[consumerID] = &consumer{Offset: e.lastOffset, inFlight: minOffset}
 }
 
 // SetConsumerLimit sets the maximum number of events that the consumer may have pending. When
@@ -338,25 +340,23 @@ func (e *eventStoreImpl[T]) ProcessPendingBatches(
 	currentConsumer.mutex.Lock()
 	defer currentConsumer.mutex.Unlock()
 
-	e.mutex.RLock()
-	start := sort.Search(len(e.events), func(i int) bool {
-		return e.events[i].Offset > currentConsumer.Offset
-	})
-	items := slices.Clone(e.events[start:])
-	e.mutex.RUnlock()
-
 	ctx := withFlushID(context.Background(), e.flushSeq.Add(1))
 
-	for from := 0; from < len(items); {
-		end, size := from+1, int64(items[from].Size)
-		for end < len(items) && size+int64(items[end].Size) <= maxBytes {
-			size += int64(items[end].Size)
-			end++
-		}
+	defer func() {
+		e.mutex.Lock()
+		currentConsumer.inFlight = minOffset
+		e.mutex.Unlock()
+	}()
 
-		batch := make([]T, 0, end-from)
-		for _, item := range items[from:end] {
-			batch = append(batch, item.Data)
+	e.mutex.RLock()
+	upTo := e.lastOffset
+	e.mutex.RUnlock()
+
+	// the events added while the batches go out wait for the next flush
+	for {
+		batch, last := e.nextBatch(currentConsumer, maxBytes, upTo)
+		if len(batch) == 0 {
+			return nil
 		}
 
 		processErr := processEventsFunc(ctx, batch)
@@ -365,17 +365,45 @@ func (e *eventStoreImpl[T]) ProcessPendingBatches(
 		}
 
 		e.mutex.Lock()
-		offsetErr := e.updateConsumerOffset(currentConsumer, items[end-1].Offset)
+		offsetErr := e.updateConsumerOffset(currentConsumer, last)
+		currentConsumer.inFlight = minOffset
 		e.mutex.Unlock()
 
 		if offsetErr != nil {
 			return offsetErr
 		}
+	}
+}
 
-		from = end
+// nextBatch reads, under the lock, the events after the current offset of the consumer (the limit of the consumer
+// may have moved it since the last batch) up to maxBytes, and marks them in flight. It returns the events and the
+// offset of the last one.
+func (e *eventStoreImpl[T]) nextBatch(currentConsumer *consumer, maxBytes, upTo int64) ([]T, int64) {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+
+	start := sort.Search(len(e.events), func(i int) bool {
+		return e.events[i].Offset > currentConsumer.Offset
+	})
+	if start == len(e.events) || e.events[start].Offset > upTo {
+		return nil, 0
 	}
 
-	return nil
+	end, size := start+1, int64(e.events[start].Size)
+	for end < len(e.events) && e.events[end].Offset <= upTo && size+int64(e.events[end].Size) <= maxBytes {
+		size += int64(e.events[end].Size)
+		end++
+	}
+
+	batch := make([]T, 0, end-start)
+	for _, item := range e.events[start:end] {
+		batch = append(batch, item.Data)
+	}
+
+	last := e.events[end-1].Offset
+	currentConsumer.inFlight = last
+
+	return batch, last
 }
 
 // enforceConsumerLimitsLocked makes the consumers that have more pending events than their own
@@ -390,8 +418,12 @@ func (e *eventStoreImpl[T]) enforceConsumerLimitsLocked() int64 {
 		}
 
 		if excess := e.lastOffset - consumer.Offset - consumer.limit; excess > 0 {
-			consumer.Offset += excess
-			dropped += excess
+			target := consumer.Offset + excess
+			// the events of the batch being exported are delivered: they are not given up
+			if floor := max(consumer.inFlight, consumer.Offset); target > floor {
+				dropped += target - floor
+				consumer.Offset = target
+			}
 		}
 	}
 
