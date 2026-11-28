@@ -50,7 +50,7 @@ func TestASegmentsObjectIsAcceptedAndReported(t *testing.T) {
 
 	built := buildAndCommit(t, builder, content(1, all))
 
-	assert.Equal(
+	assert.ElementsMatch(
 		t,
 		[]string{"a", "b"},
 		mapKeys(built.Runtime.FlagSets),
@@ -106,7 +106,12 @@ func TestABadSegmentsObjectKeepsItsLastGoodContentAndTheFlagSets(t *testing.T) {
 				"the last good content is kept",
 			)
 			assert.NotEmpty(t, status.Reason)
-			assert.Equal(t, []string{"a", "b"}, mapKeys(built.Runtime.FlagSets), "both flag sets keep being served")
+			assert.ElementsMatch(
+				t,
+				[]string{"a", "b"},
+				mapKeys(built.Runtime.FlagSets),
+				"both flag sets keep being served",
+			)
 			assert.Empty(t, built.Runtime.Status.Entries)
 		})
 	}
@@ -142,7 +147,7 @@ func TestASegmentsObjectThatWasNeverGoodDegradesOnlyTheFlagSetsThatListIt(t *tes
 
 	// the object becomes good: the flag set is built from its sources
 	built = buildAndCommit(t, builder, content(2, all.with(objs{segObject: segObj(moreSegments)})))
-	assert.Equal(t, []string{"a", "b"}, mapKeys(built.Runtime.FlagSets))
+	assert.ElementsMatch(t, []string{"a", "b"}, mapKeys(built.Runtime.FlagSets))
 	assert.Empty(t, built.Runtime.Status.Entries, "it resolves now")
 	assert.Equal(t, flagruntime.ObjectOK, built.Runtime.Status.Objects[segObject].State)
 	assert.Equal(t, 2, built.Runtime.Status.Objects[segObject].Flags)
