@@ -37,6 +37,7 @@ const (
 	testSampleNumGC    = 1
 	testSampleGors     = 4
 	testCallsPerSec    = 100.0
+	testTrackingModes  = 2
 	exitFail           = 1
 )
 
@@ -260,8 +261,10 @@ func TestRun_Verdicts(t *testing.T) {
 			wantStdout: []string{"endpoint=ofrep-bulk protocol=h2c", passVerdict, "flags/s"},
 			wantFlagsPerCall: func(t *testing.T, flagsPerCall int, stdout string) {
 				t.Helper()
-				assert.Greater(t, flagsPerCall, 1)
-				assert.Contains(t, stdout, fmt.Sprintf("(%d per call)", flagsPerCall))
+
+				wantBulkFlags := len(loadtest.Scenarios()) * len(loadtest.Types()) * testTrackingModes
+				assert.Equal(t, wantBulkFlags, flagsPerCall)
+				assert.Contains(t, stdout, fmt.Sprintf("(%d per call)", wantBulkFlags))
 			},
 		},
 	}
