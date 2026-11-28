@@ -31,7 +31,7 @@ func BenchmarkMembershipOnlyReload(b *testing.B) {
 			base := objs{
 				"f1":      obj(flagruntime.KindFlags, []byte(yaml.String())),
 				"f2":      flagsObj(1, "z"),
-				segObject: segObj(moreSegments),
+				segObject: segObj(docBetaUnused),
 				setsName:  withSegmentSources(b),
 			}
 
@@ -39,7 +39,7 @@ func BenchmarkMembershipOnlyReload(b *testing.B) {
 			require.NoError(b, err)
 			builder.Commit(built)
 
-			docs := [2]string{peopleBeta, moreSegments}
+			docs := [2]string{docBetaUnused, docBetaTwo} // the same segment names: only the members change
 
 			b.ReportAllocs()
 			b.ResetTimer()

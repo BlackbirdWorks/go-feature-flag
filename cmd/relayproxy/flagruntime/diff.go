@@ -65,18 +65,10 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 		}
 	}
 
-	// a flag that is the same but uses a segment whose members or definition changed is updated: its evaluations
-	// changed. Only the flags that use segments are looked at.
-	if newSet != nil {
-		for key, sig := range newSet.flagSigs {
-			before, ok := oldFlags[key]
-			if !ok || before != newFlags[key] || oldSet.flagSigs[key] == sig {
-				continue
-			}
-
-			diff.Updated[key] = notifier.DiffUpdated{Before: before, After: reevaluated{Flag: newFlags[key]}}
-		}
-	}
+	// a flag that is the same but uses a segment whose members or definition changed (or whose segment source was
+	// attached or detached) is updated: its evaluations changed. A flag with no signature has signature zero, so the
+	// two directions are compared. Only the flags that use segments are looked at.
+	updateReevaluated(&diff, oldSet, newSet, oldFlags, newFlags)
 
 	for key, before := range oldFlags {
 		if _, ok := newFlags[key]; !ok {
@@ -87,10 +79,50 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 	return diff
 }
 
+// updateReevaluated adds, for the flags that are the same in both flag sets and whose segment signature differs, an
+// update whose two sides carry the signature, so that composing changes can tell a revert from a change.
+func updateReevaluated(
+	diff *notifier.DiffCache, oldSet, newSet *FlagSet, oldFlags, newFlags map[string]*flagdef.InternalFlag,
+) {
+	var oldSigs, newSigs map[string]uint64
+
+	if oldSet != nil {
+		oldSigs = oldSet.flagSigs
+	}
+
+	if newSet != nil {
+		newSigs = newSet.flagSigs
+	}
+
+	check := func(key string) {
+		before, ok := oldFlags[key]
+		if !ok || before != newFlags[key] || oldSigs[key] == newSigs[key] {
+			return
+		}
+
+		diff.Updated[key] = notifier.DiffUpdated{
+			Before: reevaluated{Flag: before, sig: oldSigs[key]},
+			After:  reevaluated{Flag: before, sig: newSigs[key]},
+		}
+	}
+
+	for key := range newSigs {
+		check(key)
+	}
+
+	for key := range oldSigs {
+		if _, seen := newSigs[key]; !seen {
+			check(key)
+		}
+	}
+}
+
 // reevaluated is the "after" of a flag whose definition did not change but whose segments did: it is another value
 // than the flag, so the change is not dropped when changes are composed, and it is the flag when it is encoded.
 type reevaluated struct {
 	flagdef.Flag
+
+	sig uint64
 }
 
 // MarshalJSON encodes the flag.
@@ -101,6 +133,26 @@ func (r reevaluated) MarshalJSON() ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// flagIdentity is a flag and the signature of its segments: what two sides of a change have to share to be the same.
+type flagIdentity struct {
+	flag flagdef.Flag
+	sig  uint64
+}
+
+// sameFlag says whether two sides of a change are the same flag with the same segments: the same flag pointer and the
+// same signature, whatever wraps them.
+func sameFlag(left, right flagdef.Flag) bool {
+	return identityOf(left) == identityOf(right)
+}
+
+func identityOf(flag flagdef.Flag) flagIdentity {
+	if wrapped, ok := flag.(reevaluated); ok {
+		return flagIdentity{flag: wrapped.Flag, sig: wrapped.sig}
+	}
+
+	return flagIdentity{flag: flag}
 }
 
 // flagStates tracks, per flag key, the state before the first change and after the last one.
@@ -146,7 +198,7 @@ func (states flagStates) diff() notifier.DiffCache {
 			out.Added[key] = cur.after
 		case cur.after == nil:
 			out.Deleted[key] = cur.before
-		case cur.before != cur.after:
+		case !sameFlag(cur.before, cur.after):
 			out.Updated[key] = notifier.DiffUpdated{Before: cur.before, After: cur.after}
 		}
 	}
