@@ -169,6 +169,10 @@ func TestE2E_DynamicDefinitionsAreCheckedAgainstTheConnections(t *testing.T) {
 	rig.publish(t)
 	rig.poll(t)
 
+	// a lookup on the dead store: the segment is in store error whether or not its connection was dialled already
+	dyn = evalOFREP(t, rig, "dyn-flag", "carol")
+	assert.Equal(t, "STORE_ERROR", dyn.Metadata[flagruntime.MetadataSegmentStatus])
+
 	counts, state = segmentsInfo(t, infoOf(t, rig))
 	assert.Equal(t, string(flagruntime.ObjectOK), state)
 	assert.Equal(t, model.SegmentCountsInfo{

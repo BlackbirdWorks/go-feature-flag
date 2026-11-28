@@ -110,9 +110,13 @@ func TestE2E_StaticSegmentsTargetThroughOFREP(t *testing.T) {
 	}
 
 	require.NotNil(t, counts)
-	assert.Equal(t, model.SegmentCountsInfo{
-		Static: 1, Dynamic: 1, DynamicStates: &model.DynamicStatesInfo{Valid: 1, StoreError: 1},
-	}, *counts)
+	require.NotNil(t, counts.DynamicStates)
+	assert.Equal(t, 1, counts.Static)
+	assert.Equal(t, 1, counts.Dynamic)
+	assert.Equal(t, 1, counts.DynamicStates.Valid)
+	// Nothing asked the dynamic segment: the dead store reads healthy when the connection was dialled already (the
+	// dial is made when the generation binds, so this depends on the timing of that dial) and in store error before.
+	assert.Equal(t, 1, counts.DynamicStates.Healthy+counts.DynamicStates.StoreError, "the segment is counted once")
 
 	// the members change: the next request sees them
 	rig.segments[segObjectName] = []byte(segDocTwo)
