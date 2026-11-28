@@ -175,6 +175,11 @@ func (f *WSFlagChange) Handler(w http.ResponseWriter, r *http.Request) error {
 		if nameErr != nil || current != flagsetName {
 			return nil
 		}
+
+		// from here a revocation reaches the connection, and until here no change did: it receives its changes now
+		if !f.websocketService.Activate(safeConn) {
+			return nil
+		}
 	}
 
 	logger := logging.FromContext(r.Context())

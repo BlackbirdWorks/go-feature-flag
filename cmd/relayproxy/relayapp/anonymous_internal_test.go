@@ -675,6 +675,10 @@ func TestRunClosesTheStreamsOfARevokedKey(t *testing.T) {
 	// the new key opens a stream, and the other flag set goes: generation 5 withdraws it
 	newWS := dialWebsocket(t, rig.url, rotatedKey)
 
+	require.Eventually(t, func() bool {
+		return rel.streams.Connected() == corehttp.ClientCounts{Websocket: 2, SSE: 1}
+	}, waitBound, time.Millisecond, "the client of the new key is registered")
+
 	rig.store.publishDocs(
 		keyedSets(rotatedKey)[:1], map[string]string{flagsObject: flagYAML(4)},
 	)

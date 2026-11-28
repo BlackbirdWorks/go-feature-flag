@@ -14,22 +14,33 @@ type WebsocketConnector interface {
 	WriteJSON(v any) error
 }
 
+// KeyedWebsocketService is what a websocket service does for the connections that authenticated with an API key.
+type KeyedWebsocketService interface {
+	// RegisterKeyed is Register for a connection that authenticated with an API key: the service keeps an identifier of
+	// the key (never the key), so that [WebsocketService.DisconnectRevoked] can close the connection when the key does
+	// not route to the flag set anymore. The connection is inactive: it receives nothing until
+	// [WebsocketService.Activate]. The caller checks the key again between the two, so that a key that was revoked by a
+	// swap that ran before the registration never receives a change.
+	RegisterKeyed(c WebsocketConnector, flagsetName, apiKey string)
+	// Activate makes a connection of RegisterKeyed receive the changes of its flag set. It returns false when the
+	// connection is not waiting anymore (its key was revoked or it left): the caller ends the connection.
+	Activate(c WebsocketConnector) bool
+	// DisconnectRevoked takes out of the list, before it returns, the connections whose key is not in routes anymore or
+	// routes to another flag set than the one of the connection, and returns what closes them: the caller runs it away
+	// from the swap, a close can take time. Connections without a key are not touched.
+	DisconnectRevoked(routes KeyRoutes) []func()
+}
+
 // WebsocketService is the service interface that handle the websocket connections
 // This service is able to broadcast a notification to all the open websockets.
 type WebsocketService interface {
+	KeyedWebsocketService
+
 	// Register is adding the connection to the list of open connection of the flagset.
 	Register(c WebsocketConnector, flagsetName string)
 	// RegisterAnonymous is Register for a connection that has no API key: the flag set is the public flag set of
 	// the relay, and [WebsocketService.DisconnectAnonymous] closes the connection when it is not anymore.
 	RegisterAnonymous(c WebsocketConnector, flagsetName string)
-	// RegisterKeyed is Register for a connection that authenticated with an API key: the service keeps an identifier of
-	// the key (never the key), so that [WebsocketService.DisconnectRevoked] can close the connection when the key does
-	// not route to the flag set anymore.
-	RegisterKeyed(c WebsocketConnector, flagsetName, apiKey string)
-	// DisconnectRevoked takes out of the list, before it returns, the connections whose key is not in routes anymore or
-	// routes to another flag set than the one of the connection, and returns what closes them: the caller runs it away
-	// from the swap, a close can take time. Connections without a key are not touched.
-	DisconnectRevoked(routes KeyRoutes) []func()
 	// DisconnectAnonymous closes the connections without a key whose flag set is not keep; an empty keep closes all
 	// of them. A connection with a key is never touched.
 	DisconnectAnonymous(keep string)
@@ -47,9 +58,12 @@ type WebsocketService interface {
 
 // WebsocketServiceImpl is the implementation of the interface.
 type WebsocketServiceImpl struct {
-	clients            map[WebsocketConnector]string
-	anonymous          map[WebsocketConnector]struct{}
-	keyed              map[WebsocketConnector]uint64
+	clients   map[WebsocketConnector]string
+	anonymous map[WebsocketConnector]struct{}
+	keyed     map[WebsocketConnector]uint64
+	// inactive is the flag set of the connections that registered with a key and wait for Activate: they are in keyed,
+	// so a revocation reaches them, and not in clients, so no broadcast does.
+	inactive           map[WebsocketConnector]string
 	mutex              *sync.RWMutex
 	closed             chan struct{}
 	hasher             keyHasher
@@ -65,6 +79,7 @@ func NewWebsocketService(opts ...Option) *WebsocketServiceImpl {
 		clients:            map[WebsocketConnector]string{},
 		anonymous:          map[WebsocketConnector]struct{}{},
 		keyed:              map[WebsocketConnector]uint64{},
+		inactive:           map[WebsocketConnector]string{},
 		hasher:             newKeyHasher(),
 		mutex:              &sync.RWMutex{},
 		closed:             make(chan struct{}),
@@ -128,8 +143,25 @@ func (w *WebsocketServiceImpl) RegisterKeyed(conn WebsocketConnector, flagsetNam
 	w.mutex.Lock()
 	defer w.mutex.Unlock()
 
-	w.clients[conn] = flagsetName
+	w.inactive[conn] = flagsetName
 	w.keyed[conn] = id
+}
+
+// Activate puts a connection that waited into the list the broadcasts read.
+func (w *WebsocketServiceImpl) Activate(conn WebsocketConnector) bool {
+	w.mutex.Lock()
+	defer w.mutex.Unlock()
+
+	flagsetName, waiting := w.inactive[conn]
+	if !waiting {
+		return false
+	}
+
+	delete(w.inactive, conn)
+
+	w.clients[conn] = flagsetName
+
+	return true
 }
 
 // DisconnectRevoked takes the connections of the keys that do not route to their flag set anymore out of the list, and
@@ -152,11 +184,17 @@ func (w *WebsocketServiceImpl) DisconnectRevoked(routes KeyRoutes) []func() {
 	var closers []func()
 
 	for conn, id := range w.keyed {
-		if set, ok := live[id]; ok && set == w.clients[conn] {
+		flagsetName, waiting := w.inactive[conn]
+		if !waiting {
+			flagsetName = w.clients[conn]
+		}
+
+		if set, ok := live[id]; ok && set == flagsetName {
 			continue
 		}
 
 		delete(w.clients, conn)
+		delete(w.inactive, conn)
 		delete(w.keyed, conn)
 
 		closers = append(closers, func() { closeConn(conn) })
@@ -204,6 +242,7 @@ func (w *WebsocketServiceImpl) Deregister(conn WebsocketConnector) {
 	delete(w.clients, conn)
 	delete(w.anonymous, conn)
 	delete(w.keyed, conn)
+	delete(w.inactive, conn)
 }
 
 // Connections is the number of open connections.
@@ -225,6 +264,7 @@ func (w *WebsocketServiceImpl) Close() {
 
 	clear(w.anonymous)
 	clear(w.keyed)
+	clear(w.inactive)
 
 	close(w.closed)
 }

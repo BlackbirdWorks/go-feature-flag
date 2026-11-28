@@ -2,10 +2,12 @@ package stream_test
 
 import (
 	"bufio"
-	"io"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -73,6 +75,14 @@ func revocations() []revocation {
 	}
 }
 
+// registerActive registers a connection with a key and activates it, as the handler does after its second check.
+func registerActive(tb testing.TB, svc *stream.WebsocketServiceImpl, conn stream.WebsocketConnector, set, key string) {
+	tb.Helper()
+
+	svc.RegisterKeyed(conn, set, key)
+	require.True(tb, svc.Activate(conn))
+}
+
 func routesOf(routes map[string]string) stream.KeyRoutes {
 	return func(yield func(string, string) bool) {
 		for key, set := range routes {
@@ -96,9 +106,9 @@ func TestWebsocketDisconnectRevoked(t *testing.T) {
 			conns := map[string]*closableConn{
 				connOne: {}, connTwo: {}, connThree: {}, "anonymous": {}, "unkeyed": {},
 			}
-			svc.RegisterKeyed(conns[connOne], setOne, keyOne)
-			svc.RegisterKeyed(conns[connTwo], setOne, keyTwo)
-			svc.RegisterKeyed(conns[connThree], setTwo, keyThree)
+			registerActive(t, svc, conns[connOne], setOne, keyOne)
+			registerActive(t, svc, conns[connTwo], setOne, keyTwo)
+			registerActive(t, svc, conns[connThree], setTwo, keyThree)
 			svc.RegisterAnonymous(conns["anonymous"], setOne)
 			svc.Register(conns["unkeyed"], setOne)
 
@@ -161,14 +171,14 @@ func TestWebsocketDisconnectRevokedWithoutKeyedConnections(t *testing.T) {
 	assert.False(t, read, "the routes are not read when no connection has a key")
 
 	gone := &closableConn{}
-	svc.RegisterKeyed(gone, setOne, keyOne)
+	registerActive(t, svc, gone, setOne, keyOne)
 	svc.Deregister(gone)
 
 	assert.Empty(t, svc.DisconnectRevoked(routesOf(nil)), "a connection that left is not revoked a second time")
 }
 
 // DisconnectRevoked ends the streams of the clients whose key does not route to their flag set, and only those: the
-// other clients of the flag set keep their stream and get the next change.
+// other clients of the flag sets keep their stream and get the next change.
 func TestSSEDisconnectRevoked(t *testing.T) {
 	t.Parallel()
 
@@ -188,33 +198,13 @@ func TestSSEDisconnectRevoked(t *testing.T) {
 			}))
 			t.Cleanup(srv.Close)
 
-			ended := map[string]chan struct{}{}
-			scanners := map[string]*bufio.Scanner{}
+			clients := map[string]*sseClient{}
 
-			connect := func(name, key, set string) {
-				req, err := http.NewRequestWithContext(
-					t.Context(), http.MethodGet, srv.URL+"?stream="+set+"&key="+key, http.NoBody,
-				)
-				require.NoError(t, err)
-
-				resp, err := http.DefaultClient.Do(req)
-				require.NoError(t, err)
-				t.Cleanup(func() { _ = resp.Body.Close() })
-
-				scanners[name] = bufio.NewScanner(resp.Body)
-				ended[name] = make(chan struct{})
-
-				go func() {
-					// the body ends when the handler returns
-					_, _ = io.Copy(io.Discard, resp.Body)
-
-					close(ended[name])
-				}()
+			for name, conn := range map[string][2]string{
+				connOne: {keyOne, setOne}, connTwo: {keyTwo, setOne}, connThree: {keyThree, setTwo},
+			} {
+				clients[name] = connectSSE(t, srv.URL, conn[0], conn[1])
 			}
-
-			connect(connOne, keyOne, setOne)
-			connect(connTwo, keyTwo, setOne)
-			connect(connThree, keyThree, setTwo)
 
 			for range 3 {
 				select {
@@ -226,34 +216,87 @@ func TestSSEDisconnectRevoked(t *testing.T) {
 
 			svc.DisconnectRevoked(routesOf(tt.routes))
 
-			for name, done := range ended {
-				if !contains(tt.wantRevoked, name) {
-					continue
-				}
-
-				select {
-				case <-done:
-				case <-time.After(anonBound):
-					assert.Fail(t, "the stream of a revoked client did not end", name)
-				}
-			}
+			awaitEnded(t, clients, tt.wantRevoked)
 
 			require.Eventually(t, func() bool { return svc.Connections() == 3-len(tt.wantRevoked) }, anonBound,
 				5*time.Millisecond, "the revoked streams are released")
 
-			for name, done := range ended {
-				if contains(tt.wantRevoked, name) {
-					continue
-				}
+			// a change after the revocation: the clients that are still valid get it, the revoked ones are gone
+			require.NoError(t, svc.BroadcastFlagChanges(setOne, notifier.DiffCache{}))
+			require.NoError(t, svc.BroadcastFlagChanges(setTwo, notifier.DiffCache{}))
 
-				select {
-				case <-done:
-					assert.Fail(t, "the stream of a client that is still valid ended", name)
-				default:
-				}
-			}
+			awaitChange(t, clients, tt.wantRevoked)
 		})
 	}
+}
+
+// awaitEnded waits for the end of the streams of the revoked clients.
+func awaitEnded(t *testing.T, clients map[string]*sseClient, revoked []string) {
+	t.Helper()
+
+	for name, client := range clients {
+		if !contains(revoked, name) {
+			continue
+		}
+
+		select {
+		case <-client.ended:
+		case <-time.After(anonBound):
+			assert.Fail(t, "the stream of a revoked client did not end", name)
+		}
+	}
+}
+
+// awaitChange waits for the change on every client that is still valid.
+func awaitChange(t *testing.T, clients map[string]*sseClient, revoked []string) {
+	t.Helper()
+
+	for name, client := range clients {
+		if contains(revoked, name) {
+			continue
+		}
+
+		select {
+		case line := <-client.lines:
+			assert.Contains(t, line, "refetchEvaluation", name)
+		case <-client.ended:
+			assert.Fail(t, "the stream of a client that is still valid ended", name)
+		case <-time.After(anonBound):
+			assert.Fail(t, "the client that is still valid did not get the change", name)
+		}
+	}
+}
+
+// sseClient reads a stream of the service: the data lines it gets, and the end of its body.
+type sseClient struct {
+	lines chan string
+	ended chan struct{}
+}
+
+func connectSSE(t *testing.T, base, key, set string) *sseClient {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, base+"?stream="+set+"&key="+key, http.NoBody)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	client := &sseClient{lines: make(chan string, 8), ended: make(chan struct{})}
+
+	go func() {
+		defer close(client.ended)
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			if line := scanner.Text(); strings.HasPrefix(line, "data:") {
+				client.lines <- line
+			}
+		}
+	}()
+
+	return client
 }
 
 // The SSE stream is still one per flag set: a client with a key and a client without share the publication, and
@@ -271,4 +314,143 @@ func TestSSEServeKeyedRefusesAKeyRevokedWhileItRegisters(t *testing.T) {
 
 	assert.Zero(t, svc.Connections())
 	assert.Empty(t, recorder.Body.String(), "nothing is served to a key that is not valid anymore")
+}
+
+// A connection that registered with a key receives nothing until it is activated, and a revocation reaches it while it
+// waits: a key that a swap revoked before the registration never gets a change, whatever the order of the events.
+func TestWebsocketKeyedConnectionReceivesNothingUntilActivated(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// what happens to the connection after the registration and a first change
+		revoke, leave, activate bool
+		wantActivated           bool
+		wantWrites              int
+		wantClosed              int
+	}{
+		{name: "waiting: no change reaches it"},
+		{name: "activated: it gets the next change", activate: true, wantActivated: true, wantWrites: 1},
+		{name: "revoked while it waits: it never gets one and is closed", revoke: true, activate: true, wantClosed: 1},
+		{name: "left while it waits: it can not be activated", leave: true, activate: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc := stream.NewWebsocketService()
+			conn := &closableConn{}
+			svc.RegisterKeyed(conn, setOne, keyOne)
+
+			// a change while it waits: the diff of a private flag must not reach it
+			svc.BroadcastFlagChanges(setOne, notifier.DiffCache{})
+
+			writes, _ := conn.counts()
+			require.Zero(t, writes, "nothing is written to a connection that waits")
+
+			switch {
+			case tt.revoke:
+				for _, closeOne := range svc.DisconnectRevoked(routesOf(nil)) {
+					closeOne()
+				}
+			case tt.leave:
+				svc.Deregister(conn)
+			}
+
+			activated := tt.activate && svc.Activate(conn)
+
+			svc.BroadcastFlagChanges(setOne, notifier.DiffCache{})
+
+			writes, closed := conn.counts()
+
+			assert.Equal(t, tt.wantActivated, activated)
+			assert.Equal(t, tt.wantWrites, writes)
+			assert.Equal(t, tt.wantClosed, closed)
+		})
+	}
+}
+
+// blockedResponse is a response whose writes wait for the network: a write returns only when its write deadline is
+// reached, the way a client that does not read holds a connection.
+type blockedResponse struct {
+	header   http.Header
+	deadline chan time.Time
+	entered  chan struct{}
+	set      chan time.Time
+	once     sync.Once
+}
+
+func newBlockedResponse() *blockedResponse {
+	return &blockedResponse{
+		header: http.Header{}, deadline: make(chan time.Time, 64), entered: make(chan struct{}),
+		set: make(chan time.Time, 64),
+	}
+}
+
+func (b *blockedResponse) Header() http.Header { return b.header }
+func (*blockedResponse) WriteHeader(int)       {}
+
+// Write blocks until a deadline in the past is set, as a write on a full socket ends when its deadline passes.
+func (b *blockedResponse) Write(data []byte) (int, error) {
+	b.once.Do(func() { close(b.entered) })
+
+	for deadline := range b.set {
+		if deadline.Before(time.Now()) {
+			return 0, errBlockedWrite
+		}
+	}
+
+	return len(data), nil
+}
+
+func (*blockedResponse) Flush() {}
+
+//nolint:unparam // the SetWriteDeadline of a response
+func (b *blockedResponse) SetWriteDeadline(deadline time.Time) error {
+	b.set <- deadline
+
+	return nil
+}
+
+var errBlockedWrite = errors.New("the write deadline passed")
+
+// An SSE stream whose client does not read ends when its key is revoked, and does not wait for the network: the
+// revocation sets an immediate write deadline. Every write of a stream sets a deadline of its own first.
+func TestSSEBlockedWriteEndsAtRevocation(t *testing.T) {
+	t.Parallel()
+
+	svc := stream.NewSSEService()
+	t.Cleanup(svc.Close)
+
+	subscribed := make(chan string, 1)
+
+	svc.SetOnSubscribe(func(id string) { subscribed <- id })
+
+	response := newBlockedResponse()
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?stream="+setOne, http.NoBody)
+	served := make(chan struct{})
+
+	go func() {
+		defer close(served)
+
+		svc.ServeKeyed(response, req, keyOne, func() bool { return true })
+	}()
+
+	// the first write of the stream (the connected comment) is the one that blocks: the client does not read
+	select {
+	case <-response.entered:
+	case <-time.After(anonBound):
+		require.FailNow(t, "the stream did not write")
+	}
+
+	svc.DisconnectRevoked(routesOf(nil))
+
+	select {
+	case <-served:
+	case <-time.After(anonBound):
+		require.FailNow(t, "the stream of the revoked client did not end while its write was blocked")
+	}
+
+	assert.Zero(t, svc.Connections())
 }

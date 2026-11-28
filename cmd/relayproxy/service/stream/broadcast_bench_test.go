@@ -16,7 +16,7 @@ func BenchmarkWebsocketBroadcast(b *testing.B) {
 	svc := stream.NewWebsocketService()
 
 	for i := range 10000 {
-		svc.RegisterKeyed(&mockConn{}, "set", fmt.Sprintf("key-%d", i))
+		registerActive(b, svc, &mockConn{}, "set", fmt.Sprintf("key-%d", i))
 	}
 
 	diff := notifier.DiffCache{}

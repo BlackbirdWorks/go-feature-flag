@@ -158,32 +158,62 @@ type anonymousClient struct {
 // way to end its request.
 type keyedClient struct {
 	cancel   context.CancelFunc
+	rc       *http.ResponseController
 	streamID string
 	keyID    uint64
-	// revoked is set before the request is cancelled: the library takes the cancel and a queued event in either order,
-	// so a revoked client gets nothing from the moment it is set.
-	revoked atomic.Bool
+	revoked  atomic.Bool
 }
 
-// revocableWriter drops what is written to a client whose key was revoked.
-type revocableWriter struct {
+// sseWriteDeadline is the time the network gets to take one write of a stream (an event, a heartbeat, a flush). The
+// deadline is set before every write, so a healthy stream that lives for days never meets it, and a client that stopped
+// reading holds its goroutine for this long at most.
+const sseWriteDeadline = 10 * time.Second
+
+// streamWriter is the writer of one stream: it sets the write deadline before every write, and drops what is written
+// to a client whose key was revoked.
+type streamWriter struct {
 	http.ResponseWriter
 
-	client *keyedClient
+	rc      *http.ResponseController
+	revoked *atomic.Bool
 }
 
-func (w *revocableWriter) Write(data []byte) (int, error) {
-	if w.client.revoked.Load() {
+func (w *streamWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func (w *streamWriter) Write(data []byte) (int, error) {
+	if !w.arm() {
 		return 0, io.ErrClosedPipe
 	}
 
 	return w.ResponseWriter.Write(data) //nolint:wrapcheck // the writer of the response, errors are the client's
 }
 
-func (w *revocableWriter) Flush() {
-	if flusher, ok := w.ResponseWriter.(http.Flusher); ok && !w.client.revoked.Load() {
-		flusher.Flush()
+func (w *streamWriter) Flush() {
+	if !w.arm() {
+		return
 	}
+
+	_ = w.rc.Flush()
+}
+
+// arm sets the deadline of the next write; it reports false when the client was revoked.
+func (w *streamWriter) arm() bool {
+	if w.revoked != nil && w.revoked.Load() {
+		return false
+	}
+
+	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. A writer that does
+	// not support deadlines (a test recorder) is written to as before.
+	_ = w.rc.SetWriteDeadline(time.Now().Add(sseWriteDeadline))
+
+	if w.revoked != nil && w.revoked.Load() {
+		// revoked while the deadline was set: the deadline of the revocation must be the last one
+		_ = w.rc.SetWriteDeadline(time.Unix(1, 0))
+
+		return false
+	}
+
+	return true
 }
 
 // DisconnectRevoked ends the requests of the clients whose key does not route to their flag set anymore. The requests
@@ -201,13 +231,13 @@ func (s *SSEServiceImpl) DisconnectRevoked(routes KeyRoutes) {
 
 	s.muActiveStreams.Lock()
 
-	var revoked []context.CancelFunc
+	var revoked []*keyedClient
 
 	for client := range s.keyed {
 		if set, ok := live[client.keyID]; !ok || set != client.streamID {
 			client.revoked.Store(true)
 
-			revoked = append(revoked, client.cancel)
+			revoked = append(revoked, client)
 
 			delete(s.keyed, client)
 		}
@@ -215,15 +245,21 @@ func (s *SSEServiceImpl) DisconnectRevoked(routes KeyRoutes) {
 
 	s.muActiveStreams.Unlock()
 
-	for _, cancel := range revoked {
-		cancel()
+	for _, client := range revoked {
+		// a write that is blocked on the network ends now, and the request is cancelled
+		_ = client.rc.SetWriteDeadline(time.Unix(1, 0))
+
+		client.cancel()
 	}
 }
 
 // ServeKeyed serves a client that authenticated with an API key.
 func (s *SSEServiceImpl) ServeKeyed(w http.ResponseWriter, r *http.Request, apiKey string, stillValid func() bool) {
 	ctx, cancel := context.WithCancel(r.Context())
-	client := &keyedClient{cancel: cancel, streamID: r.URL.Query().Get("stream"), keyID: s.hasher.id(apiKey)}
+	client := &keyedClient{
+		cancel: cancel, streamID: r.URL.Query().Get("stream"), keyID: s.hasher.id(apiKey),
+		rc: http.NewResponseController(w),
+	}
 
 	s.muActiveStreams.Lock()
 	s.keyed[client] = struct{}{}
@@ -241,10 +277,29 @@ func (s *SSEServiceImpl) ServeKeyed(w http.ResponseWriter, r *http.Request, apiK
 		return
 	}
 
-	s.ServeHTTP(&revocableWriter{ResponseWriter: w, client: client}, r.WithContext(ctx))
+	s.serve(w, r.WithContext(ctx), &client.revoked)
 }
 
+// ServeHTTP serves a client without a key.
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.serve(w, r, nil)
+}
+
+// SetOnSubscribe sets the callback called when a client subscribes to a stream.
+func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
+	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
+		fn(strings.TrimPrefix(streamID, AnonymousStreamPrefix))
+	}
+}
+
+// Close closes all the SSE streams.
+func (s *SSEServiceImpl) Close() {
+	s.closeOnce.Do(func() { close(s.done) })
+	s.heartbeats.Wait()
+	s.server.Close()
+}
+
+func (s *SSEServiceImpl) serve(w http.ResponseWriter, r *http.Request, revoked *atomic.Bool) {
 	streamID := r.URL.Query().Get("stream")
 
 	s.trackStream(streamID, 1)
@@ -269,25 +324,13 @@ func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(ctx)
 	}
 
+	w = &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked}
+
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}
 	}
 
 	s.server.ServeHTTP(w, r)
-}
-
-// SetOnSubscribe sets the callback called when a client subscribes to a stream.
-func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
-	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
-		fn(strings.TrimPrefix(streamID, AnonymousStreamPrefix))
-	}
-}
-
-// Close closes all the SSE streams.
-func (s *SSEServiceImpl) Close() {
-	s.closeOnce.Do(func() { close(s.done) })
-	s.heartbeats.Wait()
-	s.server.Close()
 }
 
 func (s *SSEServiceImpl) trackStream(streamID string, delta int) {

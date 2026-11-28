@@ -36,6 +36,14 @@ func keyedRuntime(routes map[string]string) *flagruntime.Runtime {
 	return built
 }
 
+// registerKeyed registers a connection of the flag set keyedSetA with a key and activates it, as the handler does.
+func registerKeyed(t *testing.T, svc *stream.WebsocketServiceImpl, conn stream.WebsocketConnector, key string) {
+	t.Helper()
+
+	svc.RegisterKeyed(conn, keyedSetA, key)
+	require.True(t, svc.Activate(conn))
+}
+
 // closeSignal is a websocket connection that tells when it is closed, and can hold its close.
 type closeSignal struct {
 	closed chan struct{}
@@ -109,8 +117,8 @@ func TestStreams_RevalidateKeys(t *testing.T) {
 			conns := map[string]*closeSignal{
 				connOld: newCloseSignal(), connOther: newCloseSignal(), connWithout: newCloseSignal(),
 			}
-			websockets.RegisterKeyed(conns[connOld], keyedSetA, keyOld)
-			websockets.RegisterKeyed(conns[connOther], keyedSetA, keyOther)
+			registerKeyed(t, websockets, conns[connOld], keyOld)
+			registerKeyed(t, websockets, conns[connOther], keyOther)
 			websockets.Register(conns[connWithout], keyedSetA)
 
 			streams.Revalidate(keyedRuntime(tt.routes))
@@ -169,7 +177,7 @@ func TestStreams_RevalidateDoesNotWaitForTheClose(t *testing.T) {
 		require.NoError(t, streams.Close(context.Background()))
 	})
 
-	websockets.RegisterKeyed(conn, keyedSetA, keyOld)
+	registerKeyed(t, websockets, conn, keyOld)
 
 	done := make(chan struct{})
 
