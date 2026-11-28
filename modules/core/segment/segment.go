@@ -134,7 +134,7 @@ type Definition struct {
 	Name string
 	// Type is the kind of store of the members.
 	Type Type
-	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorUnknown.
+	// OnError is what a lookup that the provider could not answer becomes. Empty means OnErrorNotMember.
 	OnError OnError
 	// Mode is how a segment that lives in a store is served. Empty means ModeSnapshot.
 	Mode Mode
@@ -169,11 +169,11 @@ func (d *Definition) Resolve(state State) State {
 	}
 
 	switch d.OnError {
-	case OnErrorNotMember:
-		return NotMember
+	case "", OnErrorNotMember:
+		return NotMember // the default, as in LaunchDarkly: what cannot be answered is not a member
 	case OnErrorMember:
 		return Member
-	case "", OnErrorUnknown:
+	case OnErrorUnknown:
 		return Unknown
 	}
 
@@ -220,20 +220,21 @@ func (c *Catalog) Has(name string) bool {
 	return ok
 }
 
-// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does, and
-// returns the state unchanged for a segment that the catalog does not define. It does not copy the definition: it is
+// ResolveFor applies the failure policy of the segment name to a lookup state, as [Definition.Resolve] does; a segment
+// that the catalog does not define (or no catalog) gets the default policy, not a member. It does not copy the definition: it is
 // for the evaluation path.
 func (c *Catalog) ResolveFor(name string, state State) State {
-	if c == nil {
+	if state != Unknown {
 		return state
 	}
 
-	def, ok := c.defs[name]
-	if !ok {
-		return state
+	if c != nil {
+		if def, ok := c.defs[name]; ok {
+			return def.Resolve(state)
+		}
 	}
 
-	return def.Resolve(state)
+	return NotMember // a segment that is not defined has no member: the default policy, as in LaunchDarkly
 }
 
 // Lookup returns the definition of the segment name.
