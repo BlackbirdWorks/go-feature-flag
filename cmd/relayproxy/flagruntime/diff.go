@@ -63,7 +63,7 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 
 		switch {
 		case !ok:
-			diff.Added[key] = signed(now, newSigs, key)
+			addSigned(diff.Added, key, now, newSigs)
 		case before != now:
 			diff.Updated[key] = notifier.DiffUpdated{Before: before, After: now}
 		}
@@ -76,22 +76,24 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 
 	for key, before := range oldFlags {
 		if _, ok := newFlags[key]; !ok {
-			diff.Deleted[key] = signed(before, oldSigs, key)
+			addSigned(diff.Deleted, key, before, oldSigs)
 		}
 	}
 
 	return diff
 }
 
-// signed is the flag as a side of an added or deleted change: a flag that uses segments carries the signature of its
-// segments, so that a flag that is removed and restored with the same segments composes to no change. A flag that uses
-// no segment is the flag itself.
-func signed(flag *flagdef.InternalFlag, sigs map[string]uint64, key string) flagdef.Flag {
+// addSigned records the flag as a side of an added or deleted change: a flag that uses segments carries the signature
+// of its segments, so that a flag that is removed and restored with the same segments composes to no change. A flag
+// that uses no segment is the flag itself.
+func addSigned(into map[string]flagdef.Flag, key string, flag *flagdef.InternalFlag, sigs map[string]uint64) {
 	if sig, ok := sigs[key]; ok {
-		return reevaluated{Flag: flag, sig: sig}
+		into[key] = reevaluated{Flag: flag, sig: sig}
+
+		return
 	}
 
-	return flag
+	into[key] = flag
 }
 
 // updateReevaluated adds, for the flags that are the same in both flag sets and whose segment signature differs, an

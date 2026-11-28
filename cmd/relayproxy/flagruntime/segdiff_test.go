@@ -71,7 +71,7 @@ func TestQueuedMembershipChangesCompose(t *testing.T) {
 	}{
 		{name: "changed then restored is nothing", third: docBetaUnused, wantNone: true},
 		{
-			name: "changed then changed again is one update", third: docBetaThree, wantUpdated: []string{"beta-flag"},
+			name: "changed then changed again is one update", third: docBetaThree, wantUpdated: []string{betaFlagName},
 			wantQueued: 1,
 		},
 	}
@@ -155,7 +155,7 @@ func TestQueuedRemovalAndRestoreOfAFlagThatUsesSegments(t *testing.T) {
 		wantNone    bool
 	}{
 		{name: "same members is nothing", final: docBetaUnused, wantNone: true},
-		{name: "other members is one update", final: docBetaThree, wantUpdated: []string{"beta-flag"}, wantQueued: 1},
+		{name: "other members is one update", final: docBetaThree, wantUpdated: []string{betaFlagName}, wantQueued: 1},
 	}
 
 	for _, tt := range tests {

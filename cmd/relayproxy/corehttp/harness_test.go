@@ -241,9 +241,11 @@ func newV2(tb testing.TB) *v2 {
 // manifest). dir is the store directory; empty makes a new one.
 type v2Options struct {
 	// beforeSwap vetoes a candidate runtime (a rejected round); nil lets every candidate through.
-	beforeSwap  func(*flagruntime.Runtime) error
-	stateDir    string
-	dir         string
+	beforeSwap func(*flagruntime.Runtime) error
+	stateDir   string
+	dir        string
+	// connections are more connections of the bootstrap file, as indented lines of its connections block.
+	connections string
 	cold        bool
 	noAdminKeys bool
 }
@@ -295,7 +297,7 @@ func newV2With(tb testing.TB, opts v2Options) *v2 {
 		adminLine = ""
 	}
 
-	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" +
+	doc := "version: 2\nconnections:\n  " + connName + ": {type: file, path: " + dir + "}\n" + opts.connections +
 		"controlPlane:\n  connection: " + connName + "\n  manifest: {key: " + manifestKey + ", channel: " +
 		channelName + ", jitter: 0}\n" + stateLine + "exporters:\n  tracked: {kind: log}\n" +
 		adminLine

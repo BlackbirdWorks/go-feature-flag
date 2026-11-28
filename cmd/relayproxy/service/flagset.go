@@ -63,6 +63,15 @@ type FlagSetResolver interface {
 	IsDefaultFlagSet() bool
 }
 
+// SegmentUser is a [FlagSet] that knows which segments the rules of its flags use: the flag configuration endpoint
+// lists them next to the flag. A flag set that does not implement it lists none.
+type SegmentUser interface {
+	// FlagSegments returns the sorted names of the segments that the rules of the flag use, nil for a flag that uses
+	// none, and whether one of them is dynamic (its members live in a store, so the flag needs the server to be
+	// evaluated).
+	FlagSegments(flagKey string) (names []string, requiresServerEvaluation bool)
+}
+
 // EventAcceptor is a [FlagSet] that tells whether it accepted a feature event: its queue to the exporters is bounded
 // and a full queue drops the event. The collector then counts only the accepted events as ingested. A flag set that
 // does not implement it accepts every event.

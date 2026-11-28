@@ -321,7 +321,7 @@ func variation[T model.JSONType](
 		SegmentCatalog:              set.SegmentCatalogFor(flagKey),
 	}
 
-	return evaluation.Evaluate[T](
+	res, err := evaluation.Evaluate[T](
 		flag,
 		flagKey,
 		evalCtx,
@@ -329,6 +329,14 @@ func variation[T model.JSONType](
 		expectedType,
 		sdkDefaultValue,
 	)
+
+	// the members of a dynamic segment live in a store and change without a new flag: a client must not hold the
+	// answer, whether or not this evaluation reached the segment
+	if res.Cacheable && set.usesDynamicSegment(flagKey) {
+		res.Cacheable = false
+	}
+
+	return res, err
 }
 
 // isDefaultResult tells whether a result with this reason carries the default value of the caller (a flag that is not

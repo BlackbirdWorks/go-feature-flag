@@ -1,7 +1,9 @@
 package flagruntime
 
 import (
+	"fmt"
 	"maps"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/controlplane"
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
@@ -25,7 +27,9 @@ type segState struct {
 	reason    string
 	state     ObjectState
 	segments  int
-	loaded    bool
+	// rejectedDefs is the number of dynamic definitions of the last rejected content that the connections cannot serve.
+	rejectedDefs int
+	loaded       bool
 }
 
 // segObject computes the state of one segments object; it returns prev itself when nothing changed.
@@ -56,7 +60,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return prev
 	}
 
-	doc, err := parseSegments(obj.Bytes)
+	doc, check, err := st.readSegments(obj.Bytes)
 
 	st.emit(name, KindSegments, sum)
 
@@ -67,7 +71,11 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 
 		next := keepSeg(name, prev)
 		next.state, next.reason, next.attempted = ObjectInvalid, err.Error(), sum
+		next.rejectedDefs = check.definitions
 		next.status = segStatus(next)
+
+		st.built.SegmentRejections = append(st.built.SegmentRejections,
+			SegmentRejection{Object: name, Checksum: sum, Reason: next.reason})
 
 		return next
 	}
@@ -79,6 +87,21 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 	next.status = segStatus(next)
 
 	return next
+}
+
+// readSegments decodes and validates a segments document and checks its dynamic definitions against the connections.
+func (st *stage) readSegments(body []byte) (*controlplane.SegmentsDocument, dynamicCheck, error) {
+	doc, err := parseSegments(body)
+	if err != nil {
+		return nil, dynamicCheck{}, err
+	}
+
+	check := checkDynamic(doc, st.b.opts.SegmentStores)
+	if len(check.reasons) > 0 {
+		return nil, check, fmt.Errorf("%w: %s", ErrDynamicDefinitions, strings.Join(check.reasons, "; "))
+	}
+
+	return doc, check, nil
 }
 
 // parseSegments decodes and validates a segments document.
@@ -118,6 +141,7 @@ func segKept(name string, obj *Object, state ObjectState, prev *segState) *segSt
 
 	if prev != nil {
 		next.attempted = prev.attempted
+		next.rejectedDefs = prev.rejectedDefs
 	}
 
 	next.status = segStatus(next)

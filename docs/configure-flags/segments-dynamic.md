@@ -9,7 +9,7 @@ A dynamic segment is a segment of type `redis` or `valkey`: the members stay in 
 
 ## Modes
 
-> Library level today: the modes are interfaces and reference implementations in `modules/core/segment`. The relay does not read a `mode` or a `version` yet; its configuration comes with [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). The Redis and Valkey stores keep the `lookup` behaviour described above.
+> Today the relay reads and checks the `mode` and the `version` of a definition when it builds a generation (see [Checks when a generation is built](#checks-when-a-generation-is-built)), but it does not open the stores yet: a dynamic segment is defined, answers "not a member" and the evaluation reports `NOT_CONFIGURED`. The providers, the snapshots and their refresh come with the next step of [#16](https://github.com/BlackbirdWorks/semaphore/issues/16). The modes are interfaces and reference implementations in `modules/core/segment`; the Redis and Valkey stores keep the `lookup` behaviour described above.
 
 A segment that lives in a store has a mode. A definition with no `mode` is a `snapshot` segment.
 
@@ -31,7 +31,7 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 - A page of a scan that is not well formed (a cursor that is not a number, members that are not strings, a cursor that comes back, more than `MaxScanPages` pages) is a protocol error: the holder keeps the last known good set.
 - A version key is read as `v:<value>`, and a version key that does not exist is `absent`, so a stored value can never be taken for a missing key.
 - ACL: the snapshot mode needs `SSCAN` for the set, and `GET` for a version key, on top of the lookup commands. Set `Snapshot: true` on the segment and `Init` probes both at the start, so a missing permission is an `Init` error that names the command.
-- A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay will run it when it builds a generation.
+- A store kind implements one interface per mode: `Provider` for `lookup`, `SnapshotSource` (a version and a streamed read of the members) for `snapshot`. `segment.RequireMode` is the check for a segment whose store cannot serve its mode; its error names the segment, the mode and the store. The relay runs it when it builds a generation.
 - A version is an opaque string. It comes from the definition (`version.value`, bumped by the publisher), from a key in the store that the writer bumps (`version.key`, polled every `version.interval`), or not at all (time-to-live only). The library models these fields and validates them (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h).
 - A store that can push changes also implements `ChangeNotifier`; polling the version stays the baseline.
 - Nothing in the library starts a goroutine or a timer for this: the relay calls `Holder.Refresh` (snapshot) and `Resolver.RefreshVersions` (lookup) on its own schedule.
@@ -79,6 +79,27 @@ segments:
 `mode` is not written when it is `snapshot`, `missingKey` is `notMember` unless you set `unknown`, and a definition
 with the `keys` layout and the `snapshot` mode is rejected when the document is validated.
 
+## Checks when a generation is built
+
+The relay checks every dynamic definition of a segments document against the connections of its bootstrap file when it reads the document. The checks run in this order, and each failure names the field in the document (`segments[2].connection`):
+
+- The document is valid: names, the exclusive fields, the `keys` layout with the `snapshot` mode (invalid: the `keys` layout is lookup-only), `missingKey`, the `version` block (`value` and `key` are exclusive, `interval` needs a `key`, 100ms to 24h) and the `cache` block.
+- The `connection` is a connection of the bootstrap file.
+- The type of the connection can serve segments (`redis` and `valkey`; a bucket or a stream cannot).
+- The store of the connection serves the `mode` of the definition (`segment.RequireMode`: `lookup` needs a provider, `snapshot` a snapshot source).
+
+A definition that fails is rejected, and the whole segments object follows the last-known-good rules of the other objects: the flag sets keep serving the content they had, the object is reported as `invalid` in `/info` and in the `objects` metric, and the next version of the document is checked again. A document that was never good is an invalid entry: the flag sets that list it keep the flags they had, or serve none.
+
+- A rejection is logged once, when its generation is built (`segments object rejected: its last good content stays`, with the object, the checksum and the reasons), not for each evaluation and not for each poll that finds the same content.
+- `/info` shows, for each flag set, the dynamic segments by state: `valid` (served) and `rejected` (offered by the last content of its segments objects and refused). The reasons are in the log only.
+- Fixing the document and publishing it applies on the next poll, without a restart. The connections are settings that need a restart: a changed `connections` section is listed in `pendingRestart`, and the relay keeps checking against the connections it started with.
+- `semaphore-cli config validate` and `publish` do not know the bootstrap file of a relay, so they do not check the connections: a document can be valid for the CLI and rejected by a relay.
+
+## Cacheable and flag configuration
+
+- A flag whose rules use a dynamic segment answers without `semaphore_cacheable` (and without its legacy alias `gofeatureflag_cacheable`), and with `"cacheable": false` on `/v1/feature/{key}/eval`, even when the evaluation did not reach the segment: its members live in a store and change without a new flag. The bulk endpoints never send the cacheable keys. A flag with static segments only, and a flag with none, answer as before.
+- `POST /v1/flag/configuration` adds two fields to a flag whose rules use segments: `segments` (the sorted names) and `requiresServerEvaluation` (`true` when one of them is dynamic: a client that evaluates the flag itself cannot answer it). A flag that uses no segment has neither field. Members, keys and key patterns are never listed.
+
 ## Which type to choose
 
 | | `redis` ([page](segments-redis.md)) | `valkey` ([page](segments-valkey.md)) |
@@ -104,7 +125,7 @@ The stores are `redis` and `valkey` [connections](../relay-proxy/bootstrap-confi
 - The relay checks the connections and the section at the start, and `semaphore-cli config validate` checks them too.
 - The password is a `fromEnv` or `fromFile` reference. It is never printed.
 - The segment definitions are published with the flags, like any other flag content. That comes with the next step of the segments work; the bootstrap file has no `segments.definitions`.
-- Today the relay only validates the connections and the section and logs that the stores are configured but not active.
+- The relay checks the connections and the section at the start, checks the dynamic definitions against the connections when it builds a generation, and logs that the stores are configured but not active: it does not open them yet.
 
 <!-- full-example -->
 ```yaml

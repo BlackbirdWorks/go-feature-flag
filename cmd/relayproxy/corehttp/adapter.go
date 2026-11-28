@@ -228,6 +228,7 @@ var (
 	_ service.FlagSet       = (*view)(nil)
 	_ service.EventAcceptor = (*view)(nil)
 	_ service.FlagChanger   = (*view)(nil)
+	_ service.SegmentUser   = (*view)(nil)
 )
 
 // RawVariation evaluates one flag.
@@ -245,6 +246,11 @@ func (v *view) GetFlagStates(evalCtx ffcontext.Context, flagsToEvaluate []string
 // AllFlagsState evaluates every flag.
 func (v *view) AllFlagsState(evalCtx ffcontext.Context) flagstate.AllFlags {
 	return v.adapter.eval.AllFlagsState(v.set, evalCtx)
+}
+
+// FlagSegments returns the segments that the rules of a flag use and whether one is dynamic.
+func (v *view) FlagSegments(flagKey string) ([]string, bool) {
+	return v.set.SegmentUse(flagKey)
 }
 
 // GetFlagsFromCache returns the flags of the flag set. The flags are the ones the evaluations use: the caller reads

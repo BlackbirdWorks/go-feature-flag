@@ -22,14 +22,20 @@ type SetSegments struct {
 	hashes map[string]uint64
 	// Static and Dynamic are the numbers of segments of each kind.
 	Static, Dynamic int
+	// RejectedDefinitions counts the dynamic definitions that the last content of its segments objects offered and the
+	// relay rejected (the objects keep their last good content).
+	RejectedDefinitions int
 }
 
 // SegmentCounts is the number of segments of a flag set, in the status and in /info.
 type SegmentCounts struct {
 	// Static is the number of static segments (members in the document).
 	Static int `json:"static"`
-	// Dynamic is the number of dynamic segments (members in a store).
+	// Dynamic is the number of dynamic segments (members in a store) that are valid and served.
 	Dynamic int `json:"dynamic"`
+	// RejectedDefinitions is the number of dynamic definitions that were offered and rejected: the segments object
+	// keeps its last good content.
+	RejectedDefinitions int `json:"rejectedDefinitions,omitempty"`
 }
 
 func (s *SetSegments) counts() *SegmentCounts {
@@ -37,7 +43,7 @@ func (s *SetSegments) counts() *SegmentCounts {
 		return nil
 	}
 
-	return &SegmentCounts{Static: s.Static, Dynamic: s.Dynamic}
+	return &SegmentCounts{Static: s.Static, Dynamic: s.Dynamic, RejectedDefinitions: s.RejectedDefinitions}
 }
 
 // memberSets builds the member sets of the static segments of a document, once for the checksum of the object.
@@ -74,11 +80,17 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		sets     = map[string]*segment.MemberSet{}
 		hashes   = map[string]uint64{}
 		inputs   = make([]*segState, len(spec.segSources))
+
+		rejectedDefs int
 	)
 
 	for idx, source := range spec.segSources {
 		held := st.segs[source]
 		inputs[idx] = held
+
+		if held != nil {
+			rejectedDefs += held.rejectedDefs
+		}
 
 		if held == nil || !held.loaded {
 			problems = append(problems, Problem{
@@ -101,7 +113,9 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		}
 	}
 
-	out := &SetSegments{hashes: make(map[string]uint64, len(defs))}
+	out := &SetSegments{
+		hashes: make(map[string]uint64, len(defs)), RejectedDefinitions: rejectedDefs,
+	}
 	list := make([]segment.Definition, 0, len(defs))
 
 	for _, name := range sortedNames(defs) {
@@ -207,4 +221,36 @@ func flagSignatures(refs map[string][]string, segments *SetSegments) map[string]
 	}
 
 	return sigs
+}
+
+// segUse is what the rules of one flag use of the segments: the names, sorted, and whether one is dynamic.
+type segUse struct {
+	names   []string
+	dynamic bool
+}
+
+// flagUses is, for each flag that uses segments, the segments it uses and whether one of them is dynamic: a dynamic
+// segment has its members in a store, so a client cannot hold the answer. Flags that use no segment have none.
+func flagUses(refs map[string][]string, segments *SetSegments) map[string]segUse {
+	if segments == nil || len(refs) == 0 {
+		return nil
+	}
+
+	uses := make(map[string]segUse, len(refs))
+
+	for flag, names := range refs {
+		use := segUse{names: names}
+
+		for _, name := range names {
+			if def, ok := segments.Catalog.Lookup(name); ok && def.Type != segment.TypeFile {
+				use.dynamic = true
+
+				break
+			}
+		}
+
+		uses[flag] = use
+	}
+
+	return uses
 }

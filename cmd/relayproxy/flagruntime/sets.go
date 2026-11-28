@@ -184,7 +184,7 @@ func (st *stage) buildSet(spec *setSpec, notes []Problem) *setState {
 
 	fset := &FlagSet{
 		Flags: flags, Name: spec.name, State: phase, Hash: hash, APIKeys: len(spec.keys), Rejected: sum.rejected,
-		ModifiedAt: st.now, Segments: segments, flagSigs: sigs,
+		ModifiedAt: st.now, Segments: segments, flagSigs: sigs, uses: flagUses(refs, segments),
 	}
 
 	return &setState{
@@ -204,6 +204,7 @@ func frozenSet(old *setState, spec *setSpec, notes []Problem, now time.Time) *se
 		Flags:      old.fs.Flags,
 		Segments:   old.fs.Segments,
 		flagSigs:   old.fs.flagSigs,
+		uses:       old.fs.uses,
 		Name:       old.fs.Name,
 		State:      old.fs.State,
 		Hash:       old.fs.Hash,
