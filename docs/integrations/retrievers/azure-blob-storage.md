@@ -1,35 +1,12 @@
 # Azure Blob Storage
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
 Load flag configurations from Azure Blob Storage.
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: azureBlobStorage
-    container: my-featureflag-container
-    accountName: my-featureflag-account
-    object: flag/flags.yaml
-# ...
-```
-
-| Field name    | Mandatory | Type   | Default  | Description |
-|---------------|:---------:|--------|----------|-------------|
-| `kind`        | Yes       | string | **none** | Value should be **`azureBlobStorage`**.<br/>_Mandatory field identifying the retriever._ |
-| `container`   | Yes       | string | **none** | Name of your Azure Blob Storage container _(ex: `my-featureflag-container`)_. |
-| `accountName` | Yes       | string | **none** | Name of your Azure Blob Storage account. |
-| `object`      | Yes       | string | **none** | Location of your configuration file. |
-| `accountKey`  | No        | string | **none** | Secret key of your Azure Blob Storage account. If omitted, `DefaultAzureCredential` is used. |
 
 ## Configure the Go module
 

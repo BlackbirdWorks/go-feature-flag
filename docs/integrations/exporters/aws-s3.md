@@ -9,43 +9,28 @@ The S3 exporter collects events and writes a new file to an AWS S3 bucket each t
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
-exporters:
-  - kind: s3
+version: 2
+connections:
+  evaluation-data:
+    type: s3
+    region: eu-west-1
     bucket: evaluation-data-bucket
-# ...
+exporters:
+  evaluations:
+    kind: s3
+    connection: evaluation-data
+    path: evaluations/
 ```
 
-> [!NOTE]
-> Provide AWS credentials using standard environment variables:
->
-> ```shell
-> export AWS_SECRET_ACCESS_KEY=xxxx
-> export AWS_ACCESS_KEY_ID=xxx
-> export AWS_DEFAULT_REGION=eu-west-1
-> ```
+- `connection` (required): an `s3` connection that sets a `bucket`. The region, endpoint and credentials come from the connection; with `credentials.type: chain` (the default) the standard AWS environment variables apply.
+- Optional: `path`, `format` (`json`, `csv`, `parquet`), `filename`, `csvTemplate`, `parquetCompressionCodec`.
 
-| Field name                | Mandatory | Type   | Default                                                                                                                            | Description                                                                                                                                                                                                                        |
-|---------------------------|:---------:|--------|------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`                    | Yes       | string | **none**                                                                                                                           | Value should be `s3`.<br/>_This field is mandatory and describes which exporter you are using._                                                                                                                                      |
-| `bucket`                  | Yes       | string | **none**                                                                                                                           | Name of your S3 bucket.                                                                                                                                                                                                            |
-| `flushInterval`           | No        | int    | `60000`                                                                                                                            | Interval in milliseconds before flushing events (flushes earlier if `maxEventInMemory` is reached first).                                                                                                                          |
-| `maxEventInMemory`        | No        | int    | `100000`                                                                                                                           | Maximum number of events buffered in memory before flushing.                                                                                                                                                                       |
-| `format`                  | No        | string | `JSON`                                                                                                                             | Output file format: `JSON`, `CSV`, or `Parquet`.                                                                                                                                                                                   |
-| `filename`                | No        | string | `flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}`                                                                       | Go template for exported filenames. Available fields: `{{ .Hostname}}`, `{{ .Timestamp}}`, and `{{ .Format}}`.                                                                                                                     |
-| `csvTemplate`             | No        | string | `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};{{ .Default}};{{ .Source}}\n` | Go template for CSV rows (ignored for other formats). See [`exporter/feature_event.go`](https://github.com/BlackbirdWorks/semaphore/blob/main/exporter/feature_event.go) for available fields.                                      |
-| `path`                    | No        | string | **bucket root level**                                                                                                              | Directory path inside the S3 bucket.                                                                                                                                                                                               |
-| `parquetCompressionCodec` | No        | string | `SNAPPY`                                                                                                                           | Parquet compression codec. See [available options](https://github.com/apache/parquet-format/blob/master/Compression.md).                                                                                                           |
+The same exporter writes to S3-compatible stores such as MinIO, Ceph or Garage: set `endpoint` and `pathStyle` on the connection, see the [MinIO page](minio.md).
 
-### Compatibility with S3-compatible solutions
-
-The S3 exporter also works with S3-compatible object stores such as **MinIO**, Ceph, or Garage: keep `kind: s3` and point the AWS SDK at your server with `AWS_ENDPOINT_URL_S3`.
-
-> [!NOTE]
-> Read the [**MinIO** page](minio.md) for the full setup, including bucket addressing behavior when using a hostname endpoint instead of an IP address.
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

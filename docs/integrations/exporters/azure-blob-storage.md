@@ -11,30 +11,22 @@ Every time `FlushInterval` or `MaxEventInMemory` is reached, a new file is uploa
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
 exporters:
-  - kind: azureBlobStorage
-    container: test-semaphore
-    accountName: semaphore
-# ...
+  evaluations:
+    kind: azureBlobStorage
+    container: evaluation-data
+    accountName: myaccount
+    accountKey: {fromEnv: AZURE_STORAGE_KEY}
 ```
 
-| Field name                | Mandatory | Type   | Default                                                                                                                            | Description                                                                                                                                                                                    |
-|---------------------------|:---------:|--------|------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`                    | Yes       | string | **none**                                                                                                                           | Value should be `azureBlobStorage`.<br/>_This field is mandatory and describes which exporter you are using._                                                                                  |
-| `container`               | Yes       | string | **none**                                                                                                                           | Name of your Azure Blob Storage container (for example, `my-featureflag-container`).                                                                                                           |
-| `accountName`             | Yes       | string | **none**                                                                                                                           | Name of your Azure Blob Storage account.                                                                                                                                                       |
-| `accountKey`              | No        | string | **none**                                                                                                                           | Secret key of your Azure Blob Storage account.                                                                                                                                                 |
-| `flushInterval`           | No        | int    | `60000`                                                                                                                            | Interval in milliseconds before flushing events (flushes earlier if `maxEventInMemory` is reached first).                                                                                      |
-| `maxEventInMemory`        | No        | int    | `100000`                                                                                                                           | Maximum number of events buffered in memory before flushing.                                                                                                                                   |
-| `format`                  | No        | string | `JSON`                                                                                                                             | Output file format: `JSON`, `CSV`, or `Parquet`.                                                                                                                                               |
-| `filename`                | No        | string | `flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}`                                                                       | Go template for exported filenames. Available fields: `{{ .Hostname}}`, `{{ .Timestamp}}`, and `{{ .Format}}`.                                                                                 |
-| `csvTemplate`             | No        | string | `{{ .Kind}};{{ .ContextKind}};{{ .UserKey}};{{ .CreationDate}};{{ .Key}};{{ .Variation}};{{ .Value}};{{ .Default}};{{ .Source}}\n` | Go template for CSV rows (ignored for other formats). See [`exporter/feature_event.go`](https://github.com/BlackbirdWorks/semaphore/blob/main/exporter/feature_event.go) for available fields. |
-| `path`                    | No        | string | **container root level**                                                                                                           | Directory path inside the Azure Blob Storage container.                                                                                                                                        |
-| `parquetCompressionCodec` | No        | string | `SNAPPY`                                                                                                                           | Parquet compression codec. See [available options](https://github.com/apache/parquet-format/blob/master/Compression.md).                                                                       |
+- `container` and `accountName` (required); `accountKey` (a secret).
+- Optional: `path`, `format` (`json`, `csv`, `parquet`), `filename`, `csvTemplate`, `parquetCompressionCodec`.
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

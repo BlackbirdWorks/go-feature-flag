@@ -19,7 +19,9 @@ Check the [**OpenAPI specification**](https://github.com/BlackbirdWorks/semaphor
 | `GET /openfeature/v0/manifest`          | OpenFeature flag manifest.                                             |
 | `POST /admin/v1/flags/validate`         | Validate a flag file.                                                  |
 | `POST /admin/v1/retriever/refresh`      | Poll the control plane now (admin key); answers the result, the generation and whether it changed. |
-| `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on `monitoringPort` when set; `/metrics` requires metrics enabled). |
+| `GET /health`, `GET /info`, `GET /metrics` | Monitoring (on the `ops` listener when there is one; `/metrics` requires `observability.metrics.enabled`). |
+| `GET /livez`, `GET /readyz`, `GET /startupz` | Probes, see [probes](probes.md). |
+| `GET /debug/pprof/` | Profiler, on the `ops` listener only and only when `server.ops.pprof.enabled` is set, see [profiling](profiling.md). |
 
 Streaming endpoints are listed in [Flag change streams](#flag-change-streams).
 
@@ -49,7 +51,7 @@ Pass the API key with the `apiKey` query parameter, for example `ws://localhost:
 When running with [flag sets](../concepts/flagset.md), each stream is scoped to a single flag set:
 
 - The connection receives only changes for the flag set associated with its API key.
-- The API key **must belong to a flag set**. A missing or unknown key returns `401`; a valid key not associated with any flag set (such as `authorizedKeys.admin`) returns `400` before the WebSocket upgrade.
+- The API key **must belong to a flag set**. A missing or unknown key returns `401`; a valid key not associated with any flag set (such as an `auth.adminKeys` key) returns `400` before the WebSocket upgrade.
 - To watch multiple flag sets, open **one connection per flag set**, each using an API key for that flag set.
 
 > [!WARNING]
@@ -73,4 +75,4 @@ was withdrawn, is refused; a key that moved to another flag set reconnects and l
 > Older versions sent changes from every flag set to every WebSocket client. Open one connection per flag set if you need multiple sets.
 > The deprecated `/ws/v1/flag/change` endpoint follows the same rules; migrate clients to `/stream/v1/ws/flag/change`.
 
-Without flag sets, every connection receives all flag changes.
+A connection without a key receives the changes of the public flags, see [public flags](bootstrap-config.md#public-flags).

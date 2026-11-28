@@ -1,9 +1,8 @@
 # Kubernetes ConfigMap
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -16,30 +15,6 @@ Create a ConfigMap from your `flags.yaml` file with `kubectl`:
 ```shell
 kubectl create configmap semaphore --from-file=flags.yaml
 ```
-
-## Configure the relay proxy
-
-> [!NOTE]
-> The relay proxy only supports ConfigMaps when running inside a Kubernetes cluster.
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: configmap
-    namespace: default
-    configmap: my-configmap
-    key: my-flags.yml
-# ...
-```
-
-| Field name  | Mandatory | Type   | Default  | Description |
-|-------------|:---------:|--------|----------|-------------|
-| `kind`      | Yes       | string | **none** | Value should be **`configmap`**.<br/>_Mandatory field identifying the retriever._ |
-| `namespace` | Yes       | string | **none** | Namespace where your **ConfigMap** is located _(ex: `default`)_. |
-| `configmap` | Yes       | string | **none** | Name of the **ConfigMap** to read _(ex: `feature-flag`)_. |
-| `key`       | Yes       | string | **none** | Key inside the **ConfigMap** holding the flags. |
 
 ## Configure the Go module
 

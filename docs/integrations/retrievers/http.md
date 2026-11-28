@@ -1,37 +1,12 @@
 # HTTP(S)
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
 Fetch flag configurations from a remote URL over HTTP(S).
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: http
-    url: https://my-feature-flag-location.com/flags.yaml
-# ...
-```
-
-| Field name       | Mandatory | Type   | Default  | Description |
-|------------------|:---------:|--------|----------|-------------|
-| `kind`           | Yes       | string | **none** | **Value should be `http`.**<br/>_Mandatory field identifying the retriever._ |
-| `url`            | Yes       | string | **none** | Location to retrieve the file. |
-| `method`         | No        | string | `GET`    | HTTP method used to call the endpoint. |
-| `body`           | No        | string | **none** | HTTP request body sent when calling the endpoint. |
-| `headers`        | No        | object | **none** | HTTP headers sent when calling the endpoint (useful for authorization). |
-| `clientCertPath` | No        | string | **none** | Path to the client certificate file used for mTLS. Must be set with `clientKeyPath`. |
-| `clientKeyPath`  | No        | string | **none** | Path to the client certificate key file used for mTLS. Must be set with `clientCertPath`. |
-| `caCertPath`     | No        | string | **none** | Path to the CA certificate file used to verify the server certificate. |
-| `timeout`        | No        | int    | `10000`  | Timeout in milliseconds when calling the HTTP endpoint. |
 
 ## Configure the Go module
 

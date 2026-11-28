@@ -11,8 +11,8 @@ Both share the exact same evaluation engine.
 
 ```mermaid
 flowchart LR
-    sources["Flag Sources\n(File, S3, Git, K8s, DB)"] --> retrievers["Retrievers\n(Polling / Refresh)"]
-    retrievers --> proxy["Semaphore Relay Proxy\n(In-Memory Cache + Rules Engine)"]
+    publisher["semaphore-cli publish"] --> store["Control plane store\n(S3 bucket or directory)"]
+    store -->|"manifest poll"| proxy["Semaphore Relay Proxy\n(In-Memory Cache + Rules Engine)"]
     apps["Applications\n(OpenFeature SDK + OFREP)"] <-->|"HTTP / OFREP"| proxy
     proxy --> exporters["Exporters\n(Feature + Tracking Events)"]
     exporters --> sinks["Analytics & Storage\n(S3, Kafka, OTel, Webhook)"]
@@ -29,16 +29,16 @@ Applications use standard [OpenFeature](https://openfeature.dev) SDKs with an [O
 ### Relay Proxy
 
 - Single stateless Go binary with no database dependency.
-- Loads flag files into memory and refreshes them on a configurable interval.
+- Polls a manifest in a control plane store (an S3 bucket or a directory), loads the flag sets it lists into memory, and swaps them in place when a new generation appears.
 - See the [Relay Proxy docs](../relay-proxy/README.md) to get started.
 
 ### Core pipelines
 
-- **[Retrievers](retriever.md)**: fetch flag definitions from local files, object storage, Git, Kubernetes, or databases.
+- **[Control plane](control-plane-polling.md)**: the store the relay polls for flag sets. In the Go module, [retrievers](retriever.md) fetch flag definitions from files, object storage, Git, Kubernetes, or databases.
 - **[Notifiers](notifier.md)**: alert external systems (Slack, Discord, Microsoft Teams, webhooks) when flag definitions change.
 - **[Exporters](exporter.md)**: send flag evaluation and tracking events to analytics or monitoring sinks.
 
 ## Stack
 
 - Written in Go.
-- Retrievers, notifiers, and exporters use official client libraries for each backend.
+- Notifiers and exporters use official client libraries for each backend.

@@ -1,0 +1,126 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/blackbirdworks/semaphore/controlplane/segments-document",
+    "$ref": "#/$defs/SegmentsDocument",
+    "$defs": {
+        "MemberList": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "MemberList is the member list of a static segment."
+        },
+        "SegmentCache": {
+            "properties": {
+                "maxEntries": {
+                    "type": "integer",
+                    "description": "MaxEntries is the most cached answers."
+                },
+                "ttl": {
+                    "type": "string",
+                    "description": "TTL is how long an answer is cached, a duration such as \"30s\"."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SegmentCache sizes the cache of a lookup segment."
+        },
+        "SegmentDefinition": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name is the name that rules use: segment(\"name\")."
+                },
+                "connection": {
+                    "type": "string",
+                    "description": "Connection names a connection of the relay bootstrap file: a dynamic segment."
+                },
+                "members": {
+                    "$ref": "#/$defs/MemberList",
+                    "description": "Members are the members of a static segment. An empty list is a static segment with no member."
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Mode is \"snapshot\" (default) or \"lookup\" (dynamic only)."
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Key is the key of the set (layout set) or the prefix of the member keys (layout keys) in the store."
+                },
+                "layout": {
+                    "type": "string",
+                    "description": "Layout is \"set\" (default) or \"keys\". The keys layout is lookup only."
+                },
+                "missingKey": {
+                    "type": "string",
+                    "description": "MissingKey is \"notMember\" (default) or \"unknown\": what a segment that does not exist in the store means."
+                },
+                "onError": {
+                    "type": "string",
+                    "description": "OnError is what a lookup that could not be answered becomes: \"notMember\" (default), \"unknown\" or \"member\"."
+                },
+                "version": {
+                    "$ref": "#/$defs/SegmentVersion",
+                    "description": "Version says how the version of the segment is learned (dynamic only)."
+                },
+                "cache": {
+                    "$ref": "#/$defs/SegmentCache",
+                    "description": "Cache sizes the cache of a lookup segment."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "description": "SegmentDefinition is one segment."
+        },
+        "SegmentVersion": {
+            "properties": {
+                "value": {
+                    "type": "string",
+                    "description": "Value is a version that the document carries."
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Key is the version key in the store."
+                },
+                "interval": {
+                    "type": "string",
+                    "description": "Interval is the poll period of Key, a duration such as \"5s\" (needs Key)."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SegmentVersion is the version of a dynamic segment: the publisher bumps Value, or the writer of the members bumps the version key Key in the store, which the relay polls every Interval."
+        },
+        "SegmentsDocument": {
+            "properties": {
+                "apiVersion": {
+                    "type": "string",
+                    "description": "APIVersion is the document version, \"semaphore/v1\". Empty means the current version when marshalling."
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Kind is \"Segments\". Empty means \"Segments\" when marshalling."
+                },
+                "segments": {
+                    "items": {
+                        "$ref": "#/$defs/SegmentDefinition"
+                    },
+                    "type": "array",
+                    "description": "Segments are the definitions."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "apiVersion",
+                "kind",
+                "segments"
+            ],
+            "description": "SegmentsDocument is the document of kind Segments: named segment definitions."
+        }
+    },
+    "title": "Semaphore segments document"
+}

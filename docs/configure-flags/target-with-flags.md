@@ -113,10 +113,9 @@ You can configure an environment when initializing Semaphore so every evaluation
 ### Relay Proxy
 
 ```yaml
-# ...
-evaluationContextEnrichment:
-  env: prod
-# ...
+version: 2
+evaluation:
+  environment: prod
 ```
 
 ### Go Module

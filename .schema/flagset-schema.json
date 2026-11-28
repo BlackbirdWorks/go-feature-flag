@@ -1,0 +1,71 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/blackbirdworks/semaphore/controlplane/flag-set-document",
+    "$ref": "#/$defs/FlagSetDocument",
+    "$defs": {
+        "FlagSet": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name is the unique name of the flag set."
+                },
+                "sources": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Sources are names of manifest objects of kind flags; a later source wins on a duplicate flag key."
+                },
+                "segmentSources": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "SegmentSources are names of manifest objects of kind segments; the segments that the rules of this flag set\nname with segment(\"name\") are defined there. A name must be defined once in all the sources of a flag set."
+                },
+                "apiKeys": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "APIKeys are plain inline keys (UUIDs). They are secrets: never log them."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "sources"
+            ],
+            "description": "FlagSet binds flag objects and API keys."
+        },
+        "FlagSetDocument": {
+            "properties": {
+                "apiVersion": {
+                    "type": "string",
+                    "description": "APIVersion is the document version, \"semaphore/v1\". Empty means the current version when marshalling."
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Kind is \"FlagSet\". Empty means \"FlagSet\" when marshalling."
+                },
+                "flagSets": {
+                    "items": {
+                        "$ref": "#/$defs/FlagSet"
+                    },
+                    "type": "array",
+                    "description": "FlagSets are the flag-set definitions."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "apiVersion",
+                "kind",
+                "flagSets"
+            ],
+            "description": "FlagSetDocument is the document of kind FlagSet."
+        }
+    },
+    "title": "Semaphore flag-set document"
+}

@@ -9,20 +9,26 @@ Export evaluation data to an AWS SQS queue.
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
+connections:
+  queue:
+    type: sqs
+    region: eu-west-1
+    queueUrl: https://sqs.eu-west-1.amazonaws.com/123456789012/evaluation-events
 exporters:
-  - kind: sqs
-    queueUrl: "https://sqs.us-east-1.amazonaws/XXXX/test-queue"
-# ...
+  evaluations:
+    kind: sqs
+    connection: queue
 ```
 
-| Field name | Mandatory | Type   | Default  | Description                                                                                      |
-|------------|:---------:|--------|----------|--------------------------------------------------------------------------------------------------|
-| `kind`     | Yes       | string | **none** | Value should be `sqs`.<br/>_This field is mandatory and describes which exporter you are using._ |
-| `queueUrl` | Yes       | string | **none** | URL of your SQS queue (available in the AWS console).                                            |
+- `connection` (required): an `sqs` connection.
+- The queue: `queueUrl` on the exporter, or `queueUrl` on the connection.
+- `format` is accepted and ignored: the message body is always JSON.
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

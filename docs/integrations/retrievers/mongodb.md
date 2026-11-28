@@ -1,9 +1,8 @@
 # MongoDB
 
 > [!NOTE]
-> The relay proxy does not run this retriever: its use in the relay returns with issue #57, on the control plane
-> connections of the [bootstrap file](../../relay-proxy/bootstrap-config.md). The relay configuration of this page is not
-> read by the relay. The Go module is not affected.
+> The relay proxy does not run retrievers: it reads its control plane from a store connection, see the
+> [bootstrap file](../../relay-proxy/bootstrap-config.md). This page is about the retriever of the Go module.
 
 ## Overview
 
@@ -33,27 +32,6 @@ The retriever reads all documents from the collection at once.
     }
 }
 ```
-
-## Configure the relay proxy
-
-Add this configuration to your relay proxy config file:
-
-```yaml
-# ...
-retrievers:
-  - kind: mongodb
-    uri: mongodb://root:example@127.0.0.1:27017/
-    database: appConfig
-    collection: featureFlags
-# ...
-```
-
-| Field name   | Mandatory | Type   | Default  | Description |
-|--------------|:---------:|--------|----------|-------------|
-| `kind`       | Yes       | string | **none** | Value should be **`mongodb`**.<br/>_Mandatory field identifying the retriever._ |
-| `uri`        | Yes       | string | **none** | MongoDB connection URI. |
-| `database`   | Yes       | string | **none** | Name of the **database** where flags are stored. |
-| `collection` | Yes       | string | **none** | Name of the **collection** where flags are stored. |
 
 ## Configure the Go module
 

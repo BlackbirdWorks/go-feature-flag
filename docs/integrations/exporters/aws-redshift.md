@@ -9,57 +9,31 @@ The AWS Redshift exporter inserts feature flag evaluation and tracking events di
 
 ## Configure the relay proxy
 
-Add the following configuration to your relay proxy configuration file:
+Add the exporter to the `exporters` map of the [bootstrap file](../../relay-proxy/bootstrap-config.md):
 
 ```yaml
-# ...
+version: 2
+connections:
+  warehouse:
+    type: redshift
+    region: eu-west-1
 exporters:
-  - kind: redshift
-    clusterIdentifier: "my-cluster"
-    database: "analytics"
-    dbUser: "semaphore_writer"
-    tableName: "feature_flag_evaluations"
-    awsRegion: "us-east-1"
+  evaluations:
+    kind: redshift
+    connection: warehouse
+    database: analytics
+    workgroupName: analytics-serverless
+    tableName: feature_flag_evaluations
     autoMigrate: true
-    eventType: "feature"
-# ...
 ```
 
-> [!NOTE]
-> Each relay proxy exporter targets a single `eventType` (defaulting to `feature`). To export **both** evaluation and tracking events, declare two Redshift exporters:
->
-> ```yaml
-> # ...
-> exporters:
->   - kind: redshift
->     workgroupName: "my-workgroup"
->     database: "analytics"
->     tableName: "feature_flag_evaluations"
->     autoMigrate: true
->     eventType: "feature"
->   - kind: redshift
->     workgroupName: "my-workgroup"
->     database: "analytics"
->     tableName: "tracking_events"
->     autoMigrate: true
->     eventType: "tracking"
-> # ...
-> ```
+- `connection` (required): a `redshift` connection.
+- `database` (required) and exactly one of `clusterIdentifier` and `workgroupName`.
+- Optional: `tableName`, `autoMigrate`, `secretArn`, and `dbUser` (not with `workgroupName` or `secretArn`).
 
-| Field name          | Mandatory | Type    | Default                                                            | Description                                                                                                                   |
-|---------------------|:---------:|---------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `kind`              | Yes       | string  | **none**                                                           | Value should be `redshift`.<br/>_This field is mandatory and describes which exporter you are using._                         |
-| `database`          | Yes       | string  | **none**                                                           | Name of the Redshift database receiving the events.                                                                           |
-| `clusterIdentifier` | No        | string  | **none**                                                           | Identifier of a provisioned Redshift cluster. Set either `clusterIdentifier` or `workgroupName`.                              |
-| `workgroupName`     | No        | string  | **none**                                                           | Name or ARN of a Redshift Serverless workgroup. Set either `clusterIdentifier` or `workgroupName`.                            |
-| `dbUser`            | No        | string  | **none**                                                           | Database user used with `clusterIdentifier` for temporary credentials. Cannot be used with `workgroupName` or `secretArn`.    |
-| `secretArn`         | No        | string  | **none**                                                           | ARN of an AWS Secrets Manager secret containing database credentials. Cannot be used with `dbUser`.                           |
-| `tableName`         | No        | string  | `feature_flag_evaluations` (feature), `tracking_events` (tracking) | Target table name. Can be schema-qualified (`my_schema.my_table`).                                                            |
-| `awsRegion`         | No        | string  | **none**                                                           | AWS region of your Redshift cluster or workgroup. If empty, the default AWS configuration is used.                            |
-| `autoMigrate`       | No        | boolean | `false`                                                            | When `true`, creates the target table if it does not exist.                                                                   |
-| `eventType`         | No        | string  | `feature`                                                          | Event type to export: `feature` for evaluation events or `tracking` for tracking events.                                      |
-| `flushInterval`     | No        | int     | `60000`                                                            | Interval in milliseconds before flushing events (flushes earlier if `maxEventInMemory` is reached first).                     |
-| `maxEventInMemory`  | No        | int     | `100000`                                                           | Maximum number of events buffered in memory before flushing.                                                                  |
+An exporter delivers events of one `eventType`. The relay serves `feature` events; an exporter with another `eventType` fails to build.
+
+The settings that every exporter takes (`flushInterval`, `maxEventInMemory`, `eventType`, `meta`, `overflowPolicy`, `retry` and the other pipeline settings) are in the [bootstrap file reference](../../relay-proxy/bootstrap-config.md) (section `exporters.<name>`).
 
 ## Configure the Go module
 

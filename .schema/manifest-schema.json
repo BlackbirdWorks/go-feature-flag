@@ -1,0 +1,121 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/blackbirdworks/semaphore/controlplane/manifest",
+    "$ref": "#/$defs/Manifest",
+    "$defs": {
+        "Checksum": {
+            "properties": {
+                "algorithm": {
+                    "type": "string",
+                    "description": "Algorithm is AlgorithmSHA256."
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Value is the lower-case hex digest."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "algorithm",
+                "value"
+            ],
+            "description": "Checksum is a content checksum: an algorithm and a lower-case hex value."
+        },
+        "Manifest": {
+            "properties": {
+                "apiVersion": {
+                    "type": "string",
+                    "description": "APIVersion is the document version, \"semaphore/v1\". Empty means the current version when marshalling."
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Kind is \"Manifest\". Empty means \"Manifest\" when marshalling."
+                },
+                "channel": {
+                    "type": "string",
+                    "description": "Channel names the channel (environment) of the manifest."
+                },
+                "generation": {
+                    "type": "integer",
+                    "description": "Generation increases strictly with every publication of a channel, starting at 1."
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "CreatedAt is informational."
+                },
+                "objects": {
+                    "items": {
+                        "$ref": "#/$defs/ManifestObject"
+                    },
+                    "type": "array",
+                    "description": "Objects are the source objects."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "apiVersion",
+                "kind",
+                "channel",
+                "generation",
+                "objects"
+            ],
+            "description": "Manifest lists the objects of one channel at one generation."
+        },
+        "ManifestObject": {
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "Name is the logical name, unique in the manifest; flag sets reference objects by it."
+                },
+                "kind": {
+                    "type": "string",
+                    "description": "Kind is KindFlags or KindFlagSets."
+                },
+                "connection": {
+                    "type": "string",
+                    "description": "Connection names a connection of the relay bootstrap file; it fixes endpoint, bucket and credentials."
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Key is the key of the object in the bucket of the connection."
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Format is FormatYAML, FormatJSON or (flags only) FormatTOML."
+                },
+                "version": {
+                    "type": "integer",
+                    "description": "Version is the version of the content schema; 0 means ObjectVersion1."
+                },
+                "checksum": {
+                    "$ref": "#/$defs/Checksum",
+                    "description": "Checksum is the checksum of the exact stored bytes."
+                },
+                "size": {
+                    "type": "integer",
+                    "description": "Size is the size of the stored bytes."
+                },
+                "versionId": {
+                    "type": "string",
+                    "description": "VersionID is an optional object version id of the store."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "name",
+                "kind",
+                "connection",
+                "key",
+                "format",
+                "checksum",
+                "size"
+            ],
+            "description": "ManifestObject is one source object of a manifest."
+        }
+    },
+    "title": "Semaphore manifest"
+}

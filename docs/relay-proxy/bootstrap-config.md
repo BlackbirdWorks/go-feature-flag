@@ -133,7 +133,7 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
-| `server.unixSocketPath` | string | none | a path |
+| `server.unixSocketPath` | string | none | reserved: the relay refuses any value |
 | `server.listeners[].name` | string | required | name rules |
 | `server.listeners[].address` | string | required | `host:port`, for example `:1031` |
 | `server.listeners[].role` | string | `api` | `api`, `ops` |
@@ -211,6 +211,8 @@ A change of `evaluation` needs a restart (it is listed in `pendingRestart` after
 | Key | Type | Default | Allowed |
 |---|---|---|---|
 | `adminKeys` | list | empty | plain strings or `{fromEnv: NAME}` / `{fromFile: PATH}` |
+| `adminKeys[].fromEnv` | string | | name of the environment variable that holds the key; one of `fromEnv`, `fromFile` per item |
+| `adminKeys[].fromFile` | string | | path of the file that holds the key, trailing newline removed |
 
 Public flags are not a bootstrap setting: see [Public flags](#public-flags).
 
@@ -268,10 +270,11 @@ Every connection has a `type`. The types `s3`, `kinesis`, `sqs`, `redshift`, `fi
 but not built yet (`webhook`, `kafka`, `postgres`, `mysql`, `dynamodb`, `gcs`, `azureBlob`,
 `pubsub`, `bigquery`, `http`) fail with `type not supported yet`; any other value is an unknown type.
 
-Settings shared by the AWS types (`s3`, `kinesis`, `sqs`, `redshift`):
+Every type takes `type`. Settings shared by the AWS types (`s3`, `kinesis`, `sqs`, `redshift`):
 
 | Key | Type | Default | Allowed |
 |---|---|---|---|
+| `type` | string | required | `s3`, `kinesis`, `sqs`, `redshift`, `file`, `redis`, `valkey` |
 | `endpoint` | string | none (the SDK endpoint) | an `http` or `https` URL without credentials, for emulators |
 | `region` | string | required for `s3` | non-blank; never read from the environment or the shared config files |
 | `caBundleFile` | string | none (the system roots) | a PEM file of certificate authorities trusted in addition, for TLS emulators and private stores |
@@ -352,12 +355,48 @@ The relay validates this section and serves the `lookup` mode with it (see [Segm
 ### `exporters.<name>`
 
 `kind` is required. An exporter that needs an AWS service refers to a connection of the matching type with
-`connection` (the endpoint, region and credentials of version 1 are gone). Only the schema is validated today: the
-relay does not run these exporters from this file yet.
+`connection`. The relay builds and runs the exporters of this section: a kind that fails to build is reported by
+`/readyz` and `/info`, and the other exporters keep running (see [Events and notifiers](../concepts/events-and-notifiers.md)).
 
-Keys valid for every kind: `kind`, `meta` (map of string), `flushInterval` (duration, default `60s`),
-`maxEventInMemory` (integer, 1 or more, default `100000`), `eventType`, and the pipeline settings below. A `queueUrl`
-is an `http` or `https` URL without credentials.
+Keys valid for every kind: `kind`, `meta`, `flushInterval`, `maxEventInMemory`, `eventType` and the pipeline settings
+below. A `queueUrl` is an `http` or `https` URL without credentials.
+
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `kind` | string | required | `file`, `webhook`, `log`, `s3`, `kinesis`, `googleStorage`, `sqs`, `kafka`, `pubsub`, `bigquery`, `redshift`, `azureBlobStorage`, `opentelemetry` |
+| `meta` | map of string | none | metadata added to every event of the exporter |
+| `flushInterval` | duration | `60s` | positive; time between two flushes of the batch |
+| `maxEventInMemory` | integer | `100000` | 1 or more; a batch is flushed when it holds that many events |
+| `eventType` | string | `feature` | `feature`; any other value makes the exporter fail to build (tracking events reach no exporter yet) |
+| `format` | string | `json` | `json`, `csv`, `parquet`; see below for the kinds that ignore it |
+| `filename` | string | `flag-variation-{{ .Hostname}}-{{ .Timestamp}}.{{ .Format}}` | Go template of the object or file name |
+| `csvTemplate` | string | one line of the event fields, separated by `;` | Go template of a CSV row, for `format: csv` |
+| `parquetCompressionCodec` | string | `SNAPPY` | Parquet compression codec, for `format: parquet` |
+| `path` | string | bucket root | directory inside the bucket or container (`s3`, `googleStorage`, `azureBlobStorage`) |
+| `outputDir` | string | required for `file` | directory the files are written to |
+| `logFormat` | string | one line with date, user, flag and value | Go template of a log line (`log`) |
+| `tracerName` | string | none | name of the tracer (`opentelemetry`) |
+| `bucket` | string | required for `googleStorage` | name of the bucket |
+| `container` | string | required for `azureBlobStorage` | name of the blob container |
+| `accountName` | string | required for `azureBlobStorage` | storage account name |
+| `accountKey` | secret | none | storage account key (`azureBlobStorage`) |
+| `googleCredentials` | secret | none | credentials JSON (`googleStorage`, `pubsub`, `bigquery`) |
+| `connection` | string | required for `s3`, `kinesis`, `sqs`, `redshift` | name of a connection of the same type |
+| `queueUrl` | string | the connection's | URL of the queue (`sqs`) |
+| `streamName`, `streamArn` | string | the connection's `stream` | stream (`kinesis`); one of the two, or `stream` on the connection |
+| `projectId` | string | required for `pubsub`, `bigquery` | Google Cloud project |
+| `datasetId` | string | required for `bigquery` | dataset |
+| `topic` | string | required for `pubsub` | topic |
+| `tableName` | string | none | table (`bigquery`, `redshift`) |
+| `autoMigrate` | boolean | `false` | create or migrate the table (`bigquery`, `redshift`) |
+| `database` | string | required for `redshift` | database name |
+| `clusterIdentifier`, `workgroupName` | string | none | `redshift`: exactly one of the two |
+| `dbUser` | string | none | `redshift` database user; not with `workgroupName` or `secretArn` |
+| `secretArn` | string | none | `redshift`: Secrets Manager secret of the credentials |
+| `endpointUrl` | secret | required for `webhook` | URL the events are posted to |
+| `secret` | secret | none | `webhook`: signing secret |
+| `headers` | map of secret | none | `webhook`: extra request headers |
+| `kafka` | object | required for `kafka` | see [Kafka producer settings](#exporters-name-kafka) |
 
 The pipeline settings of an exporter (see [Events and notifiers](../concepts/events-and-notifiers.md)):
 
@@ -381,47 +420,83 @@ The pipeline settings of an exporter (see [Events and notifiers](../concepts/eve
 | `s3` | `s3` with a `bucket` | `connection` | `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
 | `kinesis` | `kinesis` | `connection`, and a stream (`streamName`, `streamArn`, or `stream` on the connection) | `format` |
 | `googleStorage` | | `bucket` | `googleCredentials` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
-| `sqs` | `sqs` | `connection`, and a queue (`queueUrl` here or on the connection) | `format` (accepted and ignored, as in version 1) |
-| `kafka` | | `kafka.topic`, `kafka.addresses` (each `host:port`, without credentials) | `format`, the producer settings of `kafka` (see [Kafka producer settings](#kafka-producer-settings)) |
+| `sqs` | `sqs` | `connection`, and a queue (`queueUrl` here or on the connection) | `format` (accepted and ignored) |
+| `kafka` | | `kafka.topic`, `kafka.addresses` (each `host:port`, without credentials) | `format`, the producer settings of `kafka` (see [Kafka producer settings](#exporters-name-kafka)) |
 | `pubsub` | | `projectId`, `topic` | `googleCredentials` (secret) |
 | `bigquery` | | `projectId`, `datasetId` | `tableName`, `googleCredentials` (secret), `autoMigrate` |
 | `redshift` | `redshift` | `connection`, `database`, one of `clusterIdentifier` or `workgroupName` | `dbUser` (not with `workgroupName` or `secretArn`), `secretArn`, `tableName`, `autoMigrate` |
 | `azureBlobStorage` | | `container`, `accountName` | `accountKey` (secret), `path`, `filename`, `csvTemplate`, `format`, `parquetCompressionCodec` |
 | `opentelemetry` | | | `tracerName` |
 
-`format` is `json` (default for the file, s3, googleStorage and azureBlobStorage kinds), `csv` or `parquet`. The `kinesis`, `kafka` and `sqs` kinds accept it as version 1 did but always write JSON (`sqs` also ignores it for its message body): `csv` and `parquet` are valid there and have no effect.
+`format` is `json` (default for the file, s3, googleStorage and azureBlobStorage kinds), `csv` or `parquet`. The `kinesis`, `kafka` and `sqs` kinds accept it but always write JSON (`sqs` also ignores it for its message body): `csv` and `parquet` are valid there and have no effect.
 
-### Kafka producer settings
+### `exporters.<name>.kafka`
 
-Version 1 took any scalar field of the sarama configuration under `kafka.config`. Version 2 names the fields a producer uses as keys of `kafka`. A zero or absent value keeps the sarama default (version 1 could not tell zero from unset either). `Producer.Return.Successes` and `Producer.Return.Errors` are always true. Passwords are secrets (`fromEnv` or `fromFile`). The files of `net.tls` are read when the exporter is built; a rotated file rebuilds the exporter at the next reload.
+The producer of the `kafka` kind. A zero or absent value keeps the sarama default. `Producer.Return.Successes` and
+`Producer.Return.Errors` are always true. Passwords are secrets (`fromEnv` or `fromFile`). The files of `net.tls` are
+read when the exporter is built; a rotated file rebuilds the exporter at the next reload. Durations are strings such as
+`5s`. The settings that hold code (SASL token provider, proxy dialer, local address, backoff functions, interceptors,
+metric registry) and the consumer and admin settings are not available.
 
-| v1 field (sarama) | v2 key under `kafka` |
-|---|---|
-| `Version` | `version` (such as `3.6.0`) |
-| `ClientID`, `RackID`, `ChannelBufferSize`, `ApiVersionsRequest` | `clientId`, `rackId`, `channelBufferSize`, `apiVersionsRequest` |
-| `Net.MaxOpenRequests`, `DialTimeout`, `ReadTimeout`, `WriteTimeout`, `KeepAlive`, `ResolveCanonicalBootstrapServers` | `net.maxOpenRequests`, `dialTimeout`, `readTimeout`, `writeTimeout`, `keepAlive`, `resolveCanonicalBootstrapServers` (durations are strings such as `5s`) |
-| `Net.TLS.Enable` | `net.tls.enable` |
-| `Net.TLS.Config` `InsecureSkipVerify`, `ServerName`, `RootCAs`, `Certificates` | `net.tls.insecureSkipVerify`, `serverName`, `caFile`, `certFile` with `keyFile` (PEM files) |
-| `Net.SASL` `Enable`, `Handshake`, `Mechanism`, `User`, `AuthIdentity`, `SCRAMAuthzID`, `Version` | `net.sasl.enable`, `handshake`, `mechanism` (`PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `GSSAPI`), `user`, `authIdentity`, `scramAuthzId`, `version` |
-| `Net.SASL.Password` | `net.sasl.password` (secret) |
-| `Net.SASL.GSSAPI` `AuthType`, `KeyTabPath`, `KerberosConfigPath`, `ServiceName`, `Username`, `Realm`, `DisablePAFXFAST` | `net.sasl.gssapi.authType` (`user` or `keytab`), `keyTabPath`, `kerberosConfigPath`, `serviceName`, `username`, `realm`, `disablePafxfast` |
-| `Net.SASL.GSSAPI.Password` | `net.sasl.gssapi.password` (secret) |
-| `Metadata` `Retry.Max`, `Retry.Backoff` (no buffer limits), `RefreshFrequency`, `Full`, `Timeout`, `AllowAutoTopicCreation`, `SingleFlight` | `metadata.retry.max`, `retry.backoff`, `refreshFrequency`, `full`, `timeout`, `allowAutoTopicCreation`, `singleFlight` |
-| `Producer` `MaxMessageBytes`, `Timeout`, `Idempotent`, `CompressionLevel` | `producer.maxMessageBytes`, `timeout`, `idempotent`, `compressionLevel` |
-| `Producer.RequiredAcks` | `producer.requiredAcks` (`none`, `local`, `all`) |
-| `Producer.Compression` | `producer.compression` (`none`, `gzip`, `snappy`, `lz4`, `zstd`) |
-| `Producer.Partitioner` | `producer.partitioner` (`hash`, `random`, `roundrobin`) |
-| `Producer.Retry` `Max`, `Backoff`, `MaxBufferLength`, `MaxBufferBytes` (the buffer limits only exist here) | `producer.retry.max`, `backoff`, `maxBufferLength`, `maxBufferBytes` |
-| `Producer.Flush` `Bytes`, `Messages`, `Frequency`, `MaxMessages` | `producer.flush.bytes`, `messages`, `frequency`, `maxMessages` |
-| `Producer.Transaction` `ID`, `Timeout`, `Retry.Max`, `Retry.Backoff` | `producer.transaction.id`, `timeout`, `retry.max`, `retry.backoff` |
-
-Not carried over: the fields that hold code (`Net.SASL.TokenProvider`, `Net.Proxy.Dialer`, `Net.LocalAddr`, the `BackoffFunc` fields, `Producer.Interceptors`, `MetricRegistry`), and `Consumer` and `Admin`, which a producer does not use. `Net.SASL.SCRAMClientGeneratorFunc` is set from the mechanism, as in version 1.
-
-The deprecated version 1 notifier key `slackWebhookURL` is not carried over: version 2 has no version 1 aliases, use `webhookUrl`.
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `topic` | string | required | topic the events are sent to |
+| `addresses` | list of string | required | brokers, each `host:port`, without credentials |
+| `version` | string | sarama default | Kafka version such as `3.6.0` |
+| `clientId`, `rackId` | string | sarama default | client and rack identifiers |
+| `channelBufferSize` | integer | sarama default | size of the internal channels |
+| `apiVersionsRequest` | boolean | sarama default | ask the broker for its API versions |
+| `net.maxOpenRequests` | integer | sarama default | open requests per connection |
+| `net.dialTimeout`, `net.readTimeout`, `net.writeTimeout`, `net.keepAlive` | duration | sarama default | connection timeouts and keep-alive |
+| `net.resolveCanonicalBootstrapServers` | boolean | sarama default | resolve the canonical name of the bootstrap servers |
+| `net.tls.enable` | boolean | `false` | use TLS |
+| `net.tls.insecureSkipVerify` | boolean | `false` | skip the verification of the broker certificate |
+| `net.tls.serverName` | string | none | server name for the verification |
+| `net.tls.caFile` | string | system roots | PEM file of certificate authorities |
+| `net.tls.certFile`, `net.tls.keyFile` | string | none | PEM client certificate and key, given together |
+| `net.sasl.enable` | boolean | `false` | use SASL |
+| `net.sasl.mechanism` | string | `PLAIN` | `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`, `GSSAPI` |
+| `net.sasl.handshake` | boolean | sarama default | send the SASL handshake |
+| `net.sasl.user`, `net.sasl.authIdentity`, `net.sasl.scramAuthzId` | string | none | SASL identities |
+| `net.sasl.password` | secret | none | SASL password |
+| `net.sasl.version` | integer | sarama default | SASL protocol version |
+| `net.sasl.gssapi.authType` | string | none | `user`, `keytab` |
+| `net.sasl.gssapi.keyTabPath`, `net.sasl.gssapi.kerberosConfigPath` | string | none | Kerberos files |
+| `net.sasl.gssapi.serviceName`, `net.sasl.gssapi.username`, `net.sasl.gssapi.realm` | string | none | Kerberos identity |
+| `net.sasl.gssapi.password` | secret | none | Kerberos password |
+| `net.sasl.gssapi.disablePafxfast` | boolean | `false` | disable PA-FX-FAST |
+| `metadata.retry.max` | integer | sarama default | metadata retries |
+| `metadata.retry.backoff` | duration | sarama default | wait between metadata retries |
+| `metadata.refreshFrequency`, `metadata.timeout` | duration | sarama default | refresh period and timeout of metadata requests |
+| `metadata.full` | boolean | sarama default | fetch the metadata of all topics |
+| `metadata.allowAutoTopicCreation`, `metadata.singleFlight` | boolean | sarama default | allow topic creation by a metadata request; share one metadata request |
+| `producer.maxMessageBytes` | integer | sarama default | largest message |
+| `producer.timeout` | duration | sarama default | time the broker waits for the acknowledgements |
+| `producer.idempotent` | boolean | `false` | idempotent producer |
+| `producer.requiredAcks` | string | sarama default | `none`, `local`, `all` |
+| `producer.compression` | string | sarama default | `none`, `gzip`, `snappy`, `lz4`, `zstd` |
+| `producer.compressionLevel` | integer | sarama default | level of the compression |
+| `producer.partitioner` | string | sarama default | `hash`, `random`, `roundrobin` |
+| `producer.retry.max`, `producer.retry.backoff` | integer, duration | sarama default | retries of a message and the wait between them |
+| `producer.retry.maxBufferLength`, `producer.retry.maxBufferBytes` | integer | sarama default | limits of the retry buffer |
+| `producer.flush.bytes`, `producer.flush.messages`, `producer.flush.maxMessages` | integer | sarama default | batch size triggers |
+| `producer.flush.frequency` | duration | sarama default | batch time trigger |
+| `producer.transaction.id` | string | none | transactional id |
+| `producer.transaction.timeout` | duration | sarama default | transaction timeout |
+| `producer.transaction.retry.max`, `producer.transaction.retry.backoff` | integer, duration | sarama default | transaction retries and wait |
 
 ### `notifiers.<name>`
 
-`kind` is required; `meta` (map of string) is valid for every kind.
+`kind` is required; `meta` (map of string) is valid for every kind. The notifier key `slackWebhookURL` is not accepted: use `webhookUrl`.
+
+| Key | Type | Default | Allowed |
+|---|---|---|---|
+| `kind` | string | required | `slack`, `microsoftteams`, `webhook`, `discord` |
+| `meta` | map of string | none | metadata added to every notification |
+| `webhookUrl` | secret | required for `slack`, `microsoftteams`, `discord` | incoming webhook URL |
+| `endpointUrl` | secret | required for `webhook` | URL the changes are posted to |
+| `secret` | secret | none | `webhook`: signing secret |
+| `headers` | map of secret | none | `webhook`: extra request headers |
 
 | Kind | Required | Other keys |
 |---|---|---|
