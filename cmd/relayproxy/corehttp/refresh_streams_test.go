@@ -191,7 +191,9 @@ func (g *gatedWebsocket) BroadcastFlagChanges(flagset string, diff notifier.Diff
 }
 
 func (*gatedWebsocket) DisconnectAnonymous(string) {}
-func (*gatedWebsocket) Close()                     {}
+
+func (*gatedWebsocket) DisconnectRevoked(stream.KeyRoutes) []func() { return nil }
+func (*gatedWebsocket) Close()                                      {}
 
 func (g *gatedWebsocket) delivered() []string {
 	g.mu.Lock()

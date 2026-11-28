@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/r3labs/sse/v2"
@@ -29,6 +30,15 @@ type SSEService interface {
 	// ServeHTTP handles incoming SSE client connections. The request must
 	// carry a "stream" query parameter set to the target flagset name.
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+	// ServeKeyed is ServeHTTP for a client that authenticated with an API key: the service keeps an identifier of the
+	// key (never the key), so that [SSEService.DisconnectRevoked] can end the stream when the key does not route to the
+	// flag set anymore. The stream is still shared by every client of the flag set: a message is published once.
+	// stillValid is called once the client is registered: a key that was revoked while the request was being set up is
+	// then refused (a revalidation that ran before the registration could not see the client).
+	ServeKeyed(w http.ResponseWriter, r *http.Request, apiKey string, stillValid func() bool)
+	// DisconnectRevoked ends the streams of the clients whose key is not in routes anymore or routes to another flag
+	// set than the one of the stream. It cancels their requests and never waits for a client.
+	DisconnectRevoked(routes KeyRoutes)
 	// DisconnectAnonymous closes the streams of the clients without a key whose flag set is not keep; an empty keep
 	// closes all of them. A client with a key is never touched.
 	DisconnectAnonymous(keep string)
@@ -47,15 +57,16 @@ const AnonymousStreamPrefix = "anonymous:"
 
 // SSEServiceImpl is the implementation of SSEService backed by r3labs/sse.
 type SSEServiceImpl struct {
-	server *sse.Server
-	// activeStreams counts the connected clients per stream, used to send the heartbeats.
+	server        *sse.Server
 	activeStreams map[string]int
-	// anonymous is the connected clients that have no API key.
-	anonymous map[*anonymousClient]struct{}
-	done      chan struct{}
-	closeOnce sync.Once
-	// heartbeats joins the heartbeat goroutine: Close returns after it ended.
-	heartbeats      sync.WaitGroup
+	anonymous     map[*anonymousClient]struct{}
+	keyed         map[*keyedClient]struct{}
+	done          chan struct{}
+	heartbeats    sync.WaitGroup
+	hasher        keyHasher
+	// writeTimeout is the write deadline of every write of a stream.
+	writeTimeout    time.Duration
+	closeOnce       sync.Once
 	muActiveStreams sync.Mutex
 }
 
@@ -69,6 +80,9 @@ func NewSSEService(opts ...Option) *SSEServiceImpl {
 		server:        server,
 		activeStreams: map[string]int{},
 		anonymous:     map[*anonymousClient]struct{}{},
+		keyed:         map[*keyedClient]struct{}{},
+		hasher:        newKeyHasher(),
+		writeTimeout:  newOptions(opts...).writeTimeout,
 		done:          make(chan struct{}),
 	}
 	if interval := newOptions(opts...).sseHeartbeatInterval; interval > 0 {
@@ -143,7 +157,184 @@ type anonymousClient struct {
 	streamID string
 }
 
+// keyedClient is a connected client with an API key: the identifier of the key, the flag set of its stream, and the
+// way to end its request.
+type keyedClient struct {
+	cancel   context.CancelFunc
+	rc       *http.ResponseController
+	streamID string
+	keyID    uint64
+	revoked  atomic.Bool
+	// mu guards done: the handler sets it before it returns, and a revocation touches the response only while it is
+	// not set (the server clears the state of a response when its request ends).
+	mu   sync.Mutex
+	done bool
+}
+
+// streamWriter is the writer of one stream: it sets the write deadline before every write and clears it after, and
+// drops what is written to a client whose key was revoked. A deadline left armed would reset a quiet stream (HTTP/2)
+// between two heartbeats.
+type streamWriter struct {
+	http.ResponseWriter
+
+	rc      *http.ResponseController
+	revoked *atomic.Bool
+	timeout time.Duration
+}
+
+// revokedDeadline is the write deadline of a revoked stream: in the past, so a blocked write ends at once.
+func revokedDeadline() time.Time { return time.Unix(1, 0) }
+
+func (w *streamWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+
+func (w *streamWriter) Write(data []byte) (int, error) {
+	if !w.arm() {
+		return 0, io.ErrClosedPipe
+	}
+
+	defer w.disarm()
+
+	return w.ResponseWriter.Write(data) //nolint:wrapcheck // the writer of the response, errors are the client's
+}
+
+func (w *streamWriter) Flush() {
+	if !w.arm() {
+		return
+	}
+
+	defer w.disarm()
+
+	_ = w.rc.Flush()
+}
+
+// arm sets the deadline of the next write; it reports false when the client was revoked.
+func (w *streamWriter) arm() bool {
+	if w.revoked != nil && w.revoked.Load() {
+		return false
+	}
+
+	// real time on purpose: a network deadline is enforced by the runtime poller, not by clock.Now. A writer that does
+	// not support deadlines (a test recorder) is written to as before.
+	_ = w.rc.SetWriteDeadline(time.Now().Add(w.timeout))
+
+	if w.revoked != nil && w.revoked.Load() {
+		// revoked while the deadline was set: the deadline of the revocation must be the last one
+		_ = w.rc.SetWriteDeadline(revokedDeadline())
+
+		return false
+	}
+
+	return true
+}
+
+// disarm clears the deadline after a write, unless the stream was revoked meanwhile.
+func (w *streamWriter) disarm() {
+	if w.revoked != nil && w.revoked.Load() {
+		return
+	}
+
+	_ = w.rc.SetWriteDeadline(time.Time{})
+
+	if w.revoked != nil && w.revoked.Load() {
+		_ = w.rc.SetWriteDeadline(revokedDeadline())
+	}
+}
+
+// DisconnectRevoked ends the requests of the clients whose key does not route to their flag set anymore. The requests
+// are cancelled after the lock is released, and a cancel never waits for the client.
+func (s *SSEServiceImpl) DisconnectRevoked(routes KeyRoutes) {
+	s.muActiveStreams.Lock()
+	keyed := len(s.keyed) > 0
+	s.muActiveStreams.Unlock()
+
+	if !keyed {
+		return
+	}
+
+	live := s.hasher.liveIDs(routes)
+
+	s.muActiveStreams.Lock()
+
+	var revoked []*keyedClient
+
+	for client := range s.keyed {
+		if set, ok := live[client.keyID]; !ok || set != client.streamID {
+			client.revoked.Store(true)
+
+			revoked = append(revoked, client)
+
+			delete(s.keyed, client)
+		}
+	}
+
+	s.muActiveStreams.Unlock()
+
+	for _, client := range revoked {
+		// a write that is blocked on the network ends now, and the request is cancelled; the response of a request that
+		// has returned is not touched
+		client.mu.Lock()
+
+		if !client.done {
+			_ = client.rc.SetWriteDeadline(revokedDeadline())
+		}
+
+		client.mu.Unlock()
+
+		client.cancel()
+	}
+}
+
+// ServeKeyed serves a client that authenticated with an API key.
+func (s *SSEServiceImpl) ServeKeyed(w http.ResponseWriter, r *http.Request, apiKey string, stillValid func() bool) {
+	ctx, cancel := context.WithCancel(r.Context())
+	client := &keyedClient{
+		cancel: cancel, streamID: r.URL.Query().Get("stream"), keyID: s.hasher.id(apiKey),
+		rc: http.NewResponseController(w),
+	}
+
+	s.muActiveStreams.Lock()
+	s.keyed[client] = struct{}{}
+	s.muActiveStreams.Unlock()
+
+	defer func() {
+		client.mu.Lock()
+		client.done = true
+		client.mu.Unlock()
+
+		s.muActiveStreams.Lock()
+		delete(s.keyed, client)
+		s.muActiveStreams.Unlock()
+
+		cancel()
+	}()
+
+	if !stillValid() {
+		return
+	}
+
+	s.serve(w, r.WithContext(ctx), &client.revoked)
+}
+
+// ServeHTTP serves a client without a key.
 func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.serve(w, r, nil)
+}
+
+// SetOnSubscribe sets the callback called when a client subscribes to a stream.
+func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
+	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
+		fn(strings.TrimPrefix(streamID, AnonymousStreamPrefix))
+	}
+}
+
+// Close closes all the SSE streams.
+func (s *SSEServiceImpl) Close() {
+	s.closeOnce.Do(func() { close(s.done) })
+	s.heartbeats.Wait()
+	s.server.Close()
+}
+
+func (s *SSEServiceImpl) serve(w http.ResponseWriter, r *http.Request, revoked *atomic.Bool) {
 	streamID := r.URL.Query().Get("stream")
 
 	s.trackStream(streamID, 1)
@@ -168,25 +359,13 @@ func (s *SSEServiceImpl) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r = r.WithContext(ctx)
 	}
 
+	w = &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked, timeout: s.writeTimeout}
+
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}
 	}
 
 	s.server.ServeHTTP(w, r)
-}
-
-// SetOnSubscribe sets the callback called when a client subscribes to a stream.
-func (s *SSEServiceImpl) SetOnSubscribe(fn func(streamID string)) {
-	s.server.OnSubscribe = func(streamID string, _ *sse.Subscriber) {
-		fn(strings.TrimPrefix(streamID, AnonymousStreamPrefix))
-	}
-}
-
-// Close closes all the SSE streams.
-func (s *SSEServiceImpl) Close() {
-	s.closeOnce.Do(func() { close(s.done) })
-	s.heartbeats.Wait()
-	s.server.Close()
 }
 
 func (s *SSEServiceImpl) trackStream(streamID string, delta int) {
