@@ -93,7 +93,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	// older than the one it replaces (the flag sets that stay may have been built long ago)
 	if len(sources) == 1 {
 		fset.Flags, fset.Hash, fset.State = sources[0].Flags, sources[0].Hash, sources[0].State
-		fset.Segments, fset.flagSigs = sources[0].Segments, sources[0].flagSigs
+		fset.Segments, fset.flagSigs, fset.uses = sources[0].Segments, sources[0].flagSigs, sources[0].uses
 
 		return fset, nil
 	}
@@ -107,6 +107,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	owner := make(map[string]string, total)
 	catalogs := map[string]*segment.Catalog{}
 	sigs := map[string]uint64{}
+	uses := map[string]segUse{}
 	pending := 0
 
 	for idx, source := range sources {
@@ -118,7 +119,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 			owner[key] = names[idx]
 			flags[key] = flag
 
-			noteSegments(catalogs, sigs, source, key)
+			noteSegments(catalogs, sigs, uses, source, key)
 		}
 
 		fset.Hash = fset.Hash*publicHashFactor + source.Hash
@@ -134,14 +135,7 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	}
 
 	fset.Flags = flags
-
-	if len(catalogs) > 0 {
-		fset.flagCatalogs = catalogs
-	}
-
-	if len(sigs) > 0 {
-		fset.flagSigs = sigs
-	}
+	fset.setSegmentTables(catalogs, sigs, uses)
 
 	if pending == len(sources) {
 		fset.State = StatePending
@@ -152,14 +146,37 @@ func mergePublic(names []string, sources []*FlagSet, now time.Time) (*FlagSet, e
 	return fset, nil
 }
 
+// setSegmentTables keeps the per flag tables of the segments that the merge found; a table with no entry stays nil.
+func (f *FlagSet) setSegmentTables(
+	catalogs map[string]*segment.Catalog, sigs map[string]uint64, uses map[string]segUse,
+) {
+	if len(catalogs) > 0 {
+		f.flagCatalogs = catalogs
+	}
+
+	if len(sigs) > 0 {
+		f.flagSigs = sigs
+	}
+
+	if len(uses) > 0 {
+		f.uses = uses
+	}
+}
+
 // noteSegments records the catalog and the signature of the flag set that a public flag comes from.
-func noteSegments(catalogs map[string]*segment.Catalog, sigs map[string]uint64, source *FlagSet, key string) {
+func noteSegments(
+	catalogs map[string]*segment.Catalog, sigs map[string]uint64, uses map[string]segUse, source *FlagSet, key string,
+) {
 	if catalog := source.SegmentCatalog(); catalog != nil {
 		catalogs[key] = catalog
 	}
 
 	if sig, ok := source.flagSigs[key]; ok {
 		sigs[key] = sig
+	}
+
+	if use, ok := source.uses[key]; ok {
+		uses[key] = use
 	}
 }
 

@@ -114,7 +114,7 @@ There is no third value by default. What cannot be answered is "not a member", a
 
 **Outage note.** A rule that matches the people who are NOT in a segment (a `not`, or a `!=`-style exclusion such as `not (id in segment("blocked"))`) matches everybody while the store cannot answer, and a rule that matches the members matches nobody. Read the evaluation status (below) when you need to know that the answer was a fallback. A segment that must fail closed (a deny list) can say so with its failure policy or with the explicit opt-in below.
 
-The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. A value that depended on a segment lookup is not cacheable.
+The evaluation reason does not change: it stays `TARGETING_MATCH` or `DEFAULT`. A value that depended on a segment lookup is not cacheable, and neither is any value of a flag whose rules use a dynamic segment.
 
 ### Opt-in: unknown and `onError: match`
 
@@ -208,5 +208,5 @@ client, err := ffclient.New(&ffclient.Config{
 ## What is not available yet
 
 - Loading `file` segments from an S3 object (the engine only reads a member file from a reader; fetching it needs the configuration layer and will come with the relay wiring and the membership tooling), and the relay proxy wiring of the `redis` provider (the provider, the cache and the circuit breaker are Go packages, see [Segments - dynamic](segments-dynamic.md)).
-- The segment lookups in a store on the relay proxy evaluation endpoints (a dynamic segment of a published document is defined, has no provider yet, answers "not a member" and the evaluation reports `NOT_CONFIGURED`), the `semaphore_cacheable: false` marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration`.
+- The segment lookups in a store on the relay proxy evaluation endpoints (a dynamic segment of a published document is defined, has no provider yet, answers "not a member" and the evaluation reports `NOT_CONFIGURED`), their refresh and their `STORE_ERROR` and `STALE` statuses. The cacheable marker and the `segments` and `requiresServerEvaluation` fields of `/v1/flag/configuration` are available, see [Segments - dynamic](segments-dynamic.md#cacheable-and-flag-configuration).
 - Tools to import and swap members.

@@ -291,8 +291,10 @@ semaphore_config_reload_total{result="rejected"} 1
 # HELP semaphore_config_snapshot Local counter of the swaps of the runtime.
 # TYPE semaphore_config_snapshot gauge
 semaphore_config_snapshot 3
-# HELP semaphore_resource_count Resources by kind (flagset, object) and state.
+# HELP semaphore_resource_count Resources by kind (flagset, object, dynamicSegment) and state.
 # TYPE semaphore_resource_count gauge
+semaphore_resource_count{kind="dynamicSegment",state="rejected"} 0
+semaphore_resource_count{kind="dynamicSegment",state="valid"} 0
 semaphore_resource_count{kind="flagset",state="degraded"} 0
 semaphore_resource_count{kind="flagset",state="pending"} 0
 semaphore_resource_count{kind="flagset",state="ready"} 1

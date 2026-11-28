@@ -194,6 +194,24 @@
         ],
         "type": "object"
       },
+      "DynamicStatesInfo": {
+        "additionalProperties": false,
+        "properties": {
+          "rejected": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "valid": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "valid",
+          "rejected"
+        ],
+        "type": "object"
+      },
       "ErrorBody": {
         "additionalProperties": false,
         "properties": {
@@ -936,6 +954,9 @@
           "dynamic": {
             "format": "int64",
             "type": "integer"
+          },
+          "dynamicStates": {
+            "$ref": "#/components/schemas/DynamicStatesInfo"
           },
           "static": {
             "format": "int64",

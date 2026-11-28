@@ -321,7 +321,7 @@ func variation[T model.JSONType](
 		SegmentCatalog:              set.SegmentCatalogFor(flagKey),
 	}
 
-	return evaluation.Evaluate[T](
+	res, err := evaluation.Evaluate[T](
 		flag,
 		flagKey,
 		evalCtx,
@@ -329,6 +329,22 @@ func variation[T model.JSONType](
 		expectedType,
 		sdkDefaultValue,
 	)
+
+	// the members of a dynamic segment live in a store and change without a new flag: a client must not hold the
+	// answer, whether or not this evaluation reached the segment
+	if set.usesDynamicSegment(flagKey) {
+		res.Cacheable = false
+		dropCacheableKeys(res.Metadata)
+	}
+
+	return res, err
+}
+
+// dropCacheableKeys removes the cacheable keys that a flag wrote in its own metadata: the metadata map of a result is
+// the caller's own, and a flag that uses a dynamic segment must not tell a client that its value can be held.
+func dropCacheableKeys(metadata map[string]any) {
+	delete(metadata, MetadataCacheable)
+	delete(metadata, LegacyMetadataCacheable)
 }
 
 // isDefaultResult tells whether a result with this reason carries the default value of the caller (a flag that is not
@@ -478,7 +494,7 @@ func (e *Evaluator) GetFlagStates(
 			}
 
 			flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
-			addState(&states, key, evalCtx, flagCtx, flag)
+			addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 		}
 
 		return states
@@ -490,7 +506,7 @@ func (e *Evaluator) GetFlagStates(
 
 	for key, flag := range set.Flags {
 		flagCtx.SegmentCatalog = set.SegmentCatalogFor(key)
-		addState(&states, key, evalCtx, flagCtx, flag)
+		addState(&states, key, evalCtx, flagCtx, flag, set.usesDynamicSegment(key))
 	}
 
 	return states
@@ -498,9 +514,12 @@ func (e *Evaluator) GetFlagStates(
 
 func addState(
 	states *flagstate.AllFlags, key string, evalCtx ffcontext.Context, flagCtx flagdef.Context,
-	flag *flagdef.InternalFlag,
+	flag *flagdef.InternalFlag, dynamic bool,
 ) {
 	state := flagstate.FromFlagEvaluation(key, evalCtx, flagCtx, flag)
+	if dynamic {
+		dropCacheableKeys(state.Metadata)
+	}
 
 	states.AddFlag(key, &state)
 }

@@ -23,6 +23,11 @@ Check the [**OpenAPI specification**](https://github.com/BlackbirdWorks/semaphor
 
 Streaming endpoints are listed in [Flag change streams](#flag-change-streams).
 
+### Flags that use segments
+
+- `POST /v1/flag/configuration` lists, for each flag whose rules use [segments](../configure-flags/segments.md), the sorted `segments` it uses and `requiresServerEvaluation`: `true` when one of them is [dynamic](../configure-flags/segments-dynamic.md#cacheable-and-flag-configuration) (its members live in a store) or cannot be resolved by the flag set: only the relay can answer. A flag that uses no segment has neither field, and no member of any segment is ever listed.
+- An evaluation of a flag that uses a dynamic segment is never cacheable: the OFREP single evaluation carries neither `semaphore_cacheable` nor `gofeatureflag_cacheable`, and `POST /v1/feature/{key}/eval` answers `"cacheable": false`. The bulk endpoints (`/ofrep/v1/evaluate/flags`, `/v1/allflags`) never send the cacheable keys.
+
 ## OpenAPI documentation
 
 The OpenAPI 3.1 document is generated from the typed operations registered by the relay proxy. The relay does not serve Swagger UI or the document at runtime. The document is committed as `cmd/relayproxy/api/testdata/openapi.golden.json` and a test compares it with the operations the relay registers. The document covers the entire API, including monitoring endpoints, and advertises no server.

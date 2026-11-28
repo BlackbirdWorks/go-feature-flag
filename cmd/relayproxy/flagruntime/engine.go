@@ -60,6 +60,13 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 	return func(e *Engine) { e.baseline = cfg }
 }
 
+// WithSegmentStores tells the engine what the connections of the bootstrap file can serve, so that a dynamic segment
+// that names one that cannot is rejected when its generation is built. The connections are settings that need a
+// restart, so the table of the process start is the one that counts.
+func WithSegmentStores(stores SegmentStores) Option {
+	return func(e *Engine) { e.stores = stores }
+}
+
 // Engine is the reconcile engine. One goroutine ([Engine.Run]) is the only writer of the [Holder]; the other
 // methods only hand it work through channels.
 //
@@ -90,6 +97,7 @@ func WithInitialBootstrap(cfg *bootstrap.Config) Option {
 // is bounded by the number of flag sets, and no name is lost. Events still in the pending table when Run returns
 // are dropped, and the channel is closed.
 type Engine struct {
+	stores        SegmentStores
 	hooks         Hooks
 	builder       *Builder
 	announced     map[string]struct{}
@@ -140,7 +148,9 @@ func NewEngine(logger *slog.Logger, svc *flagdef.Service, holder *Holder, opts .
 	}
 
 	eng.changes = make(chan Change, eng.changeBuf)
-	eng.builder = NewBuilder(svc, BuilderOptions{OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap})
+	eng.builder = NewBuilder(svc, BuilderOptions{
+		OnParse: eng.hooks.OnParse, WithdrawnCap: eng.withdrawnCap, SegmentStores: eng.stores,
+	})
 	eng.snapshot = eng.cur.Snapshot
 
 	first := make(chan struct{})
@@ -506,7 +516,32 @@ func (e *Engine) planContent(ctx context.Context, content *Content) contentPlan 
 		return e.reject(content.Generation, CodeBuildFailed, err)
 	}
 
+	for i := range built.SegmentRejections {
+		rejection := &built.SegmentRejections[i]
+
+		e.logRejection(ctx, rejection, content.Generation)
+	}
+
 	return contentPlan{built: built, running: describe(content)}
+}
+
+// logRejection logs a segments object that the build met with a problem: rejected whole (its last good content stays)
+// or, when some of its dynamic definitions are not served by the connections, rejected in part.
+func (e *Engine) logRejection(ctx context.Context, rejection *SegmentRejection, generation uint64) {
+	attrs := []slog.Attr{
+		slog.String("object", rejection.Object), slog.String("checksum", rejection.Checksum),
+		slog.Uint64("generation", generation), slog.String("reason", rejection.Reason),
+		slog.Int("definitions", rejection.Definitions),
+	}
+
+	if rejection.Definitions > 0 {
+		e.logger.LogAttrs(ctx, slog.LevelWarn,
+			"dynamic segment definitions rejected: the connections cannot serve them, the others are applied", attrs...)
+
+		return
+	}
+
+	e.logger.LogAttrs(ctx, slog.LevelWarn, "segments object rejected: its last good content stays", attrs...)
 }
 
 func (e *Engine) reject(generation uint64, code string, err error) contentPlan {
