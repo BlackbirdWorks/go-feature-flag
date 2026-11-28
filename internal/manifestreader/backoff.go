@@ -1,6 +1,7 @@
 package manifestreader
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -31,6 +32,12 @@ type BackoffStatus struct {
 // PollCount is the number of polls with one result.
 type PollCount struct {
 	Result string `json:"result"`
+	Count  uint64 `json:"count"`
+}
+
+// RejectionCount is the number of manifest rejections for one closed reason.
+type RejectionCount struct {
+	Reason string `json:"reason"`
 	Count  uint64 `json:"count"`
 }
 
@@ -178,6 +185,24 @@ func (r *Reader) pollResults() []PollCount {
 		}
 
 		return 0
+	})
+
+	return out
+}
+
+// rejectionResults is the sorted list of manifest rejection counts by reason.
+func (r *Reader) rejectionResults() []RejectionCount {
+	if len(r.rejectCounts) == 0 {
+		return nil
+	}
+
+	out := make([]RejectionCount, 0, len(r.rejectCounts))
+	for reason, count := range r.rejectCounts {
+		out = append(out, RejectionCount{Reason: reason, Count: count})
+	}
+
+	slices.SortFunc(out, func(a, b RejectionCount) int {
+		return cmp.Compare(a.Reason, b.Reason)
 	})
 
 	return out

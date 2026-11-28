@@ -33,9 +33,7 @@ An unchanged poll writes no log line and swaps nothing.
 The levels and what each keeps are in [last known good](manifest-and-documents.md#last-known-good). In short:
 
 - A manifest with an unsupported `apiVersion`, wrong `kind`, decode/validation failure (other than an object's content `version`), another channel, or a lower generation is rejected whole by the reader, before the
-  engine sees it. No round runs, so `config.lastRejected` does not change. The reader writes one `"manifest reader:
-  manifest rejected, previous one kept"` log line with the attributes `outcome` and `reason`, and the held state keeps
-  serving. `/info` does not show the outcome.
+  engine sees it. No round runs, so `config.lastRejected` does not change. The reader writes one `"manifest reader: manifest rejected, previous one kept"` log line with `outcome` and `reason`, records `config.reader` (`config.reader.outcome`, `config.reader.reason`, `config.reader.at`), and increments `semaphore_config_reader_rejections_total` by closed `reason` while the held state keeps serving.
 - An object entry whose content `version` is higher than the reader supports (`unsupported-version`) does not reject
   the manifest: other objects apply normally, while that object keeps its last valid content (`stale`, or `missing` if
   never loaded) with `reason: unsupported-version`, and dependent flag sets become `degraded` (`source-degraded`) and keep serving their last-known-good content.
@@ -68,9 +66,11 @@ set is `pending` in `config.flagSets` until its content arrives.
 |---|---|
 | `config.generation` | The generation that is served. |
 | `config.snapshot` | A counter of swaps in this process. |
+| `config.reader` | The last manifest outcome, closed reason and time recorded by the reader (`config.reader.outcome`, `config.reader.reason`, `config.reader.at`). |
 | `config.lastReload` | The last round, whatever its outcome. |
 | `config.lastApplied` | The last applied round. |
 | `config.lastRejected` | The last rejected round, until a later round is applied. |
+| `config.unknownFields` | Unknown field counts and bounded paths per document kind when non-zero (`config.unknownFields`). |
 | `config.staleness` | When the control plane last confirmed the manifest, and the age. |
 
 The free text of a failure is in the logs only, because it can quote object content.

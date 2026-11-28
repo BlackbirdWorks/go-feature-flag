@@ -16,19 +16,21 @@ import (
 
 // segState is the state of one segments object.
 type segState struct {
-	status    *ObjectStatus
-	doc       *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
-	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
-	hashes    map[string]uint64              // the content hash of each definition (members included), built once
-	rejected  map[string]struct{}            // the dynamic definitions that the connections cannot serve
-	binds     *bindCache                     // the bindings of the object, built on first use and shared by the flag sets
-	name      string
-	checksum  string
-	attempted string
-	reason    string
-	state     ObjectState
-	segments  int
-	loaded    bool
+	status        *ObjectStatus
+	doc           *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
+	sets          map[string]*segment.MemberSet  // the members of its static segments, built once and shared
+	hashes        map[string]uint64              // the content hash of each definition (members included), built once
+	rejected      map[string]struct{}            // the dynamic definitions that the connections cannot serve
+	binds         *bindCache                     // the bindings of the object, built once and shared by flag sets
+	name          string
+	checksum      string
+	attempted     string
+	reason        string
+	state         ObjectState
+	unknownFields []string
+	segments      int
+	unknownCount  int
+	loaded        bool
 }
 
 // segObject computes the state of one segments object; it returns prev itself when nothing changed.
@@ -59,17 +61,17 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 		return prev
 	}
 
-	doc, err := parseSegments(obj.Bytes)
+	doc, info, reason := parseSegments(obj.Bytes)
 
 	st.emit(name, KindSegments, sum)
 
-	if err != nil {
+	if reason != "" {
 		if prev != nil && prev.state == ObjectInvalid && prev.attempted == sum {
 			return prev
 		}
 
 		next := keepSeg(name, prev)
-		next.state, next.reason, next.attempted = ObjectInvalid, err.Error(), sum
+		next.state, next.reason, next.attempted = ObjectInvalid, reason, sum
 		next.status = segStatus(next)
 
 		st.built.SegmentRejections = append(st.built.SegmentRejections,
@@ -82,6 +84,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 
 	next := &segState{
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
+		unknownFields: capUnknownFields(info.UnknownFields), unknownCount: len(info.UnknownFields),
 		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc), rejected: nameSet(check.names),
 	}
 	next.binds = newBindCache(st.b.opts.Segments, doc, next.rejected, prevBinds(prev))
@@ -105,19 +108,19 @@ func (st *stage) noteDynamic(name, sum string, doc *controlplane.SegmentsDocumen
 	return check
 }
 
-// parseSegments decodes and validates a segments document.
-func parseSegments(body []byte) (*controlplane.SegmentsDocument, error) {
-	doc, _, err := controlplane.UnmarshalSegments(body)
+// parseSegments decodes and validates a segments document and returns the error message as a status reason.
+func parseSegments(body []byte) (*controlplane.SegmentsDocument, controlplane.DecodeInfo, string) {
+	doc, info, err := controlplane.UnmarshalSegments(body)
 	if err != nil {
-		return nil, err //nolint:wrapcheck // the decoder error is the reason of the status
+		return nil, info, err.Error()
 	}
 
 	err = controlplane.ValidateSegments(doc)
 	if err != nil {
-		return nil, err //nolint:wrapcheck // the validation error is the reason of the status
+		return nil, info, err.Error()
 	}
 
-	return doc, nil
+	return doc, info, ""
 }
 
 func keepSeg(name string, prev *segState) *segState {
@@ -125,6 +128,7 @@ func keepSeg(name string, prev *segState) *segState {
 
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
+		next.unknownFields, next.unknownCount = prev.unknownFields, prev.unknownCount
 		next.doc, next.sets, next.hashes, next.rejected = prev.doc, prev.sets, prev.hashes, prev.rejected
 		next.binds = prev.binds
 	}
@@ -153,7 +157,7 @@ func segKept(name string, obj *Object, state ObjectState, prev *segState) *segSt
 func segStatus(held *segState) *ObjectStatus {
 	return &ObjectStatus{
 		Name: held.name, Kind: KindSegments, State: held.state, Checksum: held.checksum, Reason: held.reason,
-		Flags: held.segments,
+		UnknownFields: held.unknownCount, UnknownFieldPaths: held.unknownFields, Flags: held.segments,
 	}
 }
 

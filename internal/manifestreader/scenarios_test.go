@@ -27,7 +27,8 @@ func snapOf(gen uint64, objs map[string]manifestreader.ObjectState) *manifestrea
 
 func accepted(gen uint64, objects int) manifestreader.ManifestStatus {
 	return manifestreader.ManifestStatus{
-		Outcome: manifestreader.OutcomeAccepted, Channel: testChannel, Generation: gen, Objects: objects,
+		At: clocktestInstant().UTC(), Outcome: manifestreader.OutcomeAccepted, Channel: testChannel,
+		Generation: gen, Objects: objects,
 	}
 }
 

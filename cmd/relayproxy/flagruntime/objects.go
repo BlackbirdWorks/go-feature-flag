@@ -101,16 +101,18 @@ func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, att
 	table := buildTable(parsed, prev, attempt.fresh)
 
 	return &objState{
-		name:     name,
-		format:   obj.Format,
-		checksum: attempt.sum,
-		state:    ObjectOK,
-		loaded:   true,
-		flags:    table.flags,
-		hashes:   table.hashes,
-		refs:     table.refs,
-		rejected: table.rejected,
-		content:  tableHash(table.hashes),
+		name:          name,
+		format:        obj.Format,
+		checksum:      attempt.sum,
+		state:         ObjectOK,
+		loaded:        true,
+		flags:         table.flags,
+		hashes:        table.hashes,
+		refs:          table.refs,
+		rejected:      table.rejected,
+		unknownFields: parsed.unknownFields,
+		unknownCount:  parsed.unknownCount,
+		content:       tableHash(table.hashes),
 	}
 }
 
@@ -132,6 +134,7 @@ func keepFrom(name string, prev *objState) *objState {
 		next.flags, next.checksum, next.format = prev.flags, prev.checksum, prev.format
 		next.rejected, next.hashes, next.content, next.loaded = prev.rejected, prev.hashes, prev.content, true
 		next.refs = prev.refs
+		next.unknownFields, next.unknownCount = prev.unknownFields, prev.unknownCount
 	}
 
 	return next
@@ -162,7 +165,8 @@ func flagKept(name string, obj *Object, state ObjectState, prev *objState) *objS
 func flagsStatus(held *objState) *ObjectStatus {
 	return &ObjectStatus{
 		Name: held.name, Kind: KindFlags, State: held.state, Checksum: held.checksum, Reason: held.reason,
-		Rejected: held.rejected, Flags: len(held.flags),
+		Rejected: held.rejected, UnknownFields: held.unknownCount, UnknownFieldPaths: held.unknownFields,
+		Flags: len(held.flags),
 	}
 }
 
@@ -287,13 +291,22 @@ func keepDoc(name string, prev *docState) *docState {
 }
 
 func docStatus(held *docState) *ObjectStatus {
-	flagSets := 0
-	if held.parsed != nil && held.parsed.doc != nil {
-		flagSets = len(held.parsed.doc.FlagSets)
+	var (
+		flagSets      int
+		unknownCount  int
+		unknownFields []string
+	)
+
+	if held.parsed != nil {
+		unknownCount, unknownFields = held.parsed.unknownCount, held.parsed.unknownFields
+
+		if held.parsed.doc != nil {
+			flagSets = len(held.parsed.doc.FlagSets)
+		}
 	}
 
 	return &ObjectStatus{
 		Name: held.name, Kind: KindFlagSets, State: held.state, Checksum: held.checksum, Reason: held.reason,
-		Flags: flagSets,
+		UnknownFields: unknownCount, UnknownFieldPaths: unknownFields, Flags: flagSets,
 	}
 }
