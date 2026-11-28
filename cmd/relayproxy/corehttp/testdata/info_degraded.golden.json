@@ -93,6 +93,7 @@
       "keptFlags": 0,
       "enabled": false
     },
+    "disabledAdminKeys": 0,
     "generation": 3,
     "snapshot": 4
   }

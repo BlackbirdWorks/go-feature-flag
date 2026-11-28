@@ -69,7 +69,8 @@ label: the flag sets that have a problem are in `semaphore_resource_status`. Obj
 `semaphore_resource_status{kind="object"}` (not `ok` only, at most 100): there is no per-object series for every object.
 The age starts when this process first saw the object not `ok`, and a restart from the state directory starts it again.
 
-All of this is computed when a generation is built, not per scrape, and nothing was added to the request path.
+The age is the only value computed per scrape: each scrape subtracts the recorded start time from the current time. The
+other values are computed when a generation is built, not per scrape, and nothing was added to the request path.
 
 Cardinality: no label carries a flag or a key. The counts per state are computed when the runtime is swapped, not per
 scrape, and a scrape evaluates no flag: its cost does not grow with the number of flags per flag set.
@@ -83,24 +84,34 @@ Every reload writes one `runtime reload` line (`log/slog`), and an unchanged pol
   `flags.created|updated|deleted`, `objects.ok|stale|missing|pending|invalid`, `rejected` (flags rejected in the
   objects that run) and `duration`.
 - Rejected (level warn): `outcome=rejected`, `generation`, the stable `code` and the `detail`. The running generation
-  stays (last known good).
+  stays (last known good). `detail` is free text and can quote the content of an object, as the page says for `/info`.
 
-The lines carry counts, codes and paths. They never carry an API key, an admin key or the content of a flag.
+The lines carry counts, codes and paths, and never an API key or an admin key. Only the `detail` of a rejected line can
+quote object content.
 
 ## Admin key equal to a flag-set key
 
-An admin key wins over an API key of a flag set. When a key of a flag set equals an admin key, the generation is still
-applied (a published key can never make the relay unready or stuck), and:
+Flag-set keys are given to clients and are not secrets, so such a key must never become an admin credential. A key that is
+both an admin key and an API key of a flag set therefore grants **nothing** while the collision exists. The generation is
+still applied (a published key can never make the relay unready or stuck), and:
 
-- the key is not routed to the flag set: a request with it is an admin request and never evaluates that flag set;
-- the other keys of the flag set work;
-- the flag set reports the problem `admin-key-collision` in `/info` (state `degraded`, fewer `apiKeys`) and in
-  `semaphore_resource_status`, the way `duplicate-key` is reported for a key held by two flag sets;
-- one warning is logged where the collision is new, naming the flag set and never the key.
+- the key is not routed to the flag set, and it is not accepted as an admin key: both answer `401`, as for an unknown key,
+  with no hint in the response;
+- the other keys of the flag set and the other admin keys work;
+- the flag set reports the problem `admin-key-collision` in `/info` (state `degraded`, fewer `apiKeys`; a pending flag
+  set stays `pending`) and in `semaphore_resource_status`, the way `duplicate-key` is reported for a key held by two flag
+  sets;
+- `/info` shows `config.disabledAdminKeys`, the number of admin keys that are disabled this way;
+- one `ERROR` line is logged where the collision is new, saying that an admin key is disabled because a flag set
+  publishes the same key. It names the flag set and never the key.
+
+If every admin key is disabled this way the relay still serves flags and stays ready; the admin endpoints answer `401`
+until the bootstrap file or the published document is fixed.
 
 The routing is derived again from the content the relay holds each time the admin keys change, so a reload of the
 bootstrap file (`SIGHUP`) that rotates the admin key makes the flag-set key route again, and a reload that introduces a
-collision stops the key from routing, without publishing anything.
+collision disables the key, without publishing anything. The check is made when a generation is built or the admin keys
+change; evaluation requests do no extra work (the routing table simply does not hold the key).
 
 ## Kubernetes
 

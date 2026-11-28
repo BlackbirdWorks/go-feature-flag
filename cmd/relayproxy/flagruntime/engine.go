@@ -112,6 +112,8 @@ type Engine struct {
 	secrets    bootstrap.LoadOptions
 	heldByKey  map[string]*FlagSet
 	heldSets   map[string]*FlagSetStatus
+	heldAdmin  map[string]struct{}
+	nextAdmin  map[string]struct{}
 	nextByKey  map[string]*FlagSet
 	nextSets   map[string]*FlagSetStatus
 	collided   map[string]struct{}
@@ -378,7 +380,7 @@ func (e *Engine) round(ctx context.Context, content *Content, cfg *bootstrap.Con
 		results = append(results, boot.res)
 	}
 
-	bootChanged := boot.apply && (!maps.Equal(boot.admin, e.cur.AdminKeys) ||
+	bootChanged := boot.apply && (!maps.Equal(boot.admin, e.rawAdmin()) ||
 		!slices.Equal(boot.pending, e.cur.Status.PendingRestart))
 
 	if plan.built == nil && !bootChanged {
@@ -434,8 +436,8 @@ func (e *Engine) swap(ctx context.Context, plan *contentPlan, boot *bootPlan) (*
 	e.holder.store(candidate)
 	e.cur = candidate
 	e.snapshot = candidate.Snapshot
-	e.heldByKey, e.heldSets = e.nextByKey, e.nextSets
-	e.logCollisions(ctx, candidate.Generation, e.nextCollided)
+	e.heldByKey, e.heldSets, e.heldAdmin = e.nextByKey, e.nextSets, e.nextAdmin
+	e.logCollisions(ctx, candidate.Generation, e.nextCollided, candidate.Status.DisabledAdminKeys)
 
 	if e.hooks.AfterSwap != nil {
 		e.hooks.AfterSwap(candidate)
@@ -480,9 +482,15 @@ func (e *Engine) assemble(built *Built, boot *bootPlan) *Runtime {
 		raw = heldRouting{byKey: built.Runtime.ByKey, sets: built.Runtime.Status.FlagSets}
 	}
 
-	derived, names := deriveRouting(next.AdminKeys, raw)
-	next.ByKey, status.FlagSets = derived.byKey, derived.sets
-	e.nextByKey, e.nextSets, e.nextCollided = raw.byKey, raw.sets, names
+	admin := e.rawAdmin()
+	if boot.apply {
+		admin = boot.admin
+	}
+
+	derived, enabled, names := deriveRouting(admin, raw)
+	next.ByKey, next.AdminKeys, status.FlagSets = derived.byKey, enabled, derived.sets
+	status.DisabledAdminKeys = len(admin) - len(enabled)
+	e.nextByKey, e.nextSets, e.nextAdmin, e.nextCollided = raw.byKey, raw.sets, admin, names
 
 	status.Generation, status.Snapshot = next.Generation, next.Snapshot
 	status.LastRejected = e.rejected

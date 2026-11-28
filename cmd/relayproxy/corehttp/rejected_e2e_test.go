@@ -184,11 +184,13 @@ semaphore_object_status{state="stale"} 0
 	}
 }
 
-// TestNew_AdminKeyCollision: a flag-set key that equals an admin key is not routed to the flag set, the flag set
-// reports the problem and its other key serves, the relay is ready; a reload of the admin keys changes the routing
-// without republishing, in both directions.
+// TestNew_AdminKeyCollision: a key that is both an admin key and a flag-set key grants nothing while the collision
+// exists (401 on the admin endpoints and on evaluation, as for an unknown key); the other keys work, the relay stays
+// ready, and a reload of the admin keys changes it without republishing, in both directions.
 func TestNew_AdminKeyCollision(t *testing.T) {
 	t.Parallel()
+
+	const second = "second-admin"
 
 	logs := &lockedBuffer{}
 	rig := newV2With(t, v2Options{cold: true, logger: newTestLogger(logs)})
@@ -199,6 +201,7 @@ func TestNew_AdminKeyCollision(t *testing.T) {
 	rig.publish(t)
 	rig.tick(t)
 	rig.awaitGeneration(t, 1)
+	rig.setAdmin(t, adminKey+", "+second)
 
 	evaluate := func(key string) int {
 		status, _, _ := do(t, http.MethodPost, rig.url+"/ofrep/v1/evaluate/flags/bool-flag", `{"context":{}}`,
@@ -207,59 +210,96 @@ func TestNew_AdminKeyCollision(t *testing.T) {
 		return status
 	}
 
-	problems := func() []string {
+	// the admin endpoint answers 401 to a key that is not an admin key and something else (here a refusal of the
+	// empty body) to an admin key
+	admin := func(key string) int {
+		status, _, _ := do(t, http.MethodPost, rig.url+"/admin/v1/flags/validate", "", keyHeader(key))
+
+		return status
+	}
+
+	info := func() model.ConfigInfo {
 		_, _, body := do(t, http.MethodGet, rig.url+"/info", "", nil)
 
-		var info model.InfoResponse
-		require.NoError(t, json.Unmarshal(body, &info))
-		require.NotNil(t, info.Config)
+		var out model.InfoResponse
+		require.NoError(t, json.Unmarshal(body, &out))
+		require.NotNil(t, out.Config)
 
+		// the key is "admin-key": its only legitimate appearance is inside the code "admin-key-collision"
+		assert.Equal(t, strings.Count(string(body), "admin-key-collision"), strings.Count(string(body), adminKey))
+
+		return *out.Config
+	}
+
+	problems := func(cfg *model.ConfigInfo) []string {
 		var out []string
 
-		for _, set := range info.Config.FlagSets {
+		for _, set := range cfg.FlagSets {
 			for _, p := range set.Problems {
 				out = append(out, set.Name+":"+p.Code)
 			}
 		}
-
-		// the key is "admin-key": its only legitimate appearance is inside the code "admin-key-collision"
-		assert.Equal(t, strings.Count(string(body), "admin-key-collision"), strings.Count(string(body), adminKey))
 
 		return out
 	}
 
 	collision := []string{setName + ":" + string(flagruntime.CodeAdminKeyCollision)}
 
-	// the collision: ready, the other key serves, the colliding key answers as an admin key only
-	rig.wantProbe(t, "/readyz", http.StatusOK, `{"ready":true,"state":"degraded"}`)
-	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
-	assert.Equal(t, http.StatusBadRequest, evaluate(adminKey))
-	assert.Equal(t, collision, problems())
-	require.NoError(t, testutil.GatherAndCompare(rig.metrics.Registry, strings.NewReader(`
-# HELP semaphore_resource_status 1 for a resource that is not ready, by kind and name; at most 100 per kind.
-# TYPE semaphore_resource_status gauge
-semaphore_resource_status{kind="flagset",name="tenant",state="degraded"} 1
-`), "semaphore_resource_status"))
+	tests := []struct {
+		name           string
+		admin          string
+		wantReadyState string
+		wantProblems   []string
+		wantEvaluate   int
+		wantAdmin      int
+		wantDisabled   int
+		wantSecondOK   bool
+	}{
+		{
+			name: "collision", admin: adminKey + ", " + second, wantEvaluate: http.StatusUnauthorized,
+			wantAdmin: http.StatusUnauthorized, wantSecondOK: true, wantProblems: collision, wantDisabled: 1,
+			wantReadyState: corehttp.ReadyDegraded,
+		},
+		{
+			name: "rotated", admin: second, wantEvaluate: http.StatusOK, wantAdmin: http.StatusUnauthorized,
+			wantSecondOK: true, wantDisabled: 0, wantReadyState: corehttp.ReadyServing,
+		},
+		{
+			name: "introduced by reload", admin: adminKey + ", " + second, wantEvaluate: http.StatusUnauthorized,
+			wantAdmin: http.StatusUnauthorized, wantSecondOK: true, wantProblems: collision, wantDisabled: 1,
+			wantReadyState: corehttp.ReadyDegraded,
+		},
+		{
+			name: "every admin key disabled", admin: adminKey, wantEvaluate: http.StatusUnauthorized,
+			wantAdmin: http.StatusUnauthorized, wantProblems: collision, wantDisabled: 1,
+			wantReadyState: corehttp.ReadyDegraded,
+		},
+	}
 
-	// the admin key is rotated by a reload of the file: the key routes to the flag set
-	rig.setAdmin(t, "rotated-admin")
-	assert.Equal(t, http.StatusOK, evaluate(adminKey))
-	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
-	assert.Empty(t, problems())
-	rig.wantProbe(t, "/readyz", http.StatusOK, bodyServing)
+	// the steps depend on one another: they run in order, in this goroutine
+	for _, tt := range tests {
+		if tt.name != "collision" {
+			rig.setAdmin(t, tt.admin)
+		}
 
-	// and the reverse: a reload brings the collision, the key stops routing
-	rig.setAdmin(t, adminKey)
-	assert.Equal(t, http.StatusBadRequest, evaluate(adminKey))
-	assert.Equal(t, http.StatusOK, evaluate(tenantKey))
-	assert.Equal(t, collision, problems())
+		cfg := info()
+
+		assert.Equal(t, tt.wantEvaluate, evaluate(adminKey), tt.name)
+		assert.Equal(t, http.StatusOK, evaluate(tenantKey), tt.name)
+		assert.Equal(t, tt.wantAdmin, admin(adminKey), tt.name)
+		assert.Equal(t, tt.wantSecondOK, admin(second) != http.StatusUnauthorized, tt.name)
+		assert.Equal(t, tt.wantProblems, problems(&cfg), tt.name)
+		assert.Equal(t, tt.wantDisabled, cfg.DisabledAdminKeys, tt.name)
+		rig.wantProbe(t, "/readyz", http.StatusOK, `{"ready":true,"state":"`+tt.wantReadyState+`"}`)
+	}
 
 	warnings := 0
 
 	for line := range strings.SplitSeq(logs.all(), "\n") {
-		if strings.Contains(line, "equals an admin key") {
+		if strings.Contains(line, "an admin key is disabled") {
 			warnings++
 
+			assert.Contains(t, line, "level=ERROR")
 			assert.Contains(t, line, "flagsets=tenant")
 		}
 	}

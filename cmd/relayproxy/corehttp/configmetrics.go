@@ -98,6 +98,15 @@ func NewConfigCollector(src StatusSource) *ConfigCollector {
 	}
 }
 
+// NewConfigCollectorSharing returns the collector of the status of src that shares the summaries of the readiness: a
+// runtime is summarised once for the metrics and the probes, not once for each.
+func NewConfigCollectorSharing(src StatusSource, ready *Readiness) *ConfigCollector {
+	col := NewConfigCollector(src)
+	col.sums = ready.sums
+
+	return col
+}
+
 // Describe implements [prom.Collector].
 func (c *ConfigCollector) Describe(out chan<- *prom.Desc) {
 	for _, d := range []*prom.Desc{

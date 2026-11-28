@@ -8,6 +8,7 @@
     "events": 1
   },
   "runtime": {
+    "disabledAdminKeys": 0,
     "flagSets": {
       "a": {
         "name": "a",

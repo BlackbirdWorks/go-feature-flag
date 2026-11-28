@@ -63,7 +63,7 @@ func New(src Source, cfg *Config, opts ...api.Option) (api.Server, error) {
 	}
 
 	if metrics.Enabled() {
-		err := metrics.Registry.Register(NewConfigCollector(src))
+		err := metrics.Registry.Register(NewConfigCollectorSharing(src, ready))
 		if err != nil {
 			return api.Server{}, fmt.Errorf("registering the config metrics: %w", err)
 		}

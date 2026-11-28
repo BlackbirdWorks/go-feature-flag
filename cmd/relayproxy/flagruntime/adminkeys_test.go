@@ -25,49 +25,62 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 		// admin is the admin key of the first bootstrap file; reloadAdmin, when set, a second file.
 		admin, reloadAdmin string
 		wantState          flagruntime.SetState
-		// keys are the API keys of generation 1; again publishes generation 2 with the same keys.
-		keys           []string
-		wantWarnings   int
-		wantAPIKeys    int
-		wantGeneration uint64
-		again          bool
-		wantProblem    bool
-		wantSecretAdm  bool
-		wantSecretSet  bool
-		wantOtherSet   bool
+		// keys are the API keys of generation 1, keysB those of a second flag set b; laterKeys, when set, are the
+		// keys of a in generation 2, again publishes generation 2 with the same keys.
+		keys, keysB, laterKeys []string
+		wantWarnings           int
+		wantAPIKeys            int
+		wantAdmins             int
+		wantDisabled           int
+		wantProblemsB          int
+		wantGeneration         uint64
+		again                  bool
+		wantProblem            bool
+		wantSecretAdm          bool
+		wantSecretSet          bool
+		wantOtherSet           bool
 	}{
 		{
 			name: "content", admin: secret, keys: []string{secret, keyA}, wantState: flagruntime.StateDegraded,
-			wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 1, wantProblem: true, wantSecretAdm: true,
-			wantOtherSet: true,
+			wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1, wantProblem: true, wantOtherSet: true,
 		},
 		{
 			name: "logged once", admin: secret, keys: []string{secret, keyA}, again: true,
-			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 2,
-			wantProblem: true, wantSecretAdm: true, wantOtherSet: true,
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 2,
+			wantProblem: true, wantOtherSet: true,
 		},
 		{
 			name: "rotated away", admin: secret, reloadAdmin: "rotated-admin", keys: []string{secret, keyA},
-			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 2, wantGeneration: 1,
+			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 2, wantAdmins: 1, wantGeneration: 1,
 			wantSecretSet: true, wantOtherSet: true,
 		},
 		{
+			name: "key leaves the flag set", admin: secret, keys: []string{secret, keyA}, laterKeys: []string{keyA},
+			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 1, wantAdmins: 1, wantGeneration: 2,
+			wantSecretAdm: true, wantOtherSet: true,
+		},
+		{
 			name: "introduced by reload", admin: adminOne, reloadAdmin: secret, keys: []string{secret, keyA},
-			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantGeneration: 1,
-			wantProblem: true, wantSecretAdm: true, wantOtherSet: true,
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1,
+			wantProblem: true, wantOtherSet: true,
 		},
 		{
 			name: "only key", admin: secret, keys: []string{secret}, wantState: flagruntime.StateDegraded,
-			wantWarnings: 1, wantAPIKeys: 0, wantGeneration: 1, wantProblem: true, wantSecretAdm: true,
+			wantWarnings: 1, wantDisabled: 1, wantGeneration: 1, wantProblem: true,
 		},
 		{
-			name: "many admin keys", admin: "x1, x2, x3, " + secret, keys: []string{secret},
-			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAPIKeys: 0, wantGeneration: 1,
-			wantProblem: true, wantSecretAdm: true,
+			name: "other admin keys work", admin: "x1, x2, x3, " + secret, keys: []string{secret},
+			wantState: flagruntime.StateDegraded, wantWarnings: 1, wantAdmins: 3, wantDisabled: 1, wantGeneration: 1,
+			wantProblem: true,
+		},
+		{
+			name: "prior problem is kept", admin: secret, keys: []string{keyA}, keysB: []string{keyA, secret},
+			wantState: flagruntime.StateServing, wantWarnings: 1, wantAPIKeys: 1, wantDisabled: 1, wantGeneration: 1,
+			wantProblemsB: 2, wantOtherSet: true,
 		},
 		{
 			name: "distinct keys", admin: secret, keys: []string{keyA}, wantState: flagruntime.StateServing,
-			wantAPIKeys: 1, wantGeneration: 1, wantSecretAdm: true, wantOtherSet: true,
+			wantAPIKeys: 1, wantAdmins: 1, wantGeneration: 1, wantSecretAdm: true, wantOtherSet: true,
 		},
 	}
 
@@ -82,16 +95,23 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 			rig.reload(bootstrapFromYAML(t, "version: 2\nauth:\n  adminKeys: ["+tt.admin+"]\n"))
 
 			feed := func(gen uint64) flagruntime.RoundResult {
-				in := objs{
-					"f1":     flagsObj(int(gen), "x"),
-					setsName: setsObj(t, []controlplane.FlagSet{fset("a", src("f1"), tt.keys...)}...),
+				keys := tt.keys
+				if gen == 2 && tt.laterKeys != nil {
+					keys = tt.laterKeys
 				}
+
+				sets := []controlplane.FlagSet{fset("a", src("f1"), keys...)}
+				if tt.keysB != nil {
+					sets = append(sets, fset("b", src("f1"), tt.keysB...))
+				}
+
+				in := objs{"f1": flagsObj(int(gen), "x"), setsName: setsObj(t, sets...)}
 
 				return rig.feed(content(gen, in))
 			}
 
 			res := feed(1)
-			if tt.again {
+			if tt.again || tt.laterKeys != nil {
 				res = feed(2)
 			}
 
@@ -120,8 +140,14 @@ func TestEngine_AdminKeyCollision(t *testing.T) {
 			assert.Equal(t, tt.wantSecretAdm, isAdmin(current, secret))
 			assert.Equal(t, tt.wantSecretSet, secretSet)
 			assert.Equal(t, tt.wantOtherSet, otherSet)
-			assert.Equal(t, tt.wantWarnings, strings.Count(handler.text(), "equals an admin key"))
+			assert.Equal(t, tt.wantWarnings, strings.Count(handler.text(), "an admin key is disabled"))
+			assert.Len(t, current.AdminKeys, tt.wantAdmins)
+			assert.Equal(t, tt.wantDisabled, current.Status.DisabledAdminKeys)
 			assert.NotContains(t, handler.text(), secret)
+
+			if tt.keysB != nil {
+				assert.Len(t, current.Status.FlagSets["b"].Problems, tt.wantProblemsB)
+			}
 		})
 	}
 }

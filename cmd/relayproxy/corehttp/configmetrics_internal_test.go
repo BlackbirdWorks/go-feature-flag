@@ -113,3 +113,45 @@ func TestConfigCollector_NoRuntime(t *testing.T) {
 
 	assert.Equal(t, 26, testutil.CollectAndCount(col))
 }
+
+// TestNewConfigCollectorSharing: the readiness and the metrics summarise a runtime once between them.
+func TestNewConfigCollectorSharing(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		share        bool
+		wantComputed uint64
+	}{
+		{name: "shared", share: true, wantComputed: 1},
+		{name: "separate", share: false, wantComputed: 2},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			current := bigStatus(3, 1)
+			src := &staticStatus{}
+			src.st.Store(&relaycore.Status{Source: controlsource.Status{Runtime: current}})
+
+			ready := NewReadiness(src)
+			col := NewConfigCollector(src)
+
+			if tt.share {
+				col = NewConfigCollectorSharing(src, ready)
+			}
+
+			status := src.Status()
+			ready.state(&status)
+			testutil.CollectAndCount(col)
+
+			computed := col.sums.computed.Load()
+			if col.sums != ready.sums {
+				computed += ready.sums.computed.Load()
+			}
+
+			assert.Equal(t, tt.wantComputed, computed)
+		})
+	}
+}
