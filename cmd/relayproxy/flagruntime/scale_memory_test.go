@@ -10,6 +10,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 )
 
+// serialEnv is set by the memory test: setting it forbids t.Parallel, so the test runs alone.
+const serialEnv = "SEMAPHORE_SCALE_MEMORY_SERIAL"
+
 // liveHeap is the live heap after a collection: HeapAlloc counts the objects that are not yet swept, so the
 // collection runs twice (the second one frees what the finalisers and the first sweep left).
 func liveHeap() uint64 {
@@ -47,9 +50,8 @@ func growth(after, before uint64) uint64 {
 // The heap is deterministic after a collection (the spread of the figures over repeated runs is below 0.1%), so
 // the margins above are model margins, not noise margins. The test reads the heap of the whole process, which a
 // parallel test would pollute, so it runs alone (the parallel tests of the package are paused until every serial
-// test ended). Every figure is logged.
-//
-//nolint:paralleltest // reads the process wide heap, which a parallel test would pollute
+// test ended). t.Setenv makes that explicit: a test that sets an environment variable cannot call t.Parallel.
+// Every figure is logged.
 func TestScaleMemoryDuringSwap(t *testing.T) {
 	const (
 		fullSwapFactor   = 2.0
@@ -57,6 +59,8 @@ func TestScaleMemoryDuringSwap(t *testing.T) {
 		tableBytesPerSet = 256
 		partialShareMax  = 0.05
 	)
+
+	t.Setenv(serialEnv, "1")
 
 	harness := newRig(t, flagruntime.Hooks{})
 	harness.start()
