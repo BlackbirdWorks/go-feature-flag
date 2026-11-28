@@ -17,6 +17,8 @@ const (
 
 	markerPrefix = "<!-- docs-test: "
 	markerRun    = "run"
+	langYAML     = "yaml"
+	langShell    = "shell"
 	markerOutput = "output"
 )
 

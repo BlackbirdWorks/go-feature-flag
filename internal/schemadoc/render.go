@@ -12,6 +12,8 @@ type Document struct {
 	Title string
 	// Intro is the Markdown text between the heading and the table.
 	Intro string
+	// Reload returns the reload cell of a key path. A document without it has no Reload column.
+	Reload func(path string) string
 	// Schema is the JSON Schema.
 	Schema []byte
 }
@@ -44,13 +46,26 @@ func Render(documents []Document) ([]byte, error) {
 			out.WriteString(doc.Intro + "\n\n")
 		}
 
-		out.WriteString("| Key | Type | Required | Default | Allowed | Description |\n|---|---|---|---|---|---|\n")
+		reloadHead, reloadRule := "", ""
+		if doc.Reload != nil {
+			reloadHead, reloadRule = " Reload |", "---|"
+		}
+
+		out.WriteString(
+			"| Key | Type | Required | Default |" + reloadHead + " Allowed | Description |\n|---|---|---|---|" +
+				reloadRule + "---|---|\n",
+		)
 
 		for i := range keys {
 			key := &keys[i]
 
-			fmt.Fprintf(&out, "| `%s` | %s | %s | %s | %s | %s |\n", key.Path, cell(key.Type), required(key),
-				code(key.Default), cell(key.Allowed), describe(key))
+			reload := ""
+			if doc.Reload != nil {
+				reload = " " + doc.Reload(key.Path) + " |"
+			}
+
+			fmt.Fprintf(&out, "| `%s` | %s | %s | %s |%s %s | %s |\n", key.Path, cell(key.Type), required(key),
+				code(key.Default), reload, cell(key.Allowed), describe(key))
 		}
 	}
 

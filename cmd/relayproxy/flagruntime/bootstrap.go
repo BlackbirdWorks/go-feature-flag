@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/bootstrap"
 )
@@ -48,41 +49,116 @@ func ResolveAdminKeys(cfg *bootstrap.Config, opts bootstrap.LoadOptions) (map[st
 	return keys, nil
 }
 
-// pendingRestart lists the settings of cfg that differ from the ones the process started with. Only names are
-// listed: a value may be a secret. Auth.AdminKeys is not compared: it applies live.
-func pendingRestart(base, cfg *bootstrap.Config) []string {
-	var out []string
+// Reloadability says what a reload of the bootstrap file does with one setting.
+type Reloadability struct {
+	// Path is the bootstrap key path that the rule covers, with every key below it.
+	Path string
+	// Setting is the name in Status.PendingRestart; empty for a setting that applies live.
+	Setting string
+	// Live is true when a reload applies the setting in place.
+	Live bool
+}
 
-	add := func(changed bool, name string) {
-		if changed {
-			out = append(out, name)
+// rule is a row of the reload table: what it covers and how to tell that a reload changed it.
+type rule struct {
+	changed func(base, cfg *bootstrap.Config) bool
+	meta    Reloadability
+}
+
+func differs[T any](get func(*bootstrap.Config) T) func(base, cfg *bootstrap.Config) bool {
+	return func(base, cfg *bootstrap.Config) bool { return !reflect.DeepEqual(get(base), get(cfg)) }
+}
+
+func restartRule(path, setting string, changed func(base, cfg *bootstrap.Config) bool) rule {
+	return rule{meta: Reloadability{Path: path, Setting: setting, Live: false}, changed: changed}
+}
+
+// controlPlaneChanged compares a field of the control plane; a change of presence is the setting controlPlane.
+func controlPlaneChanged(get func(*bootstrap.ControlPlane) any) func(base, cfg *bootstrap.Config) bool {
+	return func(base, cfg *bootstrap.Config) bool {
+		return base.ControlPlane != nil && cfg.ControlPlane != nil &&
+			!reflect.DeepEqual(get(base.ControlPlane), get(cfg.ControlPlane))
+	}
+}
+
+// rules is the one table of the reload: the bootstrap settings that apply live and the ones that need a restart. The
+// engine reads it to fill Status.PendingRestart, and the documentation test reads it through Reloadabilities.
+func rules() []rule {
+	return []rule{
+		restartRule("version", SettingVersion, differs(func(c *bootstrap.Config) int { return c.Version })),
+		restartRule("server.listeners", SettingServerListeners,
+			differs(func(c *bootstrap.Config) any { return c.Server.Listeners })),
+		restartRule("server.unixSocketPath", SettingServerUnixSocket,
+			differs(func(c *bootstrap.Config) any { return c.Server.UnixSocketPath })),
+		restartRule("server.shutdown", SettingServerShutdown,
+			differs(func(c *bootstrap.Config) any { return c.Server.Shutdown })),
+		restartRule("server.ops", SettingServerOps, differs(func(c *bootstrap.Config) any { return c.Server.Ops })),
+		restartRule("server.ofrepEventStream", SettingServerEventStream,
+			differs(func(c *bootstrap.Config) any { return c.Server.OFREPEventStream })),
+		restartRule("server.validateFlags", SettingServerValidate,
+			differs(func(c *bootstrap.Config) any { return c.Server.ValidateFlags })),
+		restartRule("server.hideBanner", SettingServerHideBanner,
+			differs(func(c *bootstrap.Config) any { return c.Server.HideBanner })),
+		restartRule("connections", SettingConnections, differs(func(c *bootstrap.Config) any { return c.Connections })),
+		restartRule("controlPlane", SettingControlPlane, func(base, cfg *bootstrap.Config) bool {
+			return (base.ControlPlane == nil) != (cfg.ControlPlane == nil)
+		}),
+		restartRule("controlPlane.connection", SettingControlPlaneConn,
+			controlPlaneChanged(func(c *bootstrap.ControlPlane) any { return c.Connection })),
+		restartRule("controlPlane.stateDir", SettingControlPlaneState,
+			controlPlaneChanged(func(c *bootstrap.ControlPlane) any { return c.StateDir })),
+		restartRule("controlPlane.manifest", SettingControlPlaneMan,
+			controlPlaneChanged(func(c *bootstrap.ControlPlane) any { return c.Manifest })),
+		restartRule("exporters", SettingExporters, differs(func(c *bootstrap.Config) any { return c.Exporters })),
+		restartRule("notifiers", SettingNotifiers, differs(func(c *bootstrap.Config) any { return c.Notifiers })),
+		restartRule("observability", SettingObservability,
+			differs(func(c *bootstrap.Config) any { return c.Observability })),
+		restartRule("evaluation", SettingEvaluation, differs(func(c *bootstrap.Config) any { return c.Evaluation })),
+		restartRule("segments", SettingSegments, differs(func(c *bootstrap.Config) any { return c.Segments })),
+		// The admin keys are read again at every reload, so they are never compared.
+		{meta: Reloadability{Path: "auth", Setting: "", Live: true}},
+	}
+}
+
+// Reloadabilities returns the reload table: one entry per setting of the bootstrap file, in the order of the engine.
+func Reloadabilities() []Reloadability {
+	table := rules()
+	out := make([]Reloadability, len(table))
+
+	for i := range table {
+		out[i] = table[i].meta
+	}
+
+	return out
+}
+
+// ReloadOf returns the rule that covers a bootstrap key path: the longest rule path that the key equals or sits below.
+func ReloadOf(path string) (Reloadability, bool) {
+	var best Reloadability
+
+	found := false
+
+	for _, entry := range Reloadabilities() {
+		covers := path == entry.Path || strings.HasPrefix(path, entry.Path+".") ||
+			strings.HasPrefix(path, entry.Path+"[]")
+		if covers && len(entry.Path) > len(best.Path) {
+			best, found = entry, true
 		}
 	}
 
-	add(base.Version != cfg.Version, SettingVersion)
-	add(!reflect.DeepEqual(base.Server.Listeners, cfg.Server.Listeners), SettingServerListeners)
-	add(base.Server.UnixSocketPath != cfg.Server.UnixSocketPath, SettingServerUnixSocket)
-	add(!reflect.DeepEqual(base.Server.Shutdown, cfg.Server.Shutdown), SettingServerShutdown)
-	add(!reflect.DeepEqual(base.Server.Ops, cfg.Server.Ops), SettingServerOps)
-	add(!reflect.DeepEqual(base.Server.OFREPEventStream, cfg.Server.OFREPEventStream), SettingServerEventStream)
-	add(!reflect.DeepEqual(base.Server.ValidateFlags, cfg.Server.ValidateFlags), SettingServerValidate)
-	add(base.Server.HideBanner != cfg.Server.HideBanner, SettingServerHideBanner)
-	add(!reflect.DeepEqual(base.Connections, cfg.Connections), SettingConnections)
+	return best, found
+}
 
-	switch {
-	case (base.ControlPlane == nil) != (cfg.ControlPlane == nil):
-		out = append(out, SettingControlPlane)
-	case base.ControlPlane != nil:
-		add(base.ControlPlane.Connection != cfg.ControlPlane.Connection, SettingControlPlaneConn)
-		add(base.ControlPlane.StateDir != cfg.ControlPlane.StateDir, SettingControlPlaneState)
-		add(!reflect.DeepEqual(base.ControlPlane.Manifest, cfg.ControlPlane.Manifest), SettingControlPlaneMan)
+// pendingRestart lists the settings of cfg that differ from the ones the process started with. Only names are
+// listed: a value may be a secret.
+func pendingRestart(base, cfg *bootstrap.Config) []string {
+	var out []string
+
+	for _, entry := range rules() {
+		if entry.changed != nil && entry.changed(base, cfg) {
+			out = append(out, entry.meta.Setting)
+		}
 	}
-
-	add(!reflect.DeepEqual(base.Exporters, cfg.Exporters), SettingExporters)
-	add(!reflect.DeepEqual(base.Notifiers, cfg.Notifiers), SettingNotifiers)
-	add(!reflect.DeepEqual(base.Observability, cfg.Observability), SettingObservability)
-	add(!reflect.DeepEqual(base.Evaluation, cfg.Evaluation), SettingEvaluation)
-	add(!reflect.DeepEqual(base.Segments, cfg.Segments), SettingSegments)
 
 	slices.Sort(out)
 

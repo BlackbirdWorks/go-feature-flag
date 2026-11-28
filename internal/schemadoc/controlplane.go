@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/invopop/jsonschema"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/controlplane"
 )
 
@@ -69,13 +71,35 @@ func ControlPlaneSchemas(root string) (map[string][]byte, error) {
 	return out, nil
 }
 
+// reloadCell is the Reload cell of a bootstrap key: `live` when a reload applies it in place, `restart` when it waits
+// for a restart. The table of the runtime decides.
+func reloadCell(path string) string {
+	rule, found := flagruntime.ReloadOf(path)
+
+	switch {
+	case !found && slices.ContainsFunc(flagruntime.Reloadabilities(), func(entry flagruntime.Reloadability) bool {
+		return strings.HasPrefix(entry.Path, path+".")
+	}):
+		return "per key"
+	case !found:
+		return "unknown"
+	case rule.Live:
+		return "live"
+	default:
+		return "restart"
+	}
+}
+
 // Documents returns the schemas of the reference page: the bootstrap file and the control-plane documents.
 func Documents(bootstrapSchema []byte, controlPlane map[string][]byte) []Document {
 	return []Document{
 		{
-			Title:  "Bootstrap file",
-			Intro:  "The file of the relay proxy, `version: 2`. File: `.schema/bootstrap-schema.json`.",
+			Title: "Bootstrap file",
+			Intro: "The file of the relay proxy, `version: 2`. File: `.schema/bootstrap-schema.json`. " +
+				"Reload says what a reload of the file does with the key: `live` applies it in place, `restart` keeps it " +
+				"out until the next start and names it in `pendingRestart`.",
 			Schema: bootstrapSchema,
+			Reload: reloadCell,
 		},
 		{
 			Title: "Manifest",

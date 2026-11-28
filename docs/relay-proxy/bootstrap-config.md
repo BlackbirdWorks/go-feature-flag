@@ -31,6 +31,36 @@ control plane location, listeners, observability and admin keys. It is strict: a
   plane on request, see [advanced usage](advanced-usage.md)), and so are the retrievers other than the control plane
   store (they come back with the retriever kinds of the control plane, issue #57).
 
+## Reload of each setting
+
+A reload (`SIGHUP`) applies the settings marked `live` in place. A change to any other setting is kept out until the
+next start and listed in `pendingRestart` of the status under the name in the last column. A row covers the key and
+every key below it. The table is the one the relay reads, and a test compares the two.
+
+| Key | Reload | `pendingRestart` name |
+|---|---|---|
+| `version` | restart | `version` |
+| `server.listeners` | restart | `server.listeners` |
+| `server.unixSocketPath` | restart | `server.unixSocketPath` |
+| `server.shutdown` | restart | `server.shutdown` |
+| `server.ops` | restart | `server.ops` |
+| `server.ofrepEventStream` | restart | `server.ofrepEventStream` |
+| `server.validateFlags` | restart | `server.validateFlags` |
+| `server.hideBanner` | restart | `server.hideBanner` |
+| `connections` | restart | `connections` |
+| `controlPlane` | restart | `controlPlane` |
+| `controlPlane.connection` | restart | `controlPlane.connection` |
+| `controlPlane.stateDir` | restart | `controlPlane.stateDir` |
+| `controlPlane.manifest` | restart | `controlPlane.manifest` |
+| `exporters` | restart | `exporters` |
+| `notifiers` | restart | `notifiers` |
+| `observability` | restart | `observability` |
+| `evaluation` | restart | `evaluation` |
+| `segments` | restart | `segments` |
+| `auth` | live |  |
+
+The full list of keys with their reload is in the [schema reference](../reference/schema.md#bootstrap-file).
+
 ## Rules
 
 - The file is YAML with one document. A second document (`---`) is an error. The key `version: 2` is required, in

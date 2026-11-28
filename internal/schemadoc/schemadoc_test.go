@@ -10,12 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/blackbirdworks/semaphore/cmd/relayproxy/flagruntime"
 	"github.com/blackbirdworks/semaphore/internal/schemadoc"
 )
 
 const (
 	perKind        = "\x00perKind"
 	typeInteger    = "integer"
+	keyVersion     = "version"
 	repoRoot       = "../.."
 	bootstrapPath  = repoRoot + "/.schema/bootstrap-schema.json"
 	referencePath  = repoRoot + "/docs/reference/schema.md"
@@ -342,4 +344,73 @@ func hasDocumentedChild(path string, documented map[string]bool) bool {
 	}
 
 	return false
+}
+
+// Every key of the bootstrap schema has a reload rule in the table of the runtime, and the table of the page is that
+// table: the same keys, in the same order, with the same reload and the same name in `pendingRestart`.
+func TestBootstrapReloadTableMatchesTheRuntime(t *testing.T) {
+	t.Parallel()
+
+	keys, err := schemadoc.Keys(read(t, bootstrapPath))
+	require.NoError(t, err)
+
+	var unruled []string
+
+	for i := range keys {
+		_, found := flagruntime.ReloadOf(keys[i].Path)
+		if !found && keys[i].Path != "server" {
+			unruled = append(unruled, keys[i].Path)
+		}
+	}
+
+	assert.Empty(t, unruled, "keys of the schema that no reload rule covers")
+
+	_, section, found := strings.Cut(string(read(t, bootstrapPage)), "\n## Reload of each setting\n")
+	require.True(t, found, "the page has the reload section")
+
+	section, _, _ = strings.Cut(section, "\n## ")
+
+	var got []flagruntime.Reloadability
+
+	for line := range strings.SplitSeq(section, "\n") {
+		cells := strings.Split(strings.TrimSuffix(strings.TrimPrefix(line, "|"), "|"), "|")
+		if !strings.HasPrefix(line, "| `") || len(cells) != 3 {
+			continue
+		}
+
+		for i := range cells {
+			cells[i] = strings.Trim(strings.TrimSpace(cells[i]), "`")
+		}
+
+		got = append(got, flagruntime.Reloadability{Path: cells[0], Live: cells[1] == "live", Setting: cells[2]})
+	}
+
+	assert.Equal(t, flagruntime.Reloadabilities(), got)
+}
+
+// The Reload cell of the bootstrap document follows the table of the runtime.
+func TestBootstrapReloadCell(t *testing.T) {
+	t.Parallel()
+
+	docs := schemadoc.Documents(nil, nil)
+	require.NotEmpty(t, docs)
+	require.NotNil(t, docs[0].Reload)
+
+	tests := []struct {
+		path string
+		want string
+	}{
+		{path: "auth.adminKeys", want: "live"},
+		{path: keyVersion, want: "restart"},
+		{path: "server", want: "per key"},
+		{path: "nosuchkey", want: "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, docs[0].Reload(tt.path))
+		})
+	}
 }
