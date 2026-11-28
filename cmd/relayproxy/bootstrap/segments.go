@@ -88,3 +88,18 @@ func (s *Segments) applyDefaults() {
 	def.NoCache = orDefault(def.NoCache, false)
 	def.NoBreaker = orDefault(def.NoBreaker, false)
 }
+
+// EffectiveResolver is the settings of the segment resolver that the relay runs with: the segments section of the file
+// with the defaults applied, or the defaults alone when the file has no segments section. The relay and the segment
+// tool of the CLI both read the normalization and the longest id from it, so that the tool stores what the relay looks
+// up.
+func (c *Config) EffectiveResolver() SegmentResolver {
+	var section Segments
+	if c.Segments != nil {
+		section = *c.Segments
+	}
+
+	section.applyDefaults()
+
+	return section.Resolver
+}

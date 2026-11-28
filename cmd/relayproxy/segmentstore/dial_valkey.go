@@ -23,44 +23,58 @@ type valkeyHandle struct {
 	timeout time.Duration
 }
 
+// ValkeyClientOption is the valkey-go option of a connection: the address, the credentials, TLS and the timeouts.
+// The relay and the segment tool of the CLI dial with it. The second result is the lookup timeout of the connection.
+func ValkeyClientOption(
+	conn *bootstrap.ValkeyConnection,
+	secrets bootstrap.LoadOptions,
+) (valkey.ClientOption, time.Duration, error) {
+	password, err := conn.Password.Resolve(secrets)
+	if err != nil && conn.Password.IsSet() {
+		return valkey.ClientOption{}, 0, fmt.Errorf("password: %w", err)
+	}
+
+	var tlsCfg *tls.Config
+
+	if tlsEnabled(conn.TLS) {
+		tlsCfg, err = tlsConfig(conn.TLS, secrets)
+		if err != nil {
+			return valkey.ClientOption{}, 0, err
+		}
+	}
+
+	opt := valkey.ClientOption{
+		InitAddress: conn.Addresses, Username: conn.Username, Password: password.Reveal(), TLSConfig: tlsCfg,
+		ForceSingleClient: conn.ForceSingleClient,
+		// the lookups go through DoMulti, which is never cached: the resolver caches
+		DisableCache:     true,
+		DisableRetry:     !conn.Retry,
+		AlwaysPipelining: conn.Pipelining == "" || conn.Pipelining == bootstrap.PipeliningAlways,
+		BlockingPipeline: conn.BlockingPipeline,
+	}
+	if opt.BlockingPipeline == 0 {
+		opt.BlockingPipeline = math.MaxInt // a batch of any size stays on the shared connection
+	}
+
+	timeout := lookupTimeout(conn.LookupTimeout)
+	opt.ConnWriteTimeout = valkeysegment.DefaultConnWriteTimeout(timeout)
+
+	if t := conn.Timeouts; t != nil {
+		opt.Dialer.Timeout = durationOf(t.Connect)
+
+		if io := durationOf(t.IO); io > 0 {
+			opt.ConnWriteTimeout = io
+		}
+	}
+
+	return opt, timeout, nil
+}
+
 func valkeyDialer(conn *bootstrap.ValkeyConnection, secrets bootstrap.LoadOptions) Dialer {
 	return func(context.Context) (Handle, error) {
-		password, err := conn.Password.Resolve(secrets)
-		if err != nil && conn.Password.IsSet() {
-			return nil, fmt.Errorf("password: %w", err)
-		}
-
-		var tlsCfg *tls.Config
-
-		if tlsEnabled(conn.TLS) {
-			tlsCfg, err = tlsConfig(conn.TLS, secrets)
-			if err != nil {
-				return nil, err
-			}
-		}
-
-		opt := valkey.ClientOption{
-			InitAddress: conn.Addresses, Username: conn.Username, Password: password.Reveal(), TLSConfig: tlsCfg,
-			ForceSingleClient: conn.ForceSingleClient,
-			// the lookups go through DoMulti, which is never cached: the resolver caches
-			DisableCache:     true,
-			DisableRetry:     !conn.Retry,
-			AlwaysPipelining: conn.Pipelining == "" || conn.Pipelining == bootstrap.PipeliningAlways,
-			BlockingPipeline: conn.BlockingPipeline,
-		}
-		if opt.BlockingPipeline == 0 {
-			opt.BlockingPipeline = math.MaxInt // a batch of any size stays on the shared connection
-		}
-
-		timeout := lookupTimeout(conn.LookupTimeout)
-		opt.ConnWriteTimeout = valkeysegment.DefaultConnWriteTimeout(timeout)
-
-		if t := conn.Timeouts; t != nil {
-			opt.Dialer.Timeout = durationOf(t.Connect)
-
-			if io := durationOf(t.IO); io > 0 {
-				opt.ConnWriteTimeout = io
-			}
+		opt, timeout, err := ValkeyClientOption(conn, secrets)
+		if err != nil {
+			return nil, err
 		}
 
 		client, err := valkey.NewClient(opt)
