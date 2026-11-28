@@ -490,6 +490,7 @@ func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 		provider    segment.Provider
 		key         string
 		wantVariant string
+		defaults    bool // the default policy: what the provider cannot answer is not a member, onError has nothing to decide
 	}{
 		{name: "or: a member of a decides", query: rulesOr, key: keyAlice, wantVariant: variantOn},
 		{name: "or: a member of a decides, json", query: jsonOr, key: keyAlice, wantVariant: variantOn},
@@ -527,6 +528,18 @@ func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 			onError: new(ruleOnErrorMatch), wantVariant: variantOn,
 		},
 		{
+			name:  "default policy: a member of a leaves b not a member, onError match has nothing to decide",
+			query: rulesAnd, key: keyAlice, onError: new(ruleOnErrorMatch), defaults: true, wantVariant: variantOff,
+		},
+		{
+			name:  "default policy: a non member of a leaves b not a member, onError match has nothing to decide, json",
+			query: jsonOr, key: keyBob, onError: new(ruleOnErrorMatch), defaults: true, wantVariant: variantOff,
+		},
+		{
+			name:  "default policy: not (a member of a, b not a member) matches while the store is down",
+			query: `not (targetingKey in segment("b"))`, key: keyAlice, defaults: true, wantVariant: variantOn,
+		},
+		{
 			name: "a provider that panics after answering is not trusted", query: rulesOr, key: keyAlice,
 			provider: answersThenPanics{}, wantVariant: variantOff,
 		},
@@ -541,7 +554,12 @@ func TestSegmentProviderErrorKeepsTheAnswersItGave(t *testing.T) {
 				provider = answersThenFails{inner: segment.NewMemoryProvider(map[string][]string{"a": {keyAlice}})}
 			}
 
-			svc := flagdef.NewService()
+			var opts []flagdef.ServiceOption
+			if tt.onError != nil && !tt.defaults {
+				opts = append(opts, flagdef.WithSegments(optInCatalog(t, "a", "b"))) // the three-valued path is an opt-in
+			}
+
+			svc := flagdef.NewService(opts...)
 			rule := queryRule("r", tt.query)
 			rule.OnError = tt.onError
 			flag := onOffFlag(rule)

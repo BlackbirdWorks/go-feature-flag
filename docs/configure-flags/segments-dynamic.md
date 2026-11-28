@@ -1,10 +1,10 @@
 # Segments - dynamic
 
-A dynamic segment is a segment of type `redis` or `valkey`: the members stay in the store and are looked up while a flag is evaluated. See [Segments](segments.md) for what a segment is, the rule syntax and the three answers (member, not member, unknown). For small lists that change rarely use a [static segment](segments-static.md).
+A dynamic segment is a segment of type `redis` or `valkey`: the members stay in the store and are looked up while a flag is evaluated. See [Segments](segments.md) for what a segment is, the rule syntax and the two answers (member, not a member) and the opt-in for unknown. For small lists that change rarely use a [static segment](segments-static.md).
 
 - All the lookups of one rule go to the store in one batched call (`resolveSegments` batches the terms of a rule, not of a whole flag evaluation): one round trip to a single node, one batch for each node on a cluster. A flag evaluation with several segment rules can issue several calls.
 - The providers work alone, but then every lookup goes to the store. When the resolver is used, it adds a bounded cache with a short negative TTL, coalescing of identical lookups and a circuit breaker for each segment. Errors are never cached.
-- When the store cannot answer, the lookup is unknown and the failure policy of the segment (`onError`) decides. With the store down, a request takes at most its deadline plus a small margin. Exception: for a `valkey` segment whose peer stops reading until the connection ring is full, the wait can last until the `ConnWriteTimeout` of the client closes the connection (about 10 seconds by default), see [Limits](segments-valkey.md#limits).
+- When the store cannot answer, the lookup is not a member by default, and the failure policy of the segment (`onError`) can change that (`unknown` is the opt-in of the three-valued logic). The evaluation status is `STORE_ERROR`. With the store down, a request takes at most its deadline plus a small margin. Exception: for a `valkey` segment whose peer stops reading until the connection ring is full, the wait can last until the `ConnWriteTimeout` of the client closes the connection (about 10 seconds by default), see [Limits](segments-valkey.md#limits).
 - The provider only reads, so a read-only ACL user is enough.
 
 ## Modes
@@ -20,7 +20,7 @@ A segment that lives in a store has a mode. A definition with no `mode` is a `sn
 | Memory | the whole set (guarded by a maximum of members and bytes) | the LRU only (the least of the two modes) |
 | Freshness | as of the last pull; the relay polls the version and pulls again only when it changed | as of the version of the cached entry; entries of another version are misses, and the time-to-live is the fallback |
 | Change detection | version token, compared for equality | the same version token, learned off the request path |
-| Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is unknown and `onError` decides |
+| Store down or an error (timeout, broken stream, over the memory guard, malformed reply) | the last known good set keeps answering; the failure class is reported, never a member id | cached answers keep answering until they expire; a miss is not a member, or unknown with the `onError: unknown` opt-in |
 | Segment missing in the store (the store answered) | the old set is dropped and nobody is in the segment (not a member); it is served again when the segment comes back. With `missingKey: unknown` the lookups are unknown instead | not a member, or unknown with `missingKey: unknown` |
 
 - A segment that does not exist in the store has no member: the default `missingKey` is `notMember`, for both modes. `missingKey: unknown` is an opt-in that sends the lookups to the failure policy (`onError`). Consequence: an expired or deleted set means "nobody is in the segment". Replace a segment atomically (build the new set under another key and rename it over the old one), not by deleting it and adding the members again. Last known good is for errors only, never for a segment that is gone.
@@ -88,7 +88,7 @@ with the `keys` layout and the `snapshot` mode is rejected when the document is 
 | One call (one lookup call, single node) | one explicit pipeline | one `DoMulti`; the client batches concurrent calls on a connection (automatic pipelining) |
 | `Atomic` script mode | yes | no (no script is sent) |
 | Throughput under 64 to 256 concurrent callers (measured, default client settings, see the Valkey page; measured with `MissingKey: unknown`, one `EXISTS` for each set, the default `notMember` sends one command less and was not measured) | about 32000 to 33000 calls/s | about 51000 to 54000 calls/s with `pipelining: always` or `auto` |
-| One reply of a batch has the wrong shape (not an integer, wrong length) | the lookups of that command are unknown, the other commands keep their answers (a stream that cannot be parsed discards the whole call) | every lookup of the call is unknown |
+| One reply of a batch has the wrong shape (not an integer, wrong length) | the lookups of that command are not answered (not a member by default), the other commands keep their answers (a stream that cannot be parsed discards the whole call) | no lookup of the call is answered (not a member by default) |
 | A reply nobody asked for (broken server or proxy) | the connection is dropped, the call returns an error | valkey-go panics in its reader: the process ends |
 | Client settings | go-redis options | `pipelining` (`always`, `auto`), `blockingPipeline`, `retry` |
 | Server | Redis 6.2+, Valkey 7.2+ | Redis 6.2+, Valkey 7.2+ |

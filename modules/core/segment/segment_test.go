@@ -91,7 +91,7 @@ func TestDefinitionResolve(t *testing.T) {
 		state   segment.State
 		want    segment.State
 	}{
-		{name: "default keeps unknown", onError: "", state: segment.Unknown, want: segment.Unknown},
+		{name: "default is not a member", onError: "", state: segment.Unknown, want: segment.NotMember},
 		{name: "unknown keeps unknown", onError: segment.OnErrorUnknown, state: segment.Unknown, want: segment.Unknown},
 		{name: "notMember", onError: segment.OnErrorNotMember, state: segment.Unknown, want: segment.NotMember},
 		{name: "member", onError: segment.OnErrorMember, state: segment.Unknown, want: segment.Member},
@@ -180,6 +180,24 @@ func TestStatus(t *testing.T) {
 			wantWorse: segment.StatusStoreError,
 		},
 		{
+			name:      "healthy and stale",
+			a:         segment.StatusHealthy,
+			b:         segment.StatusStale,
+			wantWorse: segment.StatusStale,
+		},
+		{
+			name:      "stale and not configured",
+			a:         segment.StatusStale,
+			b:         segment.StatusNotConfigured,
+			wantWorse: segment.StatusNotConfigured,
+		},
+		{
+			name:      "error and stale",
+			a:         segment.StatusStoreError,
+			b:         segment.StatusStale,
+			wantWorse: segment.StatusStoreError,
+		},
+		{
 			name:      "error and healthy",
 			a:         segment.StatusStoreError,
 			b:         segment.StatusHealthy,
@@ -199,6 +217,7 @@ func TestStatus(t *testing.T) {
 	assert.Empty(t, segment.StatusNone.String())
 	assert.Equal(t, "HEALTHY", segment.StatusHealthy.String())
 	assert.Equal(t, "NOT_CONFIGURED", segment.StatusNotConfigured.String())
+	assert.Equal(t, "STALE", segment.StatusStale.String())
 	assert.Equal(t, "STORE_ERROR", segment.StatusStoreError.String())
 	assert.Empty(t, segment.Status(99).String())
 }
@@ -510,10 +529,10 @@ func TestTheEvaluationLookupsOfAVersionedSegmentAllocateNothing(t *testing.T) {
 	assert.Equal(t, segment.Member, state, "the failure policy of the segment applies")
 	assert.Equal(
 		t,
-		segment.Unknown,
+		segment.NotMember,
 		catalog.ResolveFor("ghost", segment.Unknown),
-		"a segment that is not defined keeps the state",
+		"a segment that is not defined has no member",
 	)
 	assert.False(t, (*segment.Catalog)(nil).Has("alpha"))
-	assert.Equal(t, segment.Unknown, (*segment.Catalog)(nil).ResolveFor("alpha", segment.Unknown))
+	assert.Equal(t, segment.NotMember, (*segment.Catalog)(nil).ResolveFor("alpha", segment.Unknown))
 }

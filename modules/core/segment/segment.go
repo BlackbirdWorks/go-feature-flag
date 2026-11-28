@@ -273,6 +273,9 @@ const (
 	StatusNone Status = iota
 	// StatusHealthy means every lookup was answered.
 	StatusHealthy
+	// StatusStale means the answers were given from data that is older than it should be (a snapshot that could not be
+	// refreshed): they are used, the way a last known good set is.
+	StatusStale
 	// StatusNotConfigured means a rule used a segment but the evaluation had no provider.
 	StatusNotConfigured
 	// StatusStoreError means a lookup could not be answered by the provider.
@@ -284,6 +287,8 @@ func (s Status) String() string {
 	switch s {
 	case StatusHealthy:
 		return "HEALTHY"
+	case StatusStale:
+		return "STALE"
 	case StatusNotConfigured:
 		return "NOT_CONFIGURED"
 	case StatusStoreError:

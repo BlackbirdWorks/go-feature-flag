@@ -106,6 +106,19 @@ type evalCase struct {
 	wantCacheable bool
 }
 
+// optInCatalog defines the segments with the explicit opt-in of the three-valued path: what the store cannot answer is
+// unknown, and the rule onError decides. The default of a definition is not a member.
+func optInCatalog(t *testing.T, names ...string) *segment.Catalog {
+	t.Helper()
+
+	defs := make([]segment.Definition, 0, len(names))
+	for _, name := range names {
+		defs = append(defs, segment.Definition{Name: name, Type: segment.TypeFile, OnError: segment.OnErrorUnknown})
+	}
+
+	return mustCatalog(t, defs...)
+}
+
 func healthyEvalCases(_ context.Context, t *testing.T) []evalCase {
 	t.Helper()
 
@@ -239,6 +252,7 @@ func failingEvalCases(cancelled context.Context, t *testing.T) []evalCase {
 			key:         keyAlice,
 			provider:    failingProvider{},
 			onError:     new("match"),
+			catalog:     optInCatalog(t, segBeta),
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusStoreError,
 		},
@@ -248,6 +262,7 @@ func failingEvalCases(cancelled context.Context, t *testing.T) []evalCase {
 			key:         keyAlice,
 			provider:    failingProvider{},
 			onError:     new("match"),
+			catalog:     optInCatalog(t, segBeta),
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusStoreError,
 		},
@@ -301,6 +316,7 @@ func failingEvalCases(cancelled context.Context, t *testing.T) []evalCase {
 			key:         keyAlice,
 			reqCtx:      cancelled,
 			onError:     new("match"),
+			catalog:     optInCatalog(t, segBeta),
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusStoreError,
 		},
@@ -319,6 +335,7 @@ func failingEvalCases(cancelled context.Context, t *testing.T) []evalCase {
 			key:         keyAlice,
 			provider:    nilProvider{},
 			onError:     new("match"),
+			catalog:     optInCatalog(t, segBeta),
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusNotConfigured,
 		},
@@ -357,6 +374,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 			plan:          planFree,
 			provider:      failingProvider{},
 			onError:       new("match"),
+			catalog:       optInCatalog(t, segBeta),
 			wantVariant:   variantOff,
 			wantStatus:    segment.StatusNone,
 			wantCacheable: true,
@@ -368,6 +386,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 			plan:          planFree,
 			provider:      failingProvider{},
 			onError:       new("match"),
+			catalog:       optInCatalog(t, segBeta),
 			wantVariant:   variantOff,
 			wantStatus:    segment.StatusNone,
 			wantCacheable: true,
@@ -379,6 +398,7 @@ func policyEvalCases(_ context.Context, t *testing.T) []evalCase {
 			plan:        planPro,
 			provider:    failingProvider{},
 			onError:     new("match"),
+			catalog:     optInCatalog(t, segBeta),
 			wantVariant: variantOn,
 			wantStatus:  segment.StatusStoreError,
 		},

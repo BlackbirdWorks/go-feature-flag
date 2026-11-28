@@ -669,3 +669,26 @@ func TestAMissingResultAfterTheContextEndedKeepsTheLastKnownGood(t *testing.T) {
 	assert.Equal(t, snapshot.ClassCanceled, holder.Status().LastError, "the cancel decides, not the missing answer")
 	assert.Equal(t, segment.Member, holder.Lookup("a"), "the last known good is kept")
 }
+
+func TestAHolderReportsStaleOnlyWhileItServesALastKnownGoodSet(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	assert.False(t, (&snapshot.Holder{}).Stale(), "nothing held, nothing stale")
+
+	holder, src := loaded(t, "a")
+	assert.False(t, holder.Stale(), "fresh")
+
+	src.Fail(segment.OpVersion, errBoom)
+	require.ErrorIs(t, holder.Refresh(ctx), errBoom)
+	assert.True(t, holder.Stale(), "the refresh failed, the last known good set answers")
+
+	src.Fail(segment.OpVersion, nil)
+	require.NoError(t, holder.Refresh(ctx))
+	assert.False(t, holder.Stale(), "the outage is over")
+
+	src.Delete(segAlpha)
+	require.ErrorIs(t, holder.Refresh(ctx), segment.ErrSegmentMissing)
+	assert.False(t, holder.Stale(), "a missing segment is an answer, not a stale set")
+}

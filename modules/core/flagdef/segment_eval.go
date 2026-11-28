@@ -271,6 +271,9 @@ func (q *queryContext) lookupSegments(lookups []segment.Lookup) segment.Status {
 	}
 
 	status := segment.StatusHealthy
+	if reporter, ok := q.segments.(segment.StaleReporter); ok && reporter.Stale() {
+		status = segment.StatusStale
+	}
 
 	for i := range lookups {
 		if !lookups[i].State.Valid() {
