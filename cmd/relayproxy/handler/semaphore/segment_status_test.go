@@ -2,6 +2,7 @@ package semaphore_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -20,6 +21,8 @@ import (
 	"github.com/blackbirdworks/semaphore/modules/core/segment"
 )
 
+const statusKey = "semaphore_segmentStatus"
+
 const betaFlag = "beta"
 
 const segmentStatusFlags = `
@@ -33,6 +36,14 @@ beta:
       variation: on
   defaultRule:
     variation: off
+own:
+  variations:
+    on: true
+    off: false
+  metadata:
+    semaphore_segmentStatus: its-own
+  defaultRule:
+    variation: on
 plain:
   variations:
     on: true
@@ -94,9 +105,25 @@ func TestSegmentStatusInTheV1Responses(t *testing.T) {
 			allReq.Header.Set(protocol.HeaderContentType, protocol.MIMEApplicationJSON)
 			require.NoError(t, controller.NewAllFlags(manager, &metric.Metrics{}).Handler(all, allReq))
 
-			if tt.flag == betaFlag {
-				assertV1Status(t, tt.wantStatus, all.Body.String())
+			var states struct {
+				Flags map[string]struct {
+					Metadata map[string]any `json:"metadata"`
+				} `json:"flags"`
 			}
+
+			require.NoError(t, json.Unmarshal(all.Body.Bytes(), &states))
+			require.Contains(t, states.Flags, betaFlag)
+			require.Contains(t, states.Flags, "plain")
+			require.Contains(t, states.Flags, "own")
+
+			wantBeta := ""
+			if _, down := tt.provider.(downProvider); down {
+				wantBeta = "STORE_ERROR"
+			}
+
+			assert.Equal(t, wantBeta, statusOf(states.Flags[betaFlag].Metadata), "the flag with a segment")
+			assert.Empty(t, statusOf(states.Flags["plain"].Metadata), "a flag without a segment")
+			assert.Equal(t, "its-own", states.Flags["own"].Metadata[statusKey], "a flag's own metadata is kept")
 		})
 	}
 }
@@ -111,4 +138,10 @@ func assertV1Status(t *testing.T, want, body string) {
 	}
 
 	assert.Contains(t, body, want)
+}
+
+func statusOf(metadata map[string]any) string {
+	status, _ := metadata[statusKey].(string)
+
+	return status
 }

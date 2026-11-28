@@ -330,12 +330,13 @@ func writeJSON(w http.ResponseWriter, code int, v any) error {
 	return nil
 }
 
-// bulkMetadata is the metadata of a flag of a bulk evaluation: the metadata of the evaluation, which carries the
-// segment status when the lookups were not healthy, unless the Semaphore metadata is disabled.
+// bulkMetadata is the metadata of a flag of a bulk evaluation: the metadata of the evaluation, and the segment
+// status when the lookups were not healthy, unless the Semaphore metadata is disabled. The metadata of the flag is
+// not changed.
 func (h *EvaluateCtrl) bulkMetadata(val *flagstate.FlagState) map[string]any {
 	if h.legacyMetadataOnly {
-		delete(val.Metadata, flagstate.MetadataSegmentStatus)
+		return val.Metadata
 	}
 
-	return val.Metadata
+	return val.MetadataWithStatus()
 }

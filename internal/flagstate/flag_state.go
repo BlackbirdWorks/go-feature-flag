@@ -27,6 +27,14 @@ type FlagState struct { //nolint:govet // fieldalignment: field order is the key
 // MetadataSegmentStatus is the response metadata key of the health of the segment lookups of an evaluation.
 const MetadataSegmentStatus = "semaphore_segmentStatus"
 
+// MetadataWithStatus is the metadata of the state as it is sent: the metadata itself when the segment lookups were
+// healthy or there was none, else the metadata with MetadataSegmentStatus set. The map is the one that the evaluation
+// made for this state (the engine clones the metadata of the flag for each evaluation, see constructMetadata), so the
+// key is written into it: no second copy. A state that is built from a map that is shared must not be given a status.
+func (f *FlagState) MetadataWithStatus() map[string]any {
+	return WithSegmentStatus(f.Metadata, f.SegmentStatus)
+}
+
 // WithSegmentStatus adds the MetadataSegmentStatus key to the metadata of an evaluation whose segment lookups were
 // not healthy (STALE, NOT_CONFIGURED or STORE_ERROR). A healthy evaluation, and one with no segment, get the
 // metadata back untouched: no copy, no allocation. The map belongs to the evaluation, so the key is added to it.
@@ -39,7 +47,7 @@ func WithSegmentStatus(metadata map[string]any, status segment.Status) map[strin
 		metadata = make(map[string]any, 1)
 	}
 
-	metadata[MetadataSegmentStatus] = status.String()
+	metadata[MetadataSegmentStatus] = statusValue(status)
 
 	return metadata
 }
@@ -118,4 +126,20 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 	}
+}
+
+// statusValue is the name of a reported status as a value of the metadata: a constant for each, so putting it in the
+// map does not allocate.
+func statusValue(status segment.Status) any {
+	switch status {
+	case segment.StatusStale:
+		return "STALE"
+	case segment.StatusNotConfigured:
+		return "NOT_CONFIGURED"
+	case segment.StatusStoreError:
+		return "STORE_ERROR"
+	case segment.StatusNone, segment.StatusHealthy:
+	}
+
+	return ""
 }
