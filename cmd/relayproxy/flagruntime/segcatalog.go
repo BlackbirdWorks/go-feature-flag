@@ -396,6 +396,9 @@ func (st *stage) bindView(
 	}
 
 	view, live := newSegmentView(bindings)
+	if view != nil {
+		view.traced = st.b.opts.Segments.Traced
+	}
 
 	return view, live, problems
 }

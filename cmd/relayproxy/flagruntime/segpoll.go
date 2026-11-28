@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/blackbirdworks/semaphore/modules/core/segment/resolver"
 	"github.com/blackbirdworks/semaphore/modules/core/segment/snapshot"
 )
 
@@ -332,6 +333,9 @@ func (r *Runtime) liveBindings() []*segBinding {
 type SegmentBindingsStatus struct {
 	// Connections is the state of the held sets of each connection, sorted by name.
 	Connections []ConnectionSnapshots `json:"connections,omitempty"`
+	// Breakers is the number of segments whose circuit breaker is open or half open, for each connection that has
+	// lookup segments, sorted by name.
+	Breakers []ConnectionBreakers `json:"breakers,omitempty"`
 	// Live is the number of bindings that the flag sets of the runtime use: one for each segments object, connection
 	// and reading of a missing key, however many flag sets share it.
 	Live int `json:"live"`
@@ -353,11 +357,61 @@ type ConnectionSnapshots struct {
 	Members int `json:"members"`
 }
 
+// ConnectionBreakers counts the segments of a connection by the state of their breaker.
+type ConnectionBreakers struct {
+	// Connection is the name in the bootstrap file.
+	Connection string `json:"connection"`
+	// Open and HalfOpen count the segments in that state; the others are closed.
+	Open     int `json:"open"`
+	HalfOpen int `json:"halfOpen"`
+}
+
+// breakerCounts counts the segments of each connection by the state of their breaker, sorted by connection.
+func breakerCounts(bindings []*segBinding) []ConnectionBreakers {
+	byConn := map[string]*ConnectionBreakers{}
+
+	for _, b := range bindings {
+		if b.res == nil {
+			continue
+		}
+
+		counts := byConn[b.connection]
+		if counts == nil {
+			counts = &ConnectionBreakers{Connection: b.connection}
+			byConn[b.connection] = counts
+		}
+
+		for _, seg := range b.res.Status().Segments {
+			switch seg.Breaker {
+			case resolver.BreakerOpen:
+				counts.Open++
+			case resolver.BreakerHalfOpen:
+				counts.HalfOpen++
+			case resolver.BreakerClosed:
+			}
+		}
+	}
+
+	if len(byConn) == 0 {
+		return nil
+	}
+
+	out := make([]ConnectionBreakers, 0, len(byConn))
+
+	for _, name := range slices.Sorted(maps.Keys(byConn)) {
+		out = append(out, *byConn[name])
+	}
+
+	return out
+}
+
 // SegmentBindings reads the state of the bindings of the runtime. It calls no store.
 func (r *Runtime) SegmentBindings() SegmentBindingsStatus {
 	bindings := r.liveBindings()
 	out := SegmentBindingsStatus{Live: len(bindings)}
 	byConn := map[string]*ConnectionSnapshots{}
+
+	out.Breakers = breakerCounts(bindings)
 
 	for _, b := range bindings {
 		if len(b.holders) == 0 {

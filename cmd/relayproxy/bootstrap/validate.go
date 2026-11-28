@@ -310,6 +310,10 @@ func (v *validator) observability() {
 	v.oneOf("observability.tracing.sampler", obs.Tracing.Sampler, "always_on", "always_off", "traceidratio",
 		"parentbased_always_on", "parentbased_always_off", "parentbased_traceidratio")
 
+	if obs.Metrics.MaxSegmentLabels < 0 {
+		v.failf("observability.metrics.maxSegmentLabels", ErrInvalidValue, "expected at least 1")
+	}
+
 	if obs.Tracing.OTLPEndpoint != "" {
 		v.endpointOrHostPort("observability.tracing.otlpEndpoint", obs.Tracing.OTLPEndpoint)
 	}

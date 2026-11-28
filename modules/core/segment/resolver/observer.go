@@ -129,6 +129,7 @@ type Counters struct {
 	calls, lookups, hits, misses, coalesced, shorted, notLoaded, oversized, invalid, unknown, failed atomic.Uint64
 	opened, halfOpened, closed                                                                       atomic.Uint64
 	duration                                                                                         atomic.Int64
+	dist                                                                                             distribution
 }
 
 // ObserveCall implements [Observer].
@@ -146,14 +147,12 @@ func (c *Counters) ObserveCall(obs CallObservation) {
 	c.invalid.Add(uint64(max(obs.Invalid, 0)))
 	c.unknown.Add(uint64(max(obs.Unknown, 0)))
 	c.duration.Add(int64(max(obs.Duration, 0)))
+	c.dist.buckets[durationBucket(max(obs.Duration, 0))].Add(1)
 
 	if obs.Failed {
 		c.failed.Add(1)
 	}
 }
-
-// ObserveSegment implements [Observer]. The counters keep the totals of the calls only.
-func (*Counters) ObserveSegment(SegmentObservation) {}
 
 // ObserveBreaker implements [Observer].
 func (c *Counters) ObserveBreaker(ev BreakerEvent) {

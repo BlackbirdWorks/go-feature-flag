@@ -248,6 +248,8 @@ type v2Options struct {
 	logger   *slog.Logger
 	stateDir string
 	dir      string
+	// secrets resolve the fromEnv and fromFile references of the file; the zero value resolves none.
+	secrets bootstrap.LoadOptions
 	// connections are more connections of the bootstrap file, as indented lines of its connections block.
 	connections string
 	// extra is more top-level sections of the bootstrap file.
@@ -326,7 +328,14 @@ func buildV2(tb testing.TB, opts *v2Options, newManager events.NewManagerFunc) *
 		newManager = func(string, exporter.Config, *slog.Logger) events.FeatureManager { return rig.events }
 	}
 
+	metrics, err := metric.NewMetrics()
+	require.NoError(tb, err)
+
+	rig.metrics = metrics
+
 	deps := &relaycore.Deps{
+		Registerer: metrics.Registry,
+		Secrets:    opts.secrets,
 		Logger:     opts.logger,
 		Scheduler:  rig.sched,
 		Broadcast:  rig.streams.Broadcast,
@@ -374,10 +383,6 @@ func buildV2(tb testing.TB, opts *v2Options, newManager events.NewManagerFunc) *
 		}
 	}
 
-	metrics, err := metric.NewMetrics()
-	require.NoError(tb, err)
-
-	rig.metrics = metrics
 	rig.ready = corehttp.NewReadiness(core)
 
 	srv, err := corehttp.New(core, &corehttp.Config{

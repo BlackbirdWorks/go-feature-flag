@@ -59,6 +59,8 @@ type SegmentBinder interface {
 type SegmentView struct {
 	byName map[string]*viewGroup
 	groups []*viewGroup
+	// traced is true when the relay exports traces: only then is the lookup step a span.
+	traced bool
 }
 
 // viewGroup is the segments of one binding that the flag set serves.
@@ -75,8 +77,12 @@ type SegmentEnv struct {
 	Binder SegmentBinder
 	// Observer (optional) receives what the resolvers do; one value for the process.
 	Observer resolver.Observer
+	// ObserverFor (optional) gives the observer of the resolvers of one connection; it wins over Observer.
+	ObserverFor func(connection string) resolver.Observer
 	// Resolver holds the settings of the resolvers. Nil means the defaults.
 	Resolver *bootstrap.SegmentResolver
+	// Traced is true when the relay exports traces; the lookups of a request are then a span. Off, they cost nothing.
+	Traced bool
 	// PullTimeout is the deadline of the refresh of one snapshot segment (the version read and the pull of the
 	// members). Zero means [DefaultPullTimeout].
 	PullTimeout time.Duration
@@ -102,8 +108,12 @@ func intOr(p *int) int {
 
 func boolOr(p *bool) bool { return p != nil && *p }
 
-func (e *SegmentEnv) options() *resolver.Options {
+func (e *SegmentEnv) options(connection string) *resolver.Options {
 	opts := &resolver.Options{Observer: e.Observer}
+	if e.ObserverFor != nil {
+		opts.Observer = e.ObserverFor(connection)
+	}
+
 	if e.Resolver == nil {
 		return opts
 	}
