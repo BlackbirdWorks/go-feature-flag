@@ -8,7 +8,7 @@ Valkey or Redis store. The relay only reads membership; this is the write side.
 - The connection comes from the [bootstrap file](../relay-proxy/bootstrap-config.md) (`--config`, or `SEMAPHORE_CONFIG`),
   with its secrets resolved from `fromEnv` and `fromFile`. The key prefix, the `normalize` setting and the longest id
   (`segments.resolver`) are read from it too, so the tool writes what the relay looks up.
-- `--segments` is a file (YAML or JSON) of kind `Segments`. Reading the published document from the bucket comes with the S3 source.
+- `--segments` is a file (YAML or JSON) of kind `Segments`. Without it, the command reads the segments objects that the manifest of the `controlPlane` of the bootstrap file lists, through the same object stores as the relay: the manifest, then each segments object, whose size and checksum must be the listed ones. A segment name that two objects define is an error, and so is a manifest with no segments object. Errors name the manifest key and the object (`manifest "m.json": objects[1] (people): key "...": checksum mismatch`).
 
 ```yaml
 version: 2
@@ -52,6 +52,75 @@ column of a CSV line (`--format csv --column n`; a quoted field cannot hold a li
 - An input with no valid id is an error (exit 2), because swapping it in would wipe the segment. `--allow-empty` accepts it.
 - `--batch-size` (default 1000, at most 100000) is the ids of one `SADD`; `--temp-ttl` (default 1h) is the life of the temporary key.
 - The `keys` layout is refused (exit 2): it has no single key to swap, and any other protocol shows the relay a half built segment. Use `add` and `remove` for it.
+
+A relay that is mid-pull during a swap can serve a mix of old and new members for up to one `version.interval`.
+
+To replace a segment without a swap, see [a new key](#a-new-key-instead-of-a-swap).
+
+## S3 source
+
+```shell
+semaphore-cli segment import --config relay.yaml --segment vip --from s3://ids-bucket/lists/vip.txt
+semaphore-cli segment import --config relay.yaml --segment vip --from s3://ids-bucket/lists/vip/ --max-objects 200
+```
+
+`--from s3://<bucket>/<key>` reads one object. `--from s3://<bucket>/<prefix>/` (a slash at the end) reads every object under the prefix, in key order, as one input: a line break is put between two objects, so the last line of one never joins the first of the next. The formats, the normalisation, the limits and the counts are the ones of a file.
+
+- **Connection.** The S3 client is the one of the `s3` connection of the bootstrap file: credentials, region, endpoint and TLS come from it and there are no flags for them. `--source-connection <name>` names the connection; when the file has exactly one `s3` connection, that is the default (the control-plane connection counts, so a file with a control plane and a data bucket needs the flag). The bucket of the URL must be the `bucket` of the connection.
+- **IAM.** The role needs `s3:GetObject` on the objects and `s3:ListBucket` on the bucket, limited to the prefix with the `s3:prefix` condition. A single object needs `s3:GetObject` only (the check of its ETag uses `HEAD`, which `s3:GetObject` allows).
+- **Streaming.** An object is read with one `GET` and never held whole in memory; no temporary file is written. An object that is gzip (`Content-Encoding: gzip`, or a name that ends with `.gz`) is decompressed on the fly.
+- **A changed source aborts the import before the swap.** Each `GET` carries `If-Match` with the ETag of the listing, so an object that was replaced after the listing fails the import. At the end of the input the listing is read again, and an object that was added, removed or replaced fails it too. A read error in the middle of an object, or a body shorter than announced, fails it. In each case the live set is untouched (exit 3 for a changed source, 1 for the others).
+- **Bounds.** A listing is paginated and holds at most `--max-objects` objects (default 1000): more is an error (exit 2), never a part of the prefix. A prefix with no object is an empty input: an error unless `--allow-empty`.
+- The import records the fingerprint of the source with the swap (see [Sync](#sync)).
+
+## Sync
+
+```shell
+semaphore-cli segment sync --config relay.yaml --segment vip --from s3://ids-bucket/lists/vip/ --once
+semaphore-cli segment sync --config relay.yaml --segment vip --from s3://ids-bucket/lists/vip/ --interval 5m
+```
+
+Keeps the segment in step with an object or a prefix: it checks the source and runs an import when the source is not the one that the live set came from.
+
+- **Fingerprint.** The identity of the source is a SHA-256 over the key, ETag and size of each object: one `HEAD` for an object, the listing for a prefix. No content is read to compare. It is stored in `<key>:import:source`, in the slot of the set, by the same script that swaps the set: the swap and the record are one step, so a crash between them cannot skip a change or leave a record of a set that is not live. An import without a fingerprint (a file, standard input) removes the record, so the next sync imports again.
+- **Rounds.** A round reads the stored fingerprint (one `GET`) and the source. Equal: `unchanged`, no write. Different, or no record (the first run): the source is imported. Another import holds the lock: `skipped`, the round does nothing and the next one tries again.
+- **Failure.** A failed round (the source, the store or the import) keeps the previous set. It is retried at the next interval; after repeated failures the pause doubles, up to 16 intervals, and comes back to the interval after a good round.
+- **Health.** Each round logs one line to standard error at info level with the outcome (`changed`, `unchanged`, `skipped` or `failed`), the counts and the duration. Warnings carry the error text. No id is ever logged.
+- **Lifecycle.** The command runs until its context ends: the first SIGINT or SIGTERM stops the import in flight before its swap (or lets a swap that was sent finish), and a second signal ends the process at once. `--once` runs one round and exits with its result: 0 when the source was unchanged, imported or skipped, the exit code of the import when it failed.
+- The import options of `import` apply (`--format`, `--column`, `--batch-size`, `--temp-ttl`, `--max-line-bytes`, `--allow-empty`, `--max-objects`, `--source-connection`).
+
+Run it as a Kubernetes `CronJob` with `--once` (recommended: one short process, the schedule is the interval, a failure is a failed job with its exit code), or as a long-running process with `--interval` (default 1m).
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata: {name: segment-sync-vip}
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync
+              image: semaphore-cli
+              args: [segment, sync, --once, --config, /etc/semaphore/relay.yaml, --segment, vip, --from, "s3://ids-bucket/lists/vip/"]
+```
+
+## A new key instead of a swap
+
+The other way to replace a segment: build the new list under a new key, then publish the definition with that key.
+
+```shell
+semaphore-cli segment import --config relay.yaml --segments segments-v2.yaml --segment vip --from vip-ids.txt   # key: audience:vip-v2
+semaphore-cli publish ./control --config relay.yaml                                                              # ./control/segments/ now says key: audience:vip-v2
+```
+
+The relay reloads the definition and reads the new key: no version bump and no version key is needed. A snapshot segment pulls the new set at once on the reload, not after an interval; a lookup segment does not serve the answers that it cached for the old key. The old list stays where it was until you remove it, so going back is publishing the old key again.
+
+Choose the in-place import when the key must not change and a short mixed read (see above) is fine. Choose the new key when readers must see the old list or the new one with no mix, or when you want to keep the old list for a rollback.
 
 The protocol is safe by construction, not by narrow windows:
 
@@ -101,7 +170,7 @@ Writes a new version to the version key of the definition and nothing else (thre
 ## Output and exit codes
 
 - Counts only: no id is printed, logged (`--debug` logs the steps to stderr) or put in an error.
-- 0 done, 1 failure (also: the set was replaced and the version could not be bumped), 2 invalid input (empty input, the `keys` layout, bad options such as `--max-line-bytes` under 16), 3 conflict (another import holds the lock, or the swap condition did not hold: nothing changed), 4 the store failed, 6 the outcome is not known (no answer from the swap: look with `stat` before repeating).
+- 0 done, 1 failure (also: the set was replaced and the version could not be bumped), 2 invalid input (empty input, the `keys` layout, bad options such as `--max-line-bytes` under 16, a prefix over `--max-objects`, a source URL or connection that cannot be resolved), 3 conflict (another import holds the lock, the source changed while it was read, or the swap condition did not hold: nothing changed), 4 the store failed, 6 the outcome is not known (no answer from the swap: look with `stat` before repeating).
 
 ## Data contract
 
@@ -113,6 +182,7 @@ Key layouts (see [Redis](../configure-flags/segments-redis.md) and [Valkey](../c
 | `keys` | `key` of the definition (a prefix), or `<keyPrefix><name>:` | one key `<prefix><id>` for each member |
 
 - The default set key holds the segment name in a hash tag. The keys of an import (`<key>:import:lock`, `<key>:import:last`, `<key>:import:<token>:new`, `<key>:import:<token>:old`) keep the tag of the live key, or, for a key without a tag, wrap the key in one (`{<key>}:import:...`), so that they are in the cluster slot of the live key and the scripts work on a cluster. A key whose tag cannot be shared is refused.
+- The record of the source (`<key>:import:source`) is a string, the fingerprint of the input of the last import that had one. It is in the slot of the set and is written by the swap script; the writer ACL below covers it.
 - The version key is a string: the time of the last change. Keep it outside the prefix of a `keys` segment, or `stat` counts it.
 - The tool refuses (exit 2) a segment whose keys can meet those of another segment of the same document on the same connection: no key, version key or member prefix of another segment may be one of the keys that an import of the segment uses (`<key>:import:...`), and two segments may not share a key. It removes only keys that it created under its own token.
 - The temporary key and the lock have a ttl from the first batch (`--temp-ttl`, refreshed by each batch). The live key has no ttl: `PERSIST` removes the one that `RENAME` carries over.
@@ -124,6 +194,7 @@ ACL SETUSER relay on >secret ~semaphore:segment:* resetchannels -@all +ping +hel
 ACL SETUSER segwriter on >secret ~semaphore:segment:* ~audiences:* resetchannels -@all +ping +hello +client +cluster|slots +cluster|shards +role +eval +evalsha +get +set +sadd +srem +scard +exists +rename +persist +pexpire +pttl +scan +unlink +del
 ```
 
+- The ACL line does not change for the S3 source and for sync: the sync reads the record with `get`, and the swap writes it with `set` and `del`, inside its script. The access to the bucket is the IAM role of the connection.
 - `+eval` and `+evalsha` run the three scripts (batch, swap, unlock); the commands inside them (`get`, `set`, `sadd`, `scard`, `exists`, `rename`, `persist`, `pexpire`, `unlink`, `del`) are checked against the user too. `+cluster|...` and `+role` are for a cluster client and for `stat` of a `keys` segment on a cluster. `+del` is for the fallback only. Adapt the key patterns to your keys. A test makes a user from exactly this line and runs every command of the tool with it.
 - Lazy free: `UNLINK` frees in a background thread whatever the settings. The `RENAME` that puts the new set live never frees a set, because the old one has been moved to its own key first. Set `lazyfree-lazy-user-del yes` anyway if other tools use `DEL` on these keys.
 - Memory: during a rebuild the store holds the old set, the new set and the old set until `UNLINK` has run. The peak is about old plus new. Plan for it.

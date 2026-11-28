@@ -53,7 +53,9 @@ return added
 	commitScript = `
 local function record()
   redis.call('SET', KEYS[5], ARGV[1], 'PX', ARGV[3])
-  if ARGV[5] == '' then redis.call('DEL', KEYS[6]) else redis.call('SET', KEYS[6], ARGV[5]) end
+  if ARGV[5] == '' then return redis.call('DEL', KEYS[6]) end
+  return redis.call('SET', KEYS[6], ARGV[5])
+end
 if redis.call('GET', KEYS[5]) == ARGV[1] then return 5 end
 if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 1 end
 local want = tonumber(ARGV[2])

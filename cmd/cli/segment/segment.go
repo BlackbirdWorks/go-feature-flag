@@ -44,7 +44,7 @@ func HelpVars() kong.Vars {
 		"helpSegDry":     "Read and validate the input, write nothing",
 		"helpSegIDs":     "Ids to add or remove",
 		"helpSegScan":    "Most keys that a keys layout segment is counted to",
-		"helpSegSrcConn": "Name of the s3 connection of the bootstrap file that holds the source (needed when it has " +
+		"helpSegSrc": "Name of the s3 connection of the bootstrap file that holds the source (needed when it has " +
 			"more than one)",
 		"helpSegMaxObj":   "Most objects of an s3 prefix; more is an error, never a partial read",
 		"helpSegSegment":  "Segment to keep in step with the source",

@@ -14,17 +14,17 @@ import (
 type SyncCmd struct {
 	Common `embed:""`
 
-	SourceConnection string        `help:"${helpSegSrcConn}" name:"source-connection"`
-	From             string        `help:"${helpSegFrom}"    name:"from"               required:"true"`
-	Format           string        `default:"lines"          enum:"lines,csv"          help:"${helpSegFormat}" name:"format"`
-	MaxObjects       int           `default:"1000"           help:"${helpSegMaxObj}"   name:"max-objects"`
-	Column           int           `default:"1"              help:"${helpSegColumn}"   name:"column"`
-	BatchSize        int           `default:"1000"           help:"${helpSegBatch}"    name:"batch-size"`
-	MaxLineBytes     int           `default:"65536"          help:"${helpSegMaxLine}"  name:"max-line-bytes"`
-	TempTTL          time.Duration `default:"1h"             help:"${helpSegTTL}"      name:"temp-ttl"`
-	Interval         time.Duration `default:"1m"             help:"${helpSegInterval}" name:"interval"`
-	AllowEmpty       bool          `help:"${helpSegEmpty}"   name:"allow-empty"`
-	Once             bool          `help:"${helpSegOnce}"    name:"once"`
+	SourceConnection string        `help:"${helpSegSrc}"   name:"source-connection"`
+	From             string        `help:"${helpSegFrom}"  name:"from"               required:"true"`
+	Format           string        `default:"lines"        enum:"lines,csv"          help:"${helpSegFormat}" name:"format"`
+	MaxObjects       int           `default:"1000"         help:"${helpSegMaxObj}"   name:"max-objects"`
+	Column           int           `default:"1"            help:"${helpSegColumn}"   name:"column"`
+	BatchSize        int           `default:"1000"         help:"${helpSegBatch}"    name:"batch-size"`
+	MaxLineBytes     int           `default:"65536"        help:"${helpSegMaxLine}"  name:"max-line-bytes"`
+	TempTTL          time.Duration `default:"1h"           help:"${helpSegTTL}"      name:"temp-ttl"`
+	Interval         time.Duration `default:"1m"           help:"${helpSegInterval}" name:"interval"`
+	AllowEmpty       bool          `help:"${helpSegEmpty}" name:"allow-empty"`
+	Once             bool          `help:"${helpSegOnce}"  name:"once"`
 }
 
 // Run checks the source, and imports it when its fingerprint is not the one recorded with the live set. It runs until

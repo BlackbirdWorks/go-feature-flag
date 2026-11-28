@@ -30,6 +30,7 @@ const (
 	segSwap    = "semaphore:segment:{swap}"
 	segCut     = "semaphore:segment:{cut}"
 	segEdit    = "semaphore:segment:{edit}"
+	segFP      = "semaphore:segment:{fp}"
 	segFlags   = "semaphore:segment:flags:"
 )
 
@@ -40,6 +41,7 @@ func e2eSegments() map[string]string {
 		"swap":  segSwap,
 		"cut":   segCut,
 		"edit":  segEdit,
+		"fp":    segFP,
 		"flags": segFlags,
 	}
 }
@@ -105,11 +107,40 @@ func TestE2E(t *testing.T) {
 				t.Parallel()
 				e2eProtocol(t, back)
 			})
+			t.Run("the fingerprint of the source is recorded with the swap", func(t *testing.T) {
+				t.Parallel()
+				e2eFingerprint(t, back)
+			})
 			t.Run("add, remove and stat", func(t *testing.T) {
 				t.Parallel()
 				e2eEdits(t, back)
 			})
 		})
+	}
+}
+
+// e2eFingerprint checks that the swap records the fingerprint of its input in the slot of the set (a cluster refuses a
+// script whose keys are in two), replaces it with the next one, and that an input without one removes it.
+func e2eFingerprint(t *testing.T, back *backend) {
+	t.Helper()
+
+	ctx := t.Context()
+	target := e2eTarget(segFP, redissegment.LayoutSet)
+	source := segFP + ":import:source"
+
+	for _, step := range []struct{ fingerprint, want string }{
+		{fingerprint: "sha256:one", want: "sha256:one"},
+		{fingerprint: "sha256:two", want: "sha256:two"},
+		{fingerprint: "", want: ""},
+	} {
+		_, err := segmentadmin.Import(ctx, back.store, target, segmentadmin.NewSliceSource([]string{"a", "b"}),
+			segmentadmin.ImportOptions{Fingerprint: step.fingerprint})
+		require.NoError(t, err)
+
+		got, found, err := back.store.Value(ctx, source)
+		require.NoError(t, err)
+		assert.Equal(t, step.want != "", found)
+		assert.Equal(t, step.want, got)
 	}
 }
 

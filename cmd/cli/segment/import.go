@@ -13,16 +13,16 @@ import (
 type ImportCmd struct {
 	Common `embed:""`
 
-	SourceConnection string        `help:"${helpSegSrcConn}" name:"source-connection"`
-	From             string        `help:"${helpSegFrom}"    name:"from"              required:"true"`
-	Format           string        `default:"lines"          enum:"lines,csv"         help:"${helpSegFormat}" name:"format"`
-	MaxObjects       int           `default:"1000"           help:"${helpSegMaxObj}"  name:"max-objects"`
-	Column           int           `default:"1"              help:"${helpSegColumn}"  name:"column"`
-	BatchSize        int           `default:"1000"           help:"${helpSegBatch}"   name:"batch-size"`
-	MaxLineBytes     int           `default:"65536"          help:"${helpSegMaxLine}" name:"max-line-bytes"`
-	TempTTL          time.Duration `default:"1h"             help:"${helpSegTTL}"     name:"temp-ttl"`
-	AllowEmpty       bool          `help:"${helpSegEmpty}"   name:"allow-empty"`
-	DryRun           bool          `help:"${helpSegDry}"     name:"dry-run"`
+	SourceConnection string        `help:"${helpSegSrc}"   name:"source-connection"`
+	From             string        `help:"${helpSegFrom}"  name:"from"              required:"true"`
+	Format           string        `default:"lines"        enum:"lines,csv"         help:"${helpSegFormat}" name:"format"`
+	MaxObjects       int           `default:"1000"         help:"${helpSegMaxObj}"  name:"max-objects"`
+	Column           int           `default:"1"            help:"${helpSegColumn}"  name:"column"`
+	BatchSize        int           `default:"1000"         help:"${helpSegBatch}"   name:"batch-size"`
+	MaxLineBytes     int           `default:"65536"        help:"${helpSegMaxLine}" name:"max-line-bytes"`
+	TempTTL          time.Duration `default:"1h"           help:"${helpSegTTL}"     name:"temp-ttl"`
+	AllowEmpty       bool          `help:"${helpSegEmpty}" name:"allow-empty"`
+	DryRun           bool          `help:"${helpSegDry}"   name:"dry-run"`
 }
 
 // Run imports the ids. A file or standard input is opened before the store is, so that a bad input fails first; an
