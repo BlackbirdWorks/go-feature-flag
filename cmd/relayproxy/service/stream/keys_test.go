@@ -471,8 +471,8 @@ func TestSSEBlockedWriteEndsAtRevocation(t *testing.T) {
 type deadlineResponse struct {
 	*httptest.ResponseRecorder
 
-	mu        sync.Mutex
 	deadlines []time.Time
+	mu        sync.Mutex
 }
 
 func (d *deadlineResponse) SetWriteDeadline(deadline time.Time) error {
@@ -501,10 +501,10 @@ func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name      string
-		streamID  string
-		keyed     bool
-		teardown  func(*stream.SSEServiceImpl)
+		teardown     func(*stream.SSEServiceImpl)
+		name         string
+		streamID     string
+		keyed        bool
 		wantDeadline bool
 	}{
 		{
@@ -513,7 +513,7 @@ func TestSSETeardownKeepsAWriteDeadline(t *testing.T) {
 		},
 		{
 			name: "key revoked", streamID: setOne, keyed: true,
-			teardown: func(svc *stream.SSEServiceImpl) { svc.DisconnectRevoked(routesOf(nil)) },
+			teardown:     func(svc *stream.SSEServiceImpl) { svc.DisconnectRevoked(routesOf(nil)) },
 			wantDeadline: true,
 		},
 		{

@@ -339,12 +339,15 @@ var (
 
 ## controlplane/flagcheck
 func (*Error) Is(target error) bool
+func (*PublicError) Is(target error) bool
 func (*ReferenceError) Is(target error) bool
 func (e *Error) Error() string
+func (e *PublicError) Error() string
 func (e *ReferenceError) Error() string
 func (e *ReferenceError) Unwrap() []error
 func (p FlagProblem) Message() string
 func Check(body []byte, format string) error
+func CheckPublicDuplicates(sets []KeylessSet) error
 func CheckSegmentReferences(flagSet string, flags []FlagFile, sources []SegmentFile) error
 func CheckSegments(body []byte) error
 func Definition(seg *"github.com/blackbirdworks/semaphore/controlplane".SegmentDefinition) ("github.com/blackbirdworks/semaphore/modules/core/segment".Definition, bool)
@@ -363,6 +366,24 @@ type FlagProblem struct {
 	Err	error
 
 	Flag	string
+}
+type KeylessSet struct {
+	Name	string
+
+	Flags	[]FlagFile
+}
+type PublicError struct {
+	Problems []PublicProblem
+}
+type PublicOwner struct {
+	FlagSet	string
+
+	Object	string
+}
+type PublicProblem struct {
+	Flag	string
+
+	Owners	[]PublicOwner
 }
 type ReferenceError struct {
 	FlagSet	string
@@ -386,6 +407,7 @@ type SegmentFile struct {
 	Name	string
 }
 var ErrInvalid = "errors".New("flagcheck: invalid flag file")
+var ErrPublicDuplicate = "errors".New("flagcheck: a flag key is defined in two keyless flag sets")
 var ErrSegments = "errors".New("flagcheck: invalid segments")
 
 ## controlplane/s3publish
