@@ -6,6 +6,7 @@ vars:
   ALL_GO_MOD_DIRS: ./ ./openfeature/provider_tests/go-integration-tests/
   GO_TAG_SETS: none docker,bench
   GOLANGCI_LINT_VERSION: '2.15.0'
+  APIDIFF: golang.org/x/exp/cmd/apidiff@v0.0.0-20261121134650-e1094eeca1b5
   TEST_PKG_SCRIPT: .github/ci-scripts/test-pkgs.sh
   COVERAGE_SCRIPT: .github/ci-scripts/coverage.py
   GROUP: '{{.GROUP | default (env "GROUP") | default "all"}}'
@@ -119,6 +120,28 @@ tasks:
     desc: Rewrite controlplane/testdata/golden/api.txt, the snapshot of the exported API (commit it with an additive API change)
     cmds:
       - GOWORK="{{.GOWORK_VAL}}" GOLDEN_UPDATE=1 {{.GOCMD}} test ./controlplane -run '^TestPublicAPISnapshot$' -count=1
+
+  apidiff:
+    desc: Compare the exported API of ./controlplane/... against BASE (default origin/main, or a release tag), local only
+    vars:
+      BASE: '{{.BASE | default (env "BASE") | default "origin/main"}}'
+    cmds:
+      - |
+        set -eu
+        export GOWORK=off
+        mod=$({{.GOCMD}} list -m)
+        tmp=$(mktemp -d)
+        trap 'git worktree remove --force "$tmp/base" >/dev/null 2>&1 || true; rm -rf "$tmp"' EXIT
+        git worktree add --detach "$tmp/base" "{{.BASE}}" >/dev/null
+        for pkg in $({{.GOCMD}} list ./controlplane/... | sed "s|^$mod/||"); do
+          if [ ! -d "$tmp/base/$pkg" ]; then
+            echo "→ $pkg: new package, nothing to compare"
+            continue
+          fi
+          (cd "$tmp/base" && {{.GOCMD}} run {{.APIDIFF}} -w "$tmp/old.api" "$mod/$pkg")
+          echo "→ $pkg against {{.BASE}} (Incompatible changes break callers, Compatible ones only add)"
+          {{.GOCMD}} run {{.APIDIFF}} "$tmp/old.api" "$mod/$pkg"
+        done
 
   verify:
     desc: Run go mod verify for all modules to validate checksums match go.sum
@@ -324,6 +347,11 @@ tasks:
     desc: Launch the benchmark test
     cmds:
       - 'GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench -bench Benchmark -cpu 2 -run=^$$'
+
+  test-reload-load:
+    desc: 60 s load test of the reload (constant request rate, a reload every 200 ms), prints the p99 inside and outside the reloads
+    cmds:
+      - 'SEMAPHORE_RELOAD_LOAD_DURATION=60s GOWORK="{{.GOWORK_VAL}}" {{.GOCMD}} test -tags=bench -count=1 -timeout=10m -run TestReloadLoad -v ./internal/loadtest/relay'
 
   lint-install:
     internal: true

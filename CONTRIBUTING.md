@@ -36,6 +36,7 @@ task test-integration # testcontainers tests, needs Docker
 task test-e2e         # gopherstack-backed end-to-end tests, needs Docker
 task lint             # golangci-lint on all modules
 task tidy-check       # go.mod / go.sum must be tidy
+task apidiff          # exported API of ./controlplane/... against origin/main (BASE=<tag> for a release); local only, not in CI
 GOLDEN_UPDATE=1 go test ./cmd/relayproxy/api   # refresh the golden files (OpenAPI document, HTTP behaviour) after a deliberate change
 ```
 
