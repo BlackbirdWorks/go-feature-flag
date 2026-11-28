@@ -15,17 +15,6 @@ import (
 // ErrNilSource is returned by [New] for a nil source.
 var ErrNilSource = errors.New("snapshot: nil source")
 
-// ErrUnsettled is wrapped by the error of a Refresh that pulled the members [MaxPullTries] times and found a new
-// version after every pull: the set kept changing while it was read, so no pulled set is trusted and the held one
-// stays.
-// The class is [ClassSet].
-var ErrUnsettled = errors.New("the segment changed during every pull")
-
-// MaxPullTries is the most pulls of the members in one Refresh. The version is read again after each pull: a pull
-// that ended under another version than the one it started under may hold members of two sets, so it is dropped and the
-// members are pulled again. All tries share the context of the Refresh, so the caller's deadline covers them together.
-const MaxPullTries = 3
-
 // Class is the class of the last failure of a holder. It never holds a member id.
 type Class string
 
@@ -235,9 +224,7 @@ func (h *Holder) Status() Status {
 // Version works pulls the members again (the token cannot tell that the segment came back); a Version that reports it
 // missing again pulls nothing. A writer that deletes or replaces a set must change the version: a deletion under an
 // unchanged token is not seen. Refresh returns the missing error once, when it learns it. The version is read before
-// the members and again after them: a set whose version moved during the pull is dropped (the held set stays) and
-// pulled again, at most [MaxPullTries] times, then the Refresh fails with [ErrUnsettled] and [ClassSet]. A source with
-// no version ([segment.ErrNoVersion]) has nothing to compare and is pulled once.
+// the members, so a write that lands between the two makes the next Refresh pull again.
 func (h *Holder) Refresh(ctx context.Context) error {
 	h.refresh.Lock()
 	defer h.refresh.Unlock()
@@ -271,9 +258,7 @@ func (h *Holder) Refresh(ctx context.Context) error {
 		return nil
 	}
 
-	got, err := h.settle(ctx, version, noVersion)
-	set, version, class := got.set, got.version, got.class
-
+	set, class, err := h.pull(ctx)
 	if class == ClassMissing && ctx.Err() == nil {
 		return h.markMissing(cur, version, err)
 	}
@@ -290,41 +275,6 @@ func (h *Holder) Refresh(ctx context.Context) error {
 	h.cur.Store(next)
 
 	return nil
-}
-
-// settled is what [Holder.settle] pulled: the set, the version that it belongs to and the class of a failure.
-type settled struct {
-	set     *segment.MemberSet
-	version string
-	class   Class
-}
-
-// settle pulls the members until a pull ends under the version that it started under, at most [MaxPullTries] times. A
-// set pulled while the version moved may mix the members of two sets, so it is dropped, and the version that was just
-// read is the start of the next try. A source with no version token has nothing to compare: its first pull is taken,
-// as before.
-func (h *Holder) settle(ctx context.Context, version string, noVersion bool) (settled, error) {
-	for range MaxPullTries {
-		set, class, err := h.pull(ctx)
-		if err != nil || noVersion {
-			return settled{set: set, version: version, class: class}, err
-		}
-
-		after, verr := h.src.Version(ctx, h.name)
-		if verr != nil && !errors.Is(verr, segment.ErrSegmentMissing) {
-			return settled{version: version, class: ClassVersion},
-				fmt.Errorf("snapshot of segment %q: reading the version after the pull: %w", h.name, verr)
-		}
-
-		if verr == nil && after == version {
-			return settled{set: set, version: version}, nil
-		}
-
-		version = after // the segment moved while it was read: the pulled set is dropped
-	}
-
-	return settled{version: version, class: ClassSet},
-		fmt.Errorf("snapshot of segment %q: %w: %d pulls", h.name, ErrUnsettled, MaxPullTries)
 }
 
 // pull streams the members into a new set. It refuses a set over the guard as soon as it crosses it.
