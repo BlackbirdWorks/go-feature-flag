@@ -60,7 +60,11 @@ func TestProviderConformsOnTheStubServer(t *testing.T) {
 
 					prov, err := valkeysegment.Dial(
 						srv.clientOption(),
-						&valkeysegment.Options{Segments: segs, Pipelining: mode},
+						&valkeysegment.Options{
+							MissingKey: valkeysegment.MissingUnknown,
+							Segments:   segs,
+							Pipelining: mode,
+						},
 					)
 					if err != nil {
 						return segmenttest.Fixture{}, err

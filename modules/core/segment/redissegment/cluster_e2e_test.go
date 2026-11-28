@@ -170,7 +170,10 @@ func TestE2ECluster(t *testing.T) {
 		require.Len(t, slots, len(names), "the segments are in different slots")
 
 		for _, atomicTx := range []bool{false, true} {
-			prov, err := redissegment.New(client, &redissegment.Options{Segments: segs, Atomic: atomicTx})
+			prov, err := redissegment.New(
+				client,
+				&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: segs, Atomic: atomicTx},
+			)
 			require.NoError(t, err)
 
 			lookups := []segment.Lookup{
@@ -196,7 +199,7 @@ func TestE2ECluster(t *testing.T) {
 		t.Parallel()
 
 		live := "semaphore:segment:{swap}"
-		prov, err := redissegment.New(client, &redissegment.Options{
+		prov, err := redissegment.New(client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 			Atomic: true, Timeout: 5 * time.Second,
 			Segments: map[string]redissegment.SegmentOptions{"swap": {}},
 		})

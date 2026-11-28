@@ -113,7 +113,7 @@ func TestContainsAnswers(t *testing.T) {
 	}{
 		{
 			name:       "member and not member of one set in one command",
-			opts:       &redissegment.Options{Segments: twoSegments()},
+			opts:       &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			lookups:    []segment.Lookup{lk(segBeta, idAlice), lk(segBeta, "zed")},
 			wantStates: []segment.State{segment.Member, segment.NotMember},
 			wantCommands: [][]string{
@@ -122,7 +122,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "two segments interleaved keep their positions",
-			opts: &redissegment.Options{Segments: twoSegments()},
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			lookups: []segment.Lookup{
 				lk(segBeta, idAlice), lk(segChurned, idAlice), lk(segBeta, "zed"), lk(segChurned, carolID),
 			},
@@ -137,8 +137,11 @@ func TestContainsAnswers(t *testing.T) {
 			},
 		},
 		{
-			name:       "missing key is unknown by default",
-			opts:       &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{segGhost: {}}},
+			name: "missing key is unknown by default",
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   map[string]redissegment.SegmentOptions{segGhost: {}},
+			},
 			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
 			wantStates: []segment.State{segment.Unknown},
 			wantCommands: [][]string{
@@ -159,7 +162,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "custom key and prefix",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				KeyPrefix: "prov:",
 				Segments: map[string]redissegment.SegmentOptions{
 					"a": {}, "b": {Key: keyBeta},
@@ -173,7 +176,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "keys layout is one exists per id",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Segments: map[string]redissegment.SegmentOptions{
 					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
@@ -186,7 +189,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "keys layout default prefix, empty id is not asked",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Segments: map[string]redissegment.SegmentOptions{"f": {Layout: redissegment.LayoutKeys}},
 			},
 			lookups:    []segment.Lookup{lk("f", ""), lk("f", "x")},
@@ -197,7 +200,7 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name: "set and keys segments share one pipeline",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Segments: map[string]redissegment.SegmentOptions{
 					segBeta: {}, "f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
@@ -210,14 +213,14 @@ func TestContainsAnswers(t *testing.T) {
 		},
 		{
 			name:         "segment that is not configured stays unknown and sends nothing",
-			opts:         &redissegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			lookups:      []segment.Lookup{lk("other", idAlice)},
 			wantStates:   []segment.State{segment.Unknown},
 			wantCommands: [][]string{},
 		},
 		{
 			name:         "no lookups sends nothing",
-			opts:         &redissegment.Options{Segments: twoSegments()},
+			opts:         &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
 			lookups:      []segment.Lookup{},
 			wantStates:   []segment.State{},
 			wantCommands: [][]string{},
@@ -244,7 +247,11 @@ func TestContainsDoesNotChangeSegmentOrID(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	lookups := []segment.Lookup{lk(segBeta, idAlice), lk(segChurned, "bob")}
 
 	require.NoError(t, prov.Contains(context.Background(), lookups))
@@ -285,7 +292,7 @@ func runFailureCases(t *testing.T, tests []failureCase) {
 
 			defer cancel()
 
-			prov := newProvider(t, tt.store, &redissegment.Options{
+			prov := newProvider(t, tt.store, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Timeout: tt.timeout,
 				Segments: map[string]redissegment.SegmentOptions{
 					segBeta: {}, segChurned: {}, "f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
@@ -587,7 +594,11 @@ func TestContainsCancelMidCall(t *testing.T) {
 			return context.Canceled
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 
 	err := prov.Contains(ctx, lookups)
@@ -600,7 +611,11 @@ func TestErrorMessageHasNoIDsNorKeys(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{exec: func(context.Context) error { return serverError{msg: "secret-key alice"} }}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	err := prov.Contains(context.Background(), []segment.Lookup{lk(segBeta, idAlice)})
 
@@ -658,7 +673,7 @@ func TestContainsObserver(t *testing.T) {
 
 			rec := &recorder{}
 			counters := &redissegment.Counters{}
-			prov := newProvider(t, tt.store, &redissegment.Options{
+			prov := newProvider(t, tt.store, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Segments: twoSegments(),
 				Observer: multi{rec, counters},
 			})
@@ -688,7 +703,7 @@ func TestNoLookupsIsNotObserved(t *testing.T) {
 	t.Parallel()
 
 	rec := &recorder{}
-	prov := newProvider(t, &fakeStore{}, &redissegment.Options{Observer: rec})
+	prov := newProvider(t, &fakeStore{}, &redissegment.Options{MissingKey: redissegment.MissingUnknown, Observer: rec})
 
 	require.NoError(t, prov.Contains(context.Background(), nil))
 	assert.Empty(t, rec.all())
@@ -725,7 +740,11 @@ func TestContainsConcurrent(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	const workers = 16
 
@@ -763,10 +782,16 @@ func TestOptionsValidation(t *testing.T) {
 		opts    *redissegment.Options
 		name    string
 	}{
-		{name: "valid", client: &fakeStore{}, opts: &redissegment.Options{Segments: twoSegments()}},
+		{
+			name:   "valid",
+			client: &fakeStore{},
+			opts:   &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+		},
 		{name: "nil client", wantErr: redissegment.ErrNilClient},
 		{
-			name: "negative timeout", client: &fakeStore{}, opts: &redissegment.Options{Timeout: -1},
+			name:    "negative timeout",
+			client:  &fakeStore{},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Timeout: -1},
 			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
@@ -774,13 +799,21 @@ func TestOptionsValidation(t *testing.T) {
 			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
-			name: "bad segment name", client: &fakeStore{},
-			opts:    &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{"Bad Name": {}}},
+			name:   "bad segment name",
+			client: &fakeStore{},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   map[string]redissegment.SegmentOptions{"Bad Name": {}},
+			},
 			wantErr: redissegment.ErrInvalidOptions,
 		},
 		{
-			name: "bad layout", client: &fakeStore{},
-			opts:    &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{"a": {Layout: "x"}}},
+			name:   "bad layout",
+			client: &fakeStore{},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   map[string]redissegment.SegmentOptions{"a": {Layout: "x"}},
+			},
 			wantErr: redissegment.ErrInvalidOptions,
 		},
 	}
@@ -808,16 +841,19 @@ func TestOptionsValidation(t *testing.T) {
 func TestDial(t *testing.T) {
 	t.Parallel()
 
-	_, err := redissegment.Dial(nil, &redissegment.Options{})
+	_, err := redissegment.Dial(nil, &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 	require.ErrorIs(t, err, redissegment.ErrNilClient)
 
 	_, err = redissegment.Dial(
 		&redis.UniversalOptions{Addrs: []string{unreachableAddr}},
-		&redissegment.Options{Timeout: -1},
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Timeout: -1},
 	)
 	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 
-	prov, err := redissegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &redissegment.Options{})
+	prov, err := redissegment.Dial(
+		&redis.UniversalOptions{Addrs: []string{unreachableAddr}},
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown},
+	)
 	require.NoError(t, err)
 	require.NoError(t, prov.Close())
 }

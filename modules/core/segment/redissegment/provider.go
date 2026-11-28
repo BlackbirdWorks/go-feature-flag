@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net"
 	"slices"
@@ -27,9 +28,11 @@ type Client interface {
 }
 
 type segmentConfig struct {
-	keyAny any // the key of the set, or the prefix of the member keys, boxed once
-	key    string
-	layout Layout
+	keyAny     any // the key of the set, or the prefix of the member keys, boxed once
+	key        string
+	versionKey string
+	layout     Layout
+	snapshot   bool
 }
 
 // Provider is a [segment.Provider] over Redis or Valkey through go-redis. It is safe for concurrent use.
@@ -192,14 +195,14 @@ func New(client Client, opts *Options) (*Provider, error) {
 	}
 
 	if prov.missing == "" {
-		prov.missing = MissingUnknown
+		prov.missing = MissingNotMember
 	}
 
 	prov.plans.New = func() any { return &plan{} }
 	prov.stopCtx, prov.stopStore = context.WithCancel(context.Background())
 
 	for name, so := range opts.Segments {
-		cfg := &segmentConfig{layout: so.Layout, key: so.Key}
+		cfg := &segmentConfig{layout: so.Layout, key: so.Key, versionKey: so.VersionKey, snapshot: so.Snapshot}
 		if cfg.layout == "" {
 			cfg.layout = LayoutSet
 		}
@@ -967,7 +970,97 @@ func (p *Provider) probe(ctx context.Context) error {
 		}
 	}
 
+	err = p.probeSnapshot(ctx)
+	if err != nil {
+		return err
+	}
+
 	p.record(ClassNone)
+
+	return nil
+}
+
+// snapshotProbe is one probe of the snapshot mode: the command, its key and the name that an error of Init gives.
+type snapshotProbe struct {
+	name string
+	key  string
+}
+
+// snapshotProbes returns the probes of the snapshot mode, each key once, at most budget of them: SSCAN of the set of
+// each segment that is configured for the snapshot, GET of its version key. The segments are taken by name.
+func snapshotProbes(segs map[string]*segmentConfig, budget int) []snapshotProbe {
+	var probes []snapshotProbe
+
+	seen := map[snapshotProbe]bool{}
+	add := func(probe snapshotProbe) {
+		if !seen[probe] && len(probes) < budget {
+			seen[probe] = true
+			probes = append(probes, probe)
+		}
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(segs)) {
+		cfg := segs[name]
+		if !cfg.snapshot {
+			continue
+		}
+
+		if cfg.layout == LayoutSet {
+			add(snapshotProbe{name: "SSCAN", key: cfg.key})
+		}
+
+		if cfg.versionKey != "" {
+			add(snapshotProbe{name: "GET", key: cfg.versionKey})
+		}
+	}
+
+	return probes
+}
+
+// probeSnapshot probes the commands of the snapshot mode on the segments that are configured for it, on the node that
+// the snapshot reads use (the primary of the slot of the key). The probes count inside MaxInitProbes with the lookup
+// probes, and each key is probed once. A missing version key is the answer nil, not a failure. A refused command is
+// an error of Init that names it.
+func (p *Provider) probeSnapshot(ctx context.Context) error {
+	budget := max(MaxInitProbes-len(p.probeSets)-len(p.probeKeys), 0)
+
+	for _, probe := range snapshotProbes(p.segs, budget) {
+		node, err := p.primaryOf(ctx, probe.key)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrInit, err)
+		}
+
+		callCtx, cancel := p.callContext(ctx)
+		pipe := node.Pipeline()
+
+		var cmd *redis.Cmd
+		if probe.name == "SSCAN" {
+			cmd = pipe.Do(callCtx, "sscan", probe.key, "0", "COUNT", 1)
+		} else {
+			cmd = pipe.Do(callCtx, "get", probe.key)
+		}
+
+		_, execErr := pipe.Exec(callCtx)
+		res := newResult(ctx, callCtx, execErr)
+		err = cmd.Err()
+
+		if err == nil || errors.Is(err, redis.Nil) {
+			cancel()
+
+			continue
+		}
+
+		class := res.classify(err)
+
+		cancel()
+		p.record(class)
+
+		if class == ClassServer {
+			return fmt.Errorf("%w: the command %s is not available: %w", ErrInit, probe.name, ErrServer)
+		}
+
+		return fmt.Errorf("%w: %w", ErrInit, (&LookupError{Class: class}).Unwrap())
+	}
 
 	return nil
 }

@@ -10,8 +10,12 @@ import (
 // ErrSegmentMissing is yielded by [SnapshotSource.Members] for a segment that does not exist in the store. A segment
 // that exists and has no member yields nothing: missing and empty are different. What a missing segment means (no
 // member by default, or Unknown) is the policy of the consumer, see [MissingKey].
-// The Redis and Valkey providers still default to Unknown in this change; their default follows in the next one.
 var ErrSegmentMissing = errors.New("the segment does not exist in the store")
+
+// ErrNoVersion is wrapped by the error of a [Versioner] that has no version for the segment (no version key is
+// configured). A snapshot holder then cannot tell a change and pulls the members on every Refresh: that costs one full
+// read for each poll.
+var ErrNoVersion = errors.New("the segment has no version")
 
 // ErrUnsupportedMode is wrapped by the error of [RequireMode].
 var ErrUnsupportedMode = errors.New("the store does not support the segment mode")

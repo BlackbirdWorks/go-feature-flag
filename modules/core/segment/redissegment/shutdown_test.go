@@ -143,7 +143,11 @@ func TestAPanickingClientIsRecovered(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	ctx := boundedCtx(t)
 
 	// Contains: the state the caller left is not kept, and the error has a fixed text
@@ -182,7 +186,11 @@ func TestACallAfterShutdownNeverReachesTheStore(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	require.NoError(t, prov.Shutdown(boundedCtx(t)))
 
@@ -201,7 +209,11 @@ func TestAnEndedContextMakesNoCall(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cancel()
@@ -221,7 +233,11 @@ func TestShutdownWaitsForTheCallsInFlight(t *testing.T) {
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.hold}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	containsDone := make(chan error, 1)
 	shutdownDone := make(chan error, 1)
@@ -255,7 +271,11 @@ func TestShutdownThatRunsOutOfTimeEndsTheCallsInFlight(t *testing.T) {
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.holdCtx}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	lookups := []segment.Lookup{lk(segBeta, idAlice)}
 	containsDone := make(chan error, 1)
 
@@ -279,7 +299,11 @@ func TestNoOpCallsAfterShutdownAreClosed(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	require.NoError(t, prov.Shutdown(boundedCtx(t)))
 
@@ -352,7 +376,11 @@ func TestShutdownCallsShareOneWaiter(t *testing.T) {
 
 	hold := newGate(t)
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}, exec: hold.hold}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 	containsDone := make(chan error, 1)
 
 	go func() { containsDone <- prov.Contains(boundedCtx(t), []segment.Lookup{lk(segBeta, idAlice)}) }()

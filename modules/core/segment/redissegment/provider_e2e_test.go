@@ -216,7 +216,7 @@ func e2eProvider(t *testing.T, srv *server, opts *redissegment.Options) *redisse
 	t.Helper()
 
 	if opts == nil {
-		opts = &redissegment.Options{}
+		opts = &redissegment.Options{MissingKey: redissegment.MissingUnknown}
 	}
 
 	if opts.Segments == nil {
@@ -264,9 +264,12 @@ func e2eContains(t *testing.T, image string) {
 			wantStates: []segment.State{segment.Member, segment.NotMember},
 		},
 		{
-			name:       "missing key is unknown",
-			lookups:    []segment.Lookup{lk(segGhost, idAlice)},
-			opts:       &redissegment.Options{Segments: map[string]redissegment.SegmentOptions{segGhost: {}}},
+			name:    "missing key is unknown",
+			lookups: []segment.Lookup{lk(segGhost, idAlice)},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   map[string]redissegment.SegmentOptions{segGhost: {}},
+			},
 			wantStates: []segment.State{segment.Unknown},
 		},
 		{
@@ -315,7 +318,7 @@ func TestE2EOneRoundTrip(t *testing.T) {
 		lookups[i] = lk(segBeta, "id"+strconv.Itoa(i))
 	}
 
-	prov := e2eProvider(t, srv, &redissegment.Options{})
+	prov := e2eProvider(t, srv, &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 
 	// a new connection sends its handshake in pipelines: warm the pool with one call before counting
 	require.NoError(t, prov.Contains(ctx, []segment.Lookup{lk(segBeta, "warm")}))
@@ -346,7 +349,11 @@ func TestE2EServerStopped(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice).Err())
 
-	prov := e2eProvider(t, srv, &redissegment.Options{Timeout: 2 * time.Second})
+	prov := e2eProvider(
+		t,
+		srv,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Timeout: 2 * time.Second},
+	)
 	before := []segment.Lookup{lk(segBeta, idAlice)}
 	require.NoError(t, prov.Contains(ctx, before))
 	require.Equal(t, []segment.State{segment.Member}, states(before))
@@ -418,7 +425,7 @@ func TestE2ETimeout(t *testing.T) {
 
 	t.Cleanup(func() { _ = client.Close() })
 
-	prov, err := redissegment.New(client, &redissegment.Options{
+	prov, err := redissegment.New(client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout:  50 * time.Millisecond,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {}},
 	})
@@ -441,7 +448,11 @@ func TestE2ESwapWhileLookups(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, live, "stable", "gen0").Err())
 
-	prov := e2eProvider(t, srv, &redissegment.Options{Timeout: 5 * time.Second})
+	prov := e2eProvider(
+		t,
+		srv,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Timeout: 5 * time.Second},
+	)
 
 	const swaps = 100
 
@@ -526,7 +537,7 @@ func TestE2EEngine(t *testing.T) {
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{beta}", idAlice).Err())
 	require.NoError(t, srv.client.SAdd(ctx, "semaphore:segment:{blocked}", "mallory").Err())
 
-	provider, err := redissegment.New(srv.client, &redissegment.Options{
+	provider, err := redissegment.New(srv.client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout: 2 * time.Second,
 		Segments: map[string]redissegment.SegmentOptions{
 			segBeta: {}, "blocked": {},

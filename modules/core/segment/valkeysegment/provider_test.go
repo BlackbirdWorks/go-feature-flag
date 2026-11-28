@@ -52,7 +52,7 @@ func loaded(tb testing.TB) *stubServer {
 }
 
 func baseOptions(counters *valkeysegment.Counters) *valkeysegment.Options {
-	opts := &valkeysegment.Options{
+	opts := &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown,
 		Timeout: callTimeout,
 		Segments: map[string]valkeysegment.SegmentOptions{
 			segBeta:  {Key: keyBeta},
@@ -812,7 +812,10 @@ func TestNewAndDial(t *testing.T) {
 
 	srv := loaded(t)
 
-	_, err = valkeysegment.Dial(srv.clientOption(), &valkeysegment.Options{Timeout: -1})
+	_, err = valkeysegment.Dial(
+		srv.clientOption(),
+		&valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Timeout: -1},
+	)
 	require.ErrorIs(t, err, valkeysegment.ErrInvalidOptions)
 
 	opt := srv.clientOption()
@@ -832,22 +835,36 @@ func TestOptionsValidation(t *testing.T) {
 		opts    *valkeysegment.Options
 		wantErr string
 	}{
-		{name: "defaults", opts: &valkeysegment.Options{}},
-		{name: "negative timeout", opts: &valkeysegment.Options{Timeout: -1}, wantErr: "timeout is negative"},
-		{name: "negative max id", opts: &valkeysegment.Options{MaxIDBytes: -1}, wantErr: "max id bytes is negative"},
+		{name: "defaults", opts: &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown}},
+		{
+			name:    "negative timeout",
+			opts:    &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Timeout: -1},
+			wantErr: "timeout is negative",
+		},
+		{
+			name:    "negative max id",
+			opts:    &valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, MaxIDBytes: -1},
+			wantErr: "max id bytes is negative",
+		},
 		{
 			name:    "bad missing key",
 			opts:    &valkeysegment.Options{MissingKey: "x"},
 			wantErr: `must be unknown or notMember, got "x"`,
 		},
 		{
-			name:    "bad segment name",
-			opts:    &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{"a b": {}}},
+			name: "bad segment name",
+			opts: &valkeysegment.Options{
+				MissingKey: valkeysegment.MissingUnknown,
+				Segments:   map[string]valkeysegment.SegmentOptions{"a b": {}},
+			},
 			wantErr: `invalid segment name: "a b"`,
 		},
 		{
-			name:    "bad layout",
-			opts:    &valkeysegment.Options{Segments: map[string]valkeysegment.SegmentOptions{"a": {Layout: "x"}}},
+			name: "bad layout",
+			opts: &valkeysegment.Options{
+				MissingKey: valkeysegment.MissingUnknown,
+				Segments:   map[string]valkeysegment.SegmentOptions{"a": {Layout: "x"}},
+			},
 			wantErr: `"a": layout must be set or keys, got "x"`,
 		},
 	}
@@ -906,12 +923,12 @@ func TestDialValidatesTheClientSettingsAndNewIgnoresThem(t *testing.T) {
 	}{
 		{
 			name:    "bad pipelining",
-			opts:    valkeysegment.Options{Pipelining: "off"},
+			opts:    valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, Pipelining: "off"},
 			wantErr: `pipelining must be always or auto, got "off"`,
 		},
 		{
 			name:    "negative blocking pipeline",
-			opts:    valkeysegment.Options{BlockingPipeline: -1},
+			opts:    valkeysegment.Options{MissingKey: valkeysegment.MissingUnknown, BlockingPipeline: -1},
 			wantErr: "blocking pipeline is negative",
 		},
 	}

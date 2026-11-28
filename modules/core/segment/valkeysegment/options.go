@@ -51,7 +51,7 @@ type Options struct {
 	Observer Observer
 	// KeyPrefix is the default prefix of the keys. Empty means DefaultKeyPrefix.
 	KeyPrefix string
-	// MissingKey is what a missing set key means. Empty means MissingUnknown.
+	// MissingKey is what a missing set key means. Empty means MissingNotMember.
 	MissingKey MissingKey
 	// Pipelining is PipeliningAlways (default) or PipeliningAuto: see their documentation.
 	Pipelining Pipelining

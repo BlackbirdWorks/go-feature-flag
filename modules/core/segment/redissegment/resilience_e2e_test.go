@@ -84,7 +84,11 @@ func TestE2EConformance(t *testing.T) {
 		layout redissegment.Layout
 	}{
 		{name: "set layout", layout: redissegment.LayoutSet},
-		{name: "set layout atomic", layout: redissegment.LayoutSet, opts: &redissegment.Options{Atomic: true}},
+		{
+			name:   "set layout atomic",
+			layout: redissegment.LayoutSet,
+			opts:   &redissegment.Options{MissingKey: redissegment.MissingUnknown, Atomic: true},
+		},
 		{name: nameKeysLayout, layout: redissegment.LayoutKeys},
 	}
 
@@ -98,7 +102,7 @@ func TestE2EConformance(t *testing.T) {
 				caseSrv.pipelines = &caseSrv.fault.count
 				caseSrv.client = caseSrv.newClient(t, srv.address)
 
-				opts := &redissegment.Options{}
+				opts := &redissegment.Options{MissingKey: redissegment.MissingUnknown}
 
 				if tt.opts != nil {
 					*opts = *tt.opts
@@ -137,7 +141,7 @@ func TestE2EAtomicSetSwapNeverReadsAMissingKey(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, live, "stable").Err())
 
-	prov, err := redissegment.New(srv.client, &redissegment.Options{
+	prov, err := redissegment.New(srv.client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Atomic: true, Timeout: 5 * time.Second,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: live}},
 	})
@@ -197,7 +201,7 @@ func TestE2EInitStatusExists(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "life:{beta}", "alice").Err())
 
-	prov, err := redissegment.New(srv.client, &redissegment.Options{
+	prov, err := redissegment.New(srv.client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "life:{beta}"}, segGone: {Key: "life:{gone}"}},
 	})
 	require.NoError(t, err)
@@ -323,7 +327,7 @@ func TestE2EBreakerOpensWithoutDialingAndRecovers(t *testing.T) {
 	proxy := newOutageProxy(t, srv.address)
 	client := srv.newClient(t, proxy.addr())
 
-	inner, err := redissegment.New(client, &redissegment.Options{
+	inner, err := redissegment.New(client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout:  2 * time.Second,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "breaker:{beta}"}},
 	})
@@ -395,7 +399,7 @@ func TestE2EResolverCachesAndCoalescesOnARealServer(t *testing.T) {
 
 	require.NoError(t, srv.client.SAdd(ctx, "res:{beta}", "alice").Err())
 
-	inner, err := redissegment.New(srv.client, &redissegment.Options{
+	inner, err := redissegment.New(srv.client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout:  5 * time.Second,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "res:{beta}"}},
 	})
@@ -469,7 +473,7 @@ func BenchmarkE2EContains(b *testing.B) {
 
 	for _, atomicTx := range []bool{false, true} {
 		b.Run("atomic="+strconv.FormatBool(atomicTx), func(b *testing.B) {
-			prov, err := redissegment.New(srv.client, &redissegment.Options{
+			prov, err := redissegment.New(srv.client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Atomic: atomicTx, Timeout: 5 * time.Second,
 				Segments: map[string]redissegment.SegmentOptions{segBeta: {Key: "bench:{beta}"}},
 			})

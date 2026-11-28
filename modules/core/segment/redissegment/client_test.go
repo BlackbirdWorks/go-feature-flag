@@ -61,7 +61,7 @@ func TestNewRequiresContextTimeoutOfAGoRedisClient(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov, err := redissegment.New(tt.client(), &redissegment.Options{})
+			prov, err := redissegment.New(tt.client(), &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 
 			if tt.wantErr {
 				require.ErrorIs(t, err, redissegment.ErrContextTimeoutDisabled)
@@ -167,7 +167,7 @@ func dialLoopback(t *testing.T, addr string, timeout time.Duration) *redissegmen
 		DisableIdentity: true,
 		ReadTimeout:     time.Hour,
 		MaxRetries:      -1,
-	}, &redissegment.Options{
+	}, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout: timeout,
 		Segments: map[string]redissegment.SegmentOptions{
 			segBeta: {},
@@ -213,7 +213,7 @@ func TestAClientEndsACallAtItsDeadlineOnTheSocket(t *testing.T) {
 	require.NoError(t, warmErr, "the warm-up sets the connection up")
 	require.Equal(t, "PONG", pong.Val())
 
-	prov, err := redissegment.New(client, &redissegment.Options{
+	prov, err := redissegment.New(client, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Timeout:  50 * time.Millisecond,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {}},
 	})
@@ -470,7 +470,7 @@ func TestDialRefusesDisabledSocketDeadlines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			prov, err := redissegment.Dial(&tt.opts, &redissegment.Options{})
+			prov, err := redissegment.Dial(&tt.opts, &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 
 			require.ErrorIs(t, err, redissegment.ErrSocketDeadlineDisabled)
 			require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
@@ -532,7 +532,7 @@ func TestNewSocketTimeoutsOfBothClientKinds(t *testing.T) {
 					client, wantErr = clust, tt.wantClustErr
 				}
 
-				_, err := redissegment.New(client, &redissegment.Options{})
+				_, err := redissegment.New(client, &redissegment.Options{MissingKey: redissegment.MissingUnknown})
 
 				if wantErr {
 					require.ErrorIs(t, err, redissegment.ErrSocketDeadlineDisabled)

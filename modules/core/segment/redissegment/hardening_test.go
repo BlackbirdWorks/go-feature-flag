@@ -31,7 +31,11 @@ func TestScriptIsLoadedOnceAndThenCalledBySHA(t *testing.T) {
 	t.Parallel()
 
 	store := &fakeStore{sets: map[string]map[string]bool{keyBeta: {idAlice: true}}}
-	prov := newProvider(t, store, &redissegment.Options{Atomic: true, Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Atomic: true, Segments: twoSegments()},
+	)
 	bySHA := "evalsha " + redissegment.ScriptSHA + " 1 " + keyBeta + " alice"
 	full := "eval " + redissegment.Script + " 1 " + keyBeta + " alice"
 
@@ -81,7 +85,7 @@ func TestInit(t *testing.T) {
 	sha := " " + redissegment.ScriptSHA + " 1 " + setKey + " " + setID
 	roPipe := []string{pingCmd, "eval_ro" + script, "evalsha_ro" + sha}
 	plainPipe := []string{"eval" + script, "evalsha" + sha}
-	atomic := &redissegment.Options{Segments: setSegs, Atomic: true}
+	atomic := &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: setSegs, Atomic: true}
 
 	tests := []struct {
 		wantErr       error
@@ -95,7 +99,7 @@ func TestInit(t *testing.T) {
 	}{
 		{
 			name: "set layout probes SMISMEMBER and EXISTS of its own key", store: &fakeStore{},
-			opts:          &redissegment.Options{Segments: setSegs},
+			opts:          &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: setSegs},
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
@@ -105,17 +109,22 @@ func TestInit(t *testing.T) {
 		},
 		{
 			name: "keys layout probes EXISTS under its prefix", store: &fakeStore{},
-			opts:          &redissegment.Options{Segments: keySegs},
+			opts:          &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: keySegs},
 			wantPipelines: [][]string{{pingCmd, existsKey}},
 		},
 		{
 			name: "both layouts probe both", store: &fakeStore{},
-			opts:          &redissegment.Options{Segments: bothSegs},
+			opts:          &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: bothSegs},
 			wantPipelines: [][]string{{pingCmd, smis, exists, existsKey}},
 		},
 		{
-			name: "the probe is in the configured namespace", store: &fakeStore{},
-			opts: &redissegment.Options{Segments: setSegs, KeyPrefix: "audience:"},
+			name:  "the probe is in the configured namespace",
+			store: &fakeStore{},
+			opts: &redissegment.Options{
+				MissingKey: redissegment.MissingUnknown,
+				Segments:   setSegs,
+				KeyPrefix:  "audience:",
+			},
 			wantPipelines: [][]string{{
 				pingCmd, "smismember audience:{beta} " + setID, "exists audience:{beta}",
 			}},
@@ -146,26 +155,28 @@ func TestInit(t *testing.T) {
 			wantPipelines: [][]string{{pingCmd, smis}},
 		},
 		{
-			name: "no segment, nothing to probe but the store", store: &fakeStore{}, opts: &redissegment.Options{},
+			name:          "no segment, nothing to probe but the store",
+			store:         &fakeStore{},
+			opts:          &redissegment.Options{MissingKey: redissegment.MissingUnknown},
 			wantPipelines: [][]string{{pingCmd}},
 		},
 		{
 			name: "set layout without SMISMEMBER", store: denying("smismember"),
-			opts:    &redissegment.Options{Segments: setSegs},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: setSegs},
 			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command SMISMEMBER is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
 			name: "set layout without EXISTS", store: denying("exists"),
-			opts:    &redissegment.Options{Segments: setSegs},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: setSegs},
 			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EXISTS is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
 		},
 		{
 			name: "keys layout without EXISTS", store: denying("exists"),
-			opts:    &redissegment.Options{Segments: keySegs},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: keySegs},
 			wantErr: redissegment.ErrServer, wantClass: redissegment.ClassServer,
 			wantMsg:       msgInit + "the command EXISTS is not available: " + msgServer,
 			wantPipelines: [][]string{{pingCmd, existsKey}},
@@ -184,7 +195,7 @@ func TestInit(t *testing.T) {
 		},
 		{
 			name: nameStoreDown, store: &fakeStore{exec: func(context.Context) error { return errDial }},
-			opts:    &redissegment.Options{Segments: setSegs},
+			opts:    &redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: setSegs},
 			wantErr: redissegment.ErrUnavailable, wantClass: redissegment.ClassUnavailable,
 			wantMsg:       "redis segment: init failed: redis segment: store unavailable",
 			wantPipelines: [][]string{{pingCmd, smis, exists}},
@@ -244,7 +255,7 @@ func TestInitScriptFallbackSharesTheTimeoutOfInit(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{
+	prov := newProvider(t, store, &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 		Segments: map[string]redissegment.SegmentOptions{segBeta: {}}, Atomic: true,
 	})
 
@@ -301,7 +312,7 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		},
 		{
 			name: "the keys layout too",
-			opts: &redissegment.Options{
+			opts: &redissegment.Options{MissingKey: redissegment.MissingUnknown,
 				Segments: map[string]redissegment.SegmentOptions{
 					"f": {Layout: redissegment.LayoutKeys, Key: flagPrefix},
 				},
@@ -337,14 +348,20 @@ func TestOversizedIDsAreNeverSent(t *testing.T) {
 		})
 	}
 
-	_, err := redissegment.New(&fakeStore{}, &redissegment.Options{MaxIDBytes: -1})
+	_, err := redissegment.New(
+		&fakeStore{},
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, MaxIDBytes: -1},
+	)
 	require.ErrorIs(t, err, redissegment.ErrInvalidOptions)
 }
 
 func TestCloseAndShutdownAreIdempotent(t *testing.T) {
 	t.Parallel()
 
-	prov, err := redissegment.Dial(&redis.UniversalOptions{Addrs: []string{unreachableAddr}}, &redissegment.Options{})
+	prov, err := redissegment.Dial(
+		&redis.UniversalOptions{Addrs: []string{unreachableAddr}},
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown},
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, prov.Close())
@@ -373,7 +390,7 @@ func TestAStateLeftInTheSliceNeverSurvivesAFailure(t *testing.T) {
 		{
 			name:  "an oversized id",
 			store: &fakeStore{},
-			opts:  &redissegment.Options{MaxIDBytes: 2},
+			opts:  &redissegment.Options{MissingKey: redissegment.MissingUnknown, MaxIDBytes: 2},
 			id:    idAlice,
 			seg:   segBeta,
 		},
@@ -384,7 +401,7 @@ func TestAStateLeftInTheSliceNeverSurvivesAFailure(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			opts := redissegment.Options{}
+			opts := redissegment.Options{MissingKey: redissegment.MissingUnknown}
 			if tt.opts != nil {
 				opts = *tt.opts
 			}
@@ -466,7 +483,11 @@ func TestHealth(t *testing.T) {
 			return nil
 		},
 	}
-	prov := newProvider(t, store, &redissegment.Options{Segments: twoSegments()})
+	prov := newProvider(
+		t,
+		store,
+		&redissegment.Options{MissingKey: redissegment.MissingUnknown, Segments: twoSegments()},
+	)
 
 	var reporter segment.HealthReporter = prov
 

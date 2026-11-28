@@ -266,22 +266,50 @@ func TestOverlappingPublishesLeaveTheLatestVersion(t *testing.T) {
 	assert.Equal(t, final, last, "the subscriber ends with the version the store has")
 }
 
-func TestPinningTheAbsentTokenOnAnExistingSegmentIsRemapped(t *testing.T) {
+func TestPinnedVersions(t *testing.T) {
 	t.Parallel()
 
-	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a"}})
-	src.PinVersion(segAlpha, segment.AbsentVersion)
+	tests := []struct {
+		name           string
+		token          string
+		exists         bool
+		wantAbsent     bool
+		wantPinnedKept bool
+	}{
+		{name: "existing segment, the absent token is remapped", token: segment.AbsentVersion, exists: true},
+		{name: "existing segment, another token is kept", token: "p1", exists: true, wantPinnedKept: true},
+		{name: "missing segment, the absent token is itself", token: segment.AbsentVersion, wantAbsent: true},
+	}
 
-	pinned, err := src.Version(context.Background(), segAlpha)
-	require.NoError(t, err)
-	assert.NotEqual(t, segment.AbsentVersion, pinned, "the absent token is for a segment that does not exist")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	src.Delete(segAlpha)
+			src := segment.NewMemorySource(nil)
+			if tt.exists {
+				src.Set(segAlpha, []string{"a"})
+			}
 
-	gone, err := src.Version(context.Background(), segAlpha)
-	require.NoError(t, err)
-	assert.Equal(t, segment.AbsentVersion, gone)
-	assert.NotEqual(t, pinned, gone, "a deletion always moves the version")
+			src.PinVersion(segAlpha, tt.token)
+
+			pinned, err := src.Version(context.Background(), segAlpha)
+			require.NoError(t, err)
+			assert.Equal(
+				t,
+				tt.wantAbsent,
+				pinned == segment.AbsentVersion,
+				"the absent token is for a segment that does not exist",
+			)
+			assert.Equal(t, tt.wantPinnedKept, pinned == tt.token && !tt.wantAbsent)
+
+			src.Delete(segAlpha)
+
+			gone, err := src.Version(context.Background(), segAlpha)
+			require.NoError(t, err)
+			assert.Equal(t, segment.AbsentVersion, gone)
+			assert.Equal(t, tt.wantAbsent, pinned == gone, "a deletion always moves the version of an existing segment")
+		})
+	}
 }
 
 func TestFailMembersAfterAlsoFiresAtTheEndOfTheStream(t *testing.T) {
@@ -321,15 +349,40 @@ func TestFailMembersAfterAlsoFiresAtTheEndOfTheStream(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
 
-	// an early stop of the consumer ends the stream at once, without the injected error
-	src := segment.NewMemorySource(map[string][]string{segAlpha: {"a", "b"}})
-	src.FailMembersAfter(2, errBoom)
+func TestAConsumerThatStopsEndsTheStreamWithoutTheInjectedError(t *testing.T) {
+	t.Parallel()
 
-	for id, err := range src.Members(context.Background(), segAlpha) {
-		require.NoError(t, err)
-		assert.NotEmpty(t, id)
+	tests := []struct {
+		name     string
+		stopAt   int // the member after which the consumer stops
+		wantSeen int
+	}{
+		{name: "first member", stopAt: 1, wantSeen: 1},
+		{name: "the final member, the pending error is not delivered", stopAt: 2, wantSeen: 2},
+	}
 
-		break
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			src := segment.NewMemorySource(map[string][]string{segAlpha: {"a", "b"}})
+			src.FailMembersAfter(2, errBoom)
+
+			seen := 0
+
+			for id, err := range src.Members(context.Background(), segAlpha) {
+				require.NoError(t, err, "the injected error is never delivered to a consumer that stopped")
+				assert.NotEmpty(t, id)
+
+				seen++
+				if seen == tt.stopAt {
+					break
+				}
+			}
+
+			assert.Equal(t, tt.wantSeen, seen)
+		})
 	}
 }
