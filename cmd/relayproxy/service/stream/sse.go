@@ -359,7 +359,13 @@ func (s *SSEServiceImpl) serve(w http.ResponseWriter, r *http.Request, revoked *
 		r = r.WithContext(ctx)
 	}
 
-	w = &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked, timeout: s.writeTimeout}
+	sw := &streamWriter{ResponseWriter: w, rc: http.NewResponseController(w), revoked: revoked, timeout: s.writeTimeout}
+	w = sw
+
+	// the server writes the last chunk of the response when the handler returns, after the last write cleared its
+	// deadline: a client that stopped reading would hold the connection. The teardown keeps a deadline (the one of the
+	// revocation when there is one).
+	defer sw.arm()
 
 	if flusher, ok := w.(http.Flusher); ok {
 		w = &connectedCommentWriter{ResponseWriter: w, flusher: flusher}
