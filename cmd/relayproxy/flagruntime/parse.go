@@ -3,6 +3,7 @@ package flagruntime
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"slices"
 
@@ -16,6 +17,7 @@ type parsedFlags struct {
 	err      error
 	valid    map[string]*flagdef.InternalFlag
 	hashes   map[string]uint64
+	refs     map[string][]string // the names of the segments that a flag uses, only for the flags that use some
 	rejected []rejection
 }
 
@@ -50,6 +52,7 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 	out := &parsedFlags{
 		valid:  make(map[string]*flagdef.InternalFlag, len(raw)),
 		hashes: make(map[string]uint64, len(raw)),
+		refs:   map[string][]string{},
 	}
 
 	for _, name := range names {
@@ -65,6 +68,10 @@ func parseFlags(svc *flagdef.Service, obj *Object) *parsedFlags {
 
 		out.valid[name] = &converted
 		out.hashes[name] = contentHash(&converted, sum, name)
+
+		if used := converted.SegmentNames(svc); len(used) > 0 {
+			out.refs[name] = used
+		}
 	}
 
 	return out
@@ -97,7 +104,15 @@ func contentHash(fl *flagdef.InternalFlag, checksum, key string) uint64 {
 type tables struct {
 	flags    map[string]*flagdef.InternalFlag
 	hashes   map[string]uint64
+	refs     map[string][]string
 	rejected []FlagRejection
+}
+
+// copyRef copies the segments that a flag uses from one table to another, when it uses some.
+func copyRef(dst, src map[string][]string, flag string) {
+	if names, ok := src[flag]; ok {
+		dst[flag] = names
+	}
 }
 
 // buildTable merges a parse result with the previous table of the same object (last-known-good per flag):
@@ -109,11 +124,12 @@ func buildTable(parsed *parsedFlags, prev *objState, fresh bool) tables {
 
 	hasPrev := prev != nil && prev.loaded
 	if !hasPrev && len(parsed.rejected) == 0 {
-		return tables{flags: parsed.valid, hashes: parsed.hashes, rejected: rejected}
+		return tables{flags: parsed.valid, hashes: parsed.hashes, refs: parsed.refs, rejected: rejected}
 	}
 
 	flags := make(map[string]*flagdef.InternalFlag, len(parsed.valid)+len(parsed.rejected))
 	hashes := make(map[string]uint64, len(parsed.valid)+len(parsed.rejected))
+	refs := maps.Clone(parsed.refs)
 
 	for key, candidate := range parsed.valid {
 		flags[key], hashes[key] = candidate, parsed.hashes[key]
@@ -137,11 +153,13 @@ func buildTable(parsed *parsedFlags, prev *objState, fresh bool) tables {
 			if old, ok := prev.flags[rej.flag]; ok {
 				flags[rej.flag], hashes[rej.flag] = old, prev.hashes[rej.flag]
 				report.Kept = true
+
+				copyRef(refs, prev.refs, rej.flag)
 			}
 		}
 
 		rejected = append(rejected, report)
 	}
 
-	return tables{flags: flags, hashes: hashes, rejected: rejected}
+	return tables{flags: flags, hashes: hashes, refs: refs, rejected: rejected}
 }

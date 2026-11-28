@@ -101,8 +101,16 @@ func flagNext(name string, obj *Object, prev *objState, parsed *parsedFlags, att
 	table := buildTable(parsed, prev, attempt.fresh)
 
 	return &objState{
-		name: name, format: obj.Format, checksum: attempt.sum, state: ObjectOK, loaded: true,
-		flags: table.flags, hashes: table.hashes, rejected: table.rejected, content: tableHash(table.hashes),
+		name:     name,
+		format:   obj.Format,
+		checksum: attempt.sum,
+		state:    ObjectOK,
+		loaded:   true,
+		flags:    table.flags,
+		hashes:   table.hashes,
+		refs:     table.refs,
+		rejected: table.rejected,
+		content:  tableHash(table.hashes),
 	}
 }
 
@@ -123,6 +131,7 @@ func keepFrom(name string, prev *objState) *objState {
 	if prev != nil && prev.loaded {
 		next.flags, next.checksum, next.format = prev.flags, prev.checksum, prev.format
 		next.rejected, next.hashes, next.content, next.loaded = prev.rejected, prev.hashes, prev.content, true
+		next.refs = prev.refs
 	}
 
 	return next

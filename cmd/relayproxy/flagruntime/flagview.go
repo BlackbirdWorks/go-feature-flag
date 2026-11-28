@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/pkgs/evalcore"
@@ -62,19 +63,19 @@ type changeMemo struct {
 // rebuilt one computes its own. A nil flag set has the hash of the empty set.
 func (f *FlagSet) Change() (FlagChange, error) {
 	if f == nil {
-		memo := computeChange(nil)
+		memo := computeChange(nil, nil)
 
 		return memo.change, memo.err
 	}
 
-	f.changeOnce.Do(func() { f.change = computeChange(f.Flags) })
+	f.changeOnce.Do(func() { f.change = computeChange(f.Flags, f.flagSigs) })
 
 	return f.change.change, f.change.err
 }
 
 // computeChange encodes every flag once and hashes the encoding of each flag and of the whole table. The table is
 // the JSON object that [json.Marshal] writes for the map: the keys sorted, each followed by the encoding of its flag.
-func computeChange(flags map[string]*flagdef.InternalFlag) *changeMemo {
+func computeChange(flags map[string]*flagdef.InternalFlag, sigs map[string]uint64) *changeMemo {
 	keys := make([]string, 0, len(flags))
 	for key := range flags {
 		keys = append(keys, key)
@@ -109,9 +110,19 @@ func computeChange(flags map[string]*flagdef.InternalFlag) *changeMemo {
 		table.Write(flagJSON)
 
 		hashes[key] = evalcore.Hash(string(flagJSON))
+
+		if sig, ok := sigs[key]; ok {
+			// the flag uses segments: its hash changes with the members of those segments
+			hashes[key] = evalcore.Hash(string(flagJSON) + "#" + strconv.FormatUint(sig, 16))
+		}
 	}
 
 	table.WriteByte('}')
 
-	return &changeMemo{change: FlagChange{Hash: evalcore.Hash(table.String()), Flags: hashes}}
+	whole := table.String()
+	if len(sigs) > 0 {
+		whole += "#" + strconv.FormatUint(sigsHash(sigs), 16)
+	}
+
+	return &changeMemo{change: FlagChange{Hash: evalcore.Hash(whole), Flags: hashes}}
 }

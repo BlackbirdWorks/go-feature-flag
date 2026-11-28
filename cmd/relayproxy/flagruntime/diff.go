@@ -1,6 +1,9 @@
 package flagruntime
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/blackbirdworks/semaphore/modules/core/flagdef"
 	"github.com/blackbirdworks/semaphore/notifier"
 )
@@ -62,6 +65,19 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 		}
 	}
 
+	// a flag that is the same but uses a segment whose members or definition changed is updated: its evaluations
+	// changed. Only the flags that use segments are looked at.
+	if newSet != nil {
+		for key, sig := range newSet.flagSigs {
+			before, ok := oldFlags[key]
+			if !ok || before != newFlags[key] || oldSet.flagSigs[key] == sig {
+				continue
+			}
+
+			diff.Updated[key] = notifier.DiffUpdated{Before: before, After: reevaluated{Flag: newFlags[key]}}
+		}
+	}
+
 	for key, before := range oldFlags {
 		if _, ok := newFlags[key]; !ok {
 			diff.Deleted[key] = before
@@ -69,6 +85,22 @@ func diffFlagSets(oldSet, newSet *FlagSet) notifier.DiffCache {
 	}
 
 	return diff
+}
+
+// reevaluated is the "after" of a flag whose definition did not change but whose segments did: it is another value
+// than the flag, so the change is not dropped when changes are composed, and it is the flag when it is encoded.
+type reevaluated struct {
+	flagdef.Flag
+}
+
+// MarshalJSON encodes the flag.
+func (r reevaluated) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(r.Flag)
+	if err != nil {
+		return nil, fmt.Errorf("encoding the flag: %w", err)
+	}
+
+	return data, nil
 }
 
 // flagStates tracks, per flag key, the state before the first change and after the last one.

@@ -1,6 +1,7 @@
 package flagruntime
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -16,6 +17,9 @@ type SetSegments struct {
 	// a definition and no provider yet, so it answers by its failure policy and the evaluation reports
 	// NOT_CONFIGURED.
 	Catalog *segment.Catalog
+	// hashes is the content hash of each segment of the catalog, members included: what a flag that uses the segment
+	// depends on, see [FlagSet.flagSigs].
+	hashes map[string]uint64
 	// Static and Dynamic are the numbers of segments of each kind.
 	Static, Dynamic int
 }
@@ -68,6 +72,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		problems []Problem
 		defs     = map[string]*controlplane.SegmentDefinition{}
 		sets     = map[string]*segment.MemberSet{}
+		hashes   = map[string]uint64{}
 		inputs   = make([]*segState, len(spec.segSources))
 	)
 
@@ -88,6 +93,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 			def := &held.doc.Segments[i]
 			defs[def.Name] = def
 			delete(sets, def.Name)
+			hashes[def.Name] = held.hashes[def.Name]
 
 			if set, ok := held.sets[def.Name]; ok {
 				sets[def.Name] = set
@@ -95,7 +101,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		}
 	}
 
-	out := &SetSegments{}
+	out := &SetSegments{hashes: make(map[string]uint64, len(defs))}
 	list := make([]segment.Definition, 0, len(defs))
 
 	for _, name := range sortedNames(defs) {
@@ -107,6 +113,7 @@ func (st *stage) setSegments(spec *setSpec) ([]*segState, *SetSegments, []Proble
 		}
 
 		list = append(list, definitionOf(def))
+		out.hashes[name] = hashes[name]
 	}
 
 	catalog, err := segment.NewCatalogWithSets(sets, list...)
@@ -149,4 +156,55 @@ func definitionOf(def *controlplane.SegmentDefinition) segment.Definition {
 	}
 
 	return out
+}
+
+// definitionHashes is the content hash of each definition of a document, the members of a static segment included,
+// computed once for the checksum of the object. A flag that uses a segment depends on it.
+func definitionHashes(doc *controlplane.SegmentsDocument) map[string]uint64 {
+	hashes := make(map[string]uint64, len(doc.Segments))
+
+	for i := range doc.Segments {
+		data, err := json.Marshal(&doc.Segments[i])
+		if err != nil {
+			data = []byte(doc.Segments[i].Name) // cannot happen for this struct; the name still tells the segment
+		}
+
+		hashes[doc.Segments[i].Name] = hashBytes(data)
+	}
+
+	return hashes
+}
+
+// sigsHash is an order independent hash of the signatures of a flag set: a flag set whose segments changed has
+// another hash, as one whose flags changed.
+func sigsHash(sigs map[string]uint64) uint64 {
+	var sum uint64
+
+	for flag, sig := range sigs {
+		sum += mixUint(hashString(flag), sig)
+	}
+
+	return sum
+}
+
+// flagSignatures is, for each flag that uses segments, a hash of the segments that it uses: it changes when the
+// members or the definition of one of them change, or when a segment appears or goes away. Flags that use no segment
+// have none, so the cost is proportional to the flags that use segments.
+func flagSignatures(refs map[string][]string, segments *SetSegments) map[string]uint64 {
+	if segments == nil || len(refs) == 0 {
+		return nil
+	}
+
+	sigs := make(map[string]uint64, len(refs))
+
+	for flag, names := range refs {
+		sig := fnvOffset
+		for _, name := range names {
+			sig = mixUint(mixString(sig, name), segments.hashes[name])
+		}
+
+		sigs[flag] = sig
+	}
+
+	return sigs
 }

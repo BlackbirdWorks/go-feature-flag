@@ -16,7 +16,8 @@ type objState struct {
 	reason    string
 	refKey    string // key of the parse cache entry this object holds
 	state     ObjectState
-	hashes    map[string]uint64 // content hash of every flag of flags
+	hashes    map[string]uint64   // content hash of every flag of flags
+	refs      map[string][]string // the segments that the flags use, for the flags that use some
 	rejected  []FlagRejection
 	content   uint64 // order independent hash of the effective flags
 	loaded    bool

@@ -18,6 +18,7 @@ type segState struct {
 	status    *ObjectStatus
 	doc       *controlplane.SegmentsDocument // the last good document, parsed once for its checksum and shared
 	sets      map[string]*segment.MemberSet  // the members of its static segments, built once and shared
+	hashes    map[string]uint64              // the content hash of each definition (members included), built once
 	name      string
 	checksum  string
 	attempted string
@@ -73,7 +74,7 @@ func (st *stage) segObject(name string, obj *Object, prev *segState) *segState {
 
 	next := &segState{
 		name: name, checksum: sum, state: ObjectOK, loaded: true, segments: len(doc.Segments),
-		doc: doc, sets: memberSets(doc),
+		doc: doc, sets: memberSets(doc), hashes: definitionHashes(doc),
 	}
 	next.status = segStatus(next)
 
@@ -100,7 +101,7 @@ func keepSeg(name string, prev *segState) *segState {
 
 	if prev != nil && prev.loaded {
 		next.checksum, next.segments, next.loaded = prev.checksum, prev.segments, true
-		next.doc, next.sets = prev.doc, prev.sets
+		next.doc, next.sets, next.hashes = prev.doc, prev.sets, prev.hashes
 	}
 
 	return next

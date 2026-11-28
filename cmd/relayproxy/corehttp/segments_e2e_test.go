@@ -103,3 +103,44 @@ func TestE2E_StaticSegmentsTargetThroughOFREP(t *testing.T) {
 	assert.True(t, ofrepResult(t, rig, "bob"), "bob joined the segment")
 	assert.True(t, ofrepResult(t, rig, "alice"))
 }
+
+// A keyless request is served by the public flags with the static segments of their flag set.
+func TestE2E_PublicFlagsAreTargetedByTheirStaticSegments(t *testing.T) {
+	t.Parallel()
+
+	rig := newV2(t)
+	rig.flags = map[string][]byte{segFlagsObject: []byte(segFlagsYAML)}
+	rig.segments = map[string][]byte{segObjectName: []byte(segDocOne)}
+	rig.sets = []controlplane.FlagSet{{
+		Name: "open", Sources: []string{segFlagsObject}, SegmentSources: []string{segObjectName},
+	}}
+
+	rig.publish(t)
+	rig.poll(t)
+
+	tests := []struct {
+		name      string
+		key       string
+		wantValue bool
+	}{
+		{name: "a member", key: "alice", wantValue: true},
+		{name: "not a member", key: "bob"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			code, _, body := do(t, http.MethodPost, rig.url+pathOFREPOne+"beta-flag",
+				`{"context":{"targetingKey":"`+tt.key+`"}}`, withJSON(http.Header{}))
+			require.Equal(t, http.StatusOK, code, string(body))
+
+			var got struct {
+				Value bool `json:"value"`
+			}
+
+			require.NoError(t, json.Unmarshal(body, &got))
+			assert.Equal(t, tt.wantValue, got.Value)
+		})
+	}
+}

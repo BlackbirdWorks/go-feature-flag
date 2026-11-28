@@ -1,7 +1,6 @@
 package flagstate
 
 import (
-	"maps"
 	"time"
 
 	"github.com/blackbirdworks/semaphore/ffcontext"
@@ -29,18 +28,11 @@ type FlagState struct { //nolint:govet // fieldalignment: field order is the key
 const MetadataSegmentStatus = "semaphore_segmentStatus"
 
 // MetadataWithStatus is the metadata of the state as it is sent: the metadata itself when the segment lookups were
-// healthy or there was none, else a copy with MetadataSegmentStatus set. The metadata of the state is never changed
-// (a flag can have a key of that name of its own, and the metadata can be shared).
+// healthy or there was none, else the metadata with MetadataSegmentStatus set. The map is the one that the evaluation
+// made for this state (the engine clones the metadata of the flag for each evaluation, see constructMetadata), so the
+// key is written into it: no second copy. A state that is built from a map that is shared must not be given a status.
 func (f *FlagState) MetadataWithStatus() map[string]any {
-	if !f.SegmentStatus.Reported() {
-		return f.Metadata
-	}
-
-	out := make(map[string]any, len(f.Metadata)+1)
-	maps.Copy(out, f.Metadata)
-	out[MetadataSegmentStatus] = f.SegmentStatus.String()
-
-	return out
+	return WithSegmentStatus(f.Metadata, f.SegmentStatus)
 }
 
 // WithSegmentStatus adds the MetadataSegmentStatus key to the metadata of an evaluation whose segment lookups were
@@ -55,7 +47,7 @@ func WithSegmentStatus(metadata map[string]any, status segment.Status) map[strin
 		metadata = make(map[string]any, 1)
 	}
 
-	metadata[MetadataSegmentStatus] = status.String()
+	metadata[MetadataSegmentStatus] = statusValue(status)
 
 	return metadata
 }
@@ -134,4 +126,20 @@ func FromFlagEvaluationAt(evaluatedAt time.Time, key string, evaluationCtx ffcon
 			SegmentStatus: resolutionDetails.SegmentStatus,
 		}
 	}
+}
+
+// statusValue is the name of a reported status as a value of the metadata: a constant for each, so putting it in the
+// map does not allocate.
+func statusValue(status segment.Status) any {
+	switch status {
+	case segment.StatusStale:
+		return "STALE"
+	case segment.StatusNotConfigured:
+		return "NOT_CONFIGURED"
+	case segment.StatusStoreError:
+		return "STORE_ERROR"
+	case segment.StatusNone, segment.StatusHealthy:
+	}
+
+	return ""
 }

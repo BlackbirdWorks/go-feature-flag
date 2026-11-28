@@ -358,8 +358,8 @@ func (st *stage) collectInvalid(
 		col.claimed[entry.Name] = struct{}{}
 
 		spec := &setSpec{
-			name: old.spec.name, sources: old.spec.sources, declKeys: old.spec.declKeys,
-			keys: old.spec.declKeys, declHash: old.spec.declHash,
+			name: old.spec.name, sources: old.spec.sources, segSources: old.spec.segSources,
+			declKeys: old.spec.declKeys, keys: old.spec.declKeys, declHash: old.spec.declHash,
 		}
 
 		notes = append([]Problem{{

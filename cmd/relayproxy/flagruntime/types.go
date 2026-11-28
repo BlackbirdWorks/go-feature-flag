@@ -64,7 +64,13 @@ type FlagSet struct {
 	change     *changeMemo
 	Flags      map[string]*flagdef.InternalFlag
 	// Segments is what the rules of the flag set can use as segments, nil when the flag set has none.
-	Segments   *SetSegments
+	Segments *SetSegments
+	// flagCatalogs is, for the merged public flag set of several sources, the catalog of the flag set that each flag
+	// comes from: a segment name is looked up in the namespace of the flag set of the flag, never in a merged one.
+	flagCatalogs map[string]*segment.Catalog
+	// flagSigs is, for each flag of the set that uses segments, a hash of the segments it uses (members included). Two
+	// builds of a flag set that hold the same flag pointer differ for a flag when its signature differs.
+	flagSigs   map[string]uint64
 	Name       string
 	State      SetState
 	Hash       uint64
@@ -82,6 +88,16 @@ func (f *FlagSet) Flag(name string) (*flagdef.InternalFlag, bool) {
 	fl, ok := f.Flags[name]
 
 	return fl, ok
+}
+
+// SegmentCatalogFor is the catalog that the flag evaluates against: the one of the flag set it comes from. A flag set
+// of one source has one catalog; the merged public flag set keeps the catalog of the source of each flag.
+func (f *FlagSet) SegmentCatalogFor(flagKey string) *segment.Catalog {
+	if f != nil && f.flagCatalogs != nil {
+		return f.flagCatalogs[flagKey]
+	}
+
+	return f.SegmentCatalog()
 }
 
 // SegmentCatalog is the catalog of the segments of the flag set, nil when it has none. It does not allocate.

@@ -64,29 +64,16 @@ func (a *AllFlags) GetFlags() map[string]FlagState {
 	return a.flags
 }
 
-// sent is the flags as they are sent: the flags themselves when no status is to be reported (no allocation), else a
-// copy where the flags of an unhealthy segment status carry it in their metadata. A map of a flag is never changed.
+// sent is the flags as they are sent: the flags with the segment status of the unhealthy ones in their metadata. The
+// metadata of a state is the map that its evaluation made, so the status is written into it (no copy, and nothing for
+// a flag whose lookups were healthy). The states are replaced in the map of the flags: the same keys, no growth.
 func (a AllFlags) sent() map[string]FlagState {
-	reported := false
-
-	for key := range a.flags {
-		if a.flags[key].SegmentStatus.Reported() {
-			reported = true
-
-			break
+	for key, state := range a.flags {
+		if state.SegmentStatus.Reported() {
+			state.Metadata = state.MetadataWithStatus()
+			a.flags[key] = state
 		}
 	}
 
-	if !reported {
-		return a.flags
-	}
-
-	out := make(map[string]FlagState, len(a.flags))
-
-	for key, state := range a.flags {
-		state.Metadata = state.MetadataWithStatus()
-		out[key] = state
-	}
-
-	return out
+	return a.flags
 }
