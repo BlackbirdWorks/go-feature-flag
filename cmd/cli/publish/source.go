@@ -15,6 +15,7 @@ import (
 const (
 	flagsDir    = "flags"
 	flagSetsDir = "flagsets"
+	segmentsDir = "segments"
 )
 
 // Errors of the source loader. Test them with [errors.Is].
@@ -88,11 +89,12 @@ func LoadSource(fsys fs.FS, display string, limits SourceLimits) ([]s3publish.Ob
 			}
 
 			return fmt.Errorf(
-				"%w %q: documents live in %s/ and %s/",
+				"%w %q: documents live in %s/, %s/ and %s/",
 				ErrUnknownFile,
 				shown(display, rel),
 				flagsDir,
 				flagSetsDir,
+				segmentsDir,
 			)
 		}
 
@@ -164,7 +166,7 @@ func skip(entry fs.DirEntry) error {
 	return nil
 }
 
-func isLayoutDir(rel string) bool { return rel == flagsDir || rel == flagSetsDir }
+func isLayoutDir(rel string) bool { return rel == flagsDir || rel == flagSetsDir || rel == segmentsDir }
 
 func shown(display, rel string) string { return path.Join(display, rel) }
 
@@ -178,11 +180,12 @@ func readDocument(fsys fs.FS, entry fs.DirEntry, rel, display string, maxBytes i
 	kind, format, ok := classify(dir, ext)
 	if !ok {
 		return s3publish.Object{}, fmt.Errorf(
-			"%w %q: only %s/*.yaml|yml|json and %s/*.yaml|yml|json are read",
+			"%w %q: only %s/*.yaml|yml|json, %s/*.yaml|yml|json and %s/*.yaml|yml|json are read",
 			ErrUnknownFile,
 			shown(display, rel),
 			flagsDir,
 			flagSetsDir,
+			segmentsDir,
 		)
 	}
 
@@ -218,6 +221,8 @@ func classify(dir, ext string) (string, string, bool) {
 		kind = controlplane.KindFlags
 	case flagSetsDir:
 		kind = controlplane.KindFlagSets
+	case segmentsDir:
+		kind = controlplane.KindSegments
 	default:
 		return "", "", false
 	}

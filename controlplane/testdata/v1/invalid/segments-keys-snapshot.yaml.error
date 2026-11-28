@@ -1,0 +1,2 @@
+ErrInvalid
+segment "staff": layout "keys" with mode "snapshot": the keys layout is lookup-only

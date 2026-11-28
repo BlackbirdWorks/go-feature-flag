@@ -39,6 +39,12 @@ func TestCompatVersion1(t *testing.T) {
 			"flag set json", "flagset.json", readFlagSet(controlplane.MarshalFlagSetJSON), wantFlagSetV1(),
 		},
 		{
+			"segments yaml", "segments.yaml", readSegments(controlplane.MarshalSegments), wantSegmentsV1(),
+		},
+		{
+			"segments json", "segments.json", readSegments(controlplane.MarshalSegmentsJSON), wantSegmentsV1(),
+		},
+		{
 			"flag file yaml", "flagfile.yaml", readFlags(controlplane.FormatYAML, controlplane.MarshalFlags),
 			wantFlagsV1(),
 		},
@@ -226,6 +232,45 @@ func wantFlagsV1() controlplane.Flags {
 		"banner": {
 			Variations:  map[string]any{"a": "yes", "b": "no", "c": 0.5, "d": "2026-01-01"},
 			DefaultRule: &controlplane.Rule{Variation: new("a")},
+		},
+	}
+}
+
+func readSegments(
+	marshal func(*controlplane.SegmentsDocument) ([]byte, error),
+) func([]byte) (any, []byte, []string, error) {
+	return func(data []byte) (any, []byte, []string, error) {
+		doc, info, err := controlplane.UnmarshalSegments(data)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		out, err := marshal(doc)
+
+		return doc, out, info.UnknownFields, err
+	}
+}
+
+func wantSegmentsV1() *controlplane.SegmentsDocument {
+	return &controlplane.SegmentsDocument{
+		APIVersion: controlplane.APIVersion, Kind: controlplane.DocumentKindSegments,
+		Segments: []controlplane.SegmentDefinition{
+			{Name: "beta-testers", Members: []string{"alice", "bob"}},
+			{Name: "nobody-yet", Members: []string{}, OnError: "notMember"},
+			{
+				Name: "churned", Connection: segConnection, Key: "semaphore:segment:{churned}",
+				Version: &controlplane.SegmentVersion{Key: "semaphore:segment:churned:version", Interval: "5s"},
+			},
+			{
+				Name:       "staff",
+				Connection: segConnection,
+				Mode:       controlplane.SegmentModeLookup,
+				Key:        "staff:",
+				Layout:     segKeys,
+				MissingKey: controlplane.SegmentMissingUnknown,
+				Version:    &controlplane.SegmentVersion{Value: "2026-11-27"},
+				Cache:      &controlplane.SegmentCache{MaxEntries: 50000, TTL: "30s"},
+			},
 		},
 	}
 }

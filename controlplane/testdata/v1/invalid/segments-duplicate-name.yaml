@@ -1,0 +1,7 @@
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta
+    members: []
+  - name: beta
+    members: []

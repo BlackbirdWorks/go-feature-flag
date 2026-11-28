@@ -1,0 +1,10 @@
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta-testers
+    members:
+      - alice
+      - bob
+  - name: nobody-yet
+    members: []
+    onError: notMember

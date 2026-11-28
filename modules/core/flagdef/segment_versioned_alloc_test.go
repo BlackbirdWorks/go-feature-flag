@@ -59,6 +59,7 @@ func TestAVersionedSegmentAllocatesNothingExtraInAnEvaluation(t *testing.T) {
 	plainAllocs, plainVariant := evalAllocs(t, &plain)
 	versionedAllocs, versionedVariant := evalAllocs(t, &versioned)
 
-	assert.Equal(t, plainVariant, versionedVariant, "the same answer")
+	assert.Equal(t, variantOn, plainVariant, "the failure policy (member) matches the rule")
+	assert.Equal(t, variantOn, versionedVariant, "the same answer with a version")
 	assert.InDelta(t, plainAllocs, versionedAllocs, 0, "a versioned segment adds no allocation to the evaluation")
 }

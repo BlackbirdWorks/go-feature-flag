@@ -8,10 +8,15 @@ const (
 	// DocumentKindFlagSet is the kind of a flag-set document.
 	DocumentKindFlagSet = "FlagSet"
 
+	// DocumentKindSegments is the kind of a segments document.
+	DocumentKindSegments = "Segments"
+
 	// KindFlags is the manifest object kind of a flag file.
 	KindFlags = "flags"
 	// KindFlagSets is the manifest object kind of a flag-set document.
 	KindFlagSets = "flagSets"
+	// KindSegments is the manifest object kind of a segments document.
+	KindSegments = "segments"
 
 	// FormatYAML is the YAML text format of an object.
 	FormatYAML = "yaml"

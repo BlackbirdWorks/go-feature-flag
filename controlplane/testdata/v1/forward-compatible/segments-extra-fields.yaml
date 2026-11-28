@@ -1,0 +1,8 @@
+apiVersion: semaphore/v1
+kind: Segments
+futureSection: {}
+segments:
+  - name: beta
+    members:
+      - alice
+    note: later

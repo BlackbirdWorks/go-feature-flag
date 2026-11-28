@@ -16,6 +16,9 @@ type FlagSet struct {
 	Name string `json:"name" yaml:"name"`
 	// Sources are names of manifest objects of kind flags; a later source wins on a duplicate flag key.
 	Sources []string `json:"sources" yaml:"sources"`
+	// SegmentSources are names of manifest objects of kind segments; the segments that the rules of this flag set
+	// name with segment("name") are defined there. A name must be defined once in all the sources of a flag set.
+	SegmentSources []string `json:"segmentSources,omitempty" yaml:"segmentSources,omitempty"`
 	// APIKeys are plain inline keys (UUIDs). They are secrets: never log them.
 	APIKeys []string `json:"apiKeys,omitempty" yaml:"apiKeys,omitempty"`
 }

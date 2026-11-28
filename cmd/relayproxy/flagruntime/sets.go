@@ -16,7 +16,7 @@ import (
 // object are rebuilt.
 func (st *stage) incrementalPass(ctx context.Context) (*state, error) {
 	next := *st.prev
-	next.objects, next.docs = st.objects, st.docs
+	next.objects, next.docs, next.segs = st.objects, st.docs, st.segs
 	next.objStatus = st.objectStatus()
 
 	affected := map[string]struct{}{}

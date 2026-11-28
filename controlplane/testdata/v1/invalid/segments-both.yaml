@@ -1,0 +1,7 @@
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: both
+    connection: audiences
+    members:
+      - alice

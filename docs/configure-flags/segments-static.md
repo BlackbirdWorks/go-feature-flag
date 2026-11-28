@@ -7,6 +7,26 @@ A static segment is a segment of type `file`: its members ship with the flag con
 - Memory grows with the list. For a large or fast changing audience use a [dynamic segment](segments-dynamic.md).
 - Freshness is the time of the last load of the member file.
 
+## Published form
+
+In a flag set published through the control plane, a static segment is a definition with inline `members` in a
+document of kind `Segments` (see [the document format](../go-module/controlplane.md#segments-document)):
+
+<!-- segments-doc -->
+```yaml
+apiVersion: semaphore/v1
+kind: Segments
+segments:
+  - name: beta-testers
+    members:
+      - alice
+      - bob
+  - name: nobody-yet
+    members: []
+```
+
+Duplicates are rejected, an empty list is allowed, and the list is bounded (100000 members, 4 MiB).
+
 ## Member file
 
 - One value per line. A UTF-8 byte order mark, blanks, carriage returns and blank lines are ignored; duplicates are one member.

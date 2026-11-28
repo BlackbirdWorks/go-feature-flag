@@ -43,6 +43,8 @@ const (
 	EntryObject EntryKind = "object"
 	// EntryFlagSet: an entry of flagSets.
 	EntryFlagSet EntryKind = "flagSet"
+	// EntrySegment: a segment of a segments document.
+	EntrySegment EntryKind = "segment"
 	// EntryFlag: a flag of a flag file.
 	EntryFlag EntryKind = "flag"
 )
