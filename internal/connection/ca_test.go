@@ -16,8 +16,6 @@ import (
 	"github.com/blackbirdworks/semaphore/internal/connection"
 )
 
-const unknownAuthority = "unknown authority"
-
 var errBundleGone = errors.New("the bundle file is gone")
 
 // bundleFiles is an in-memory file system for CA bundles that counts the reads and can lose its files.
@@ -84,33 +82,37 @@ func TestFactory_CABundleFileTrust(t *testing.T) {
 	srvA, srvB := caA.startServer(t, okHandler()), caB.startServer(t, okHandler())
 
 	tests := []struct {
-		name        string
-		bundle      []byte
-		wantAErr    string // empty: the request succeeds
-		wantBErr    string
-		wantObsKind []string
+		name           string
+		bundle         []byte
+		wantObsKind    []string
+		wantAUntrusted bool // false: the request succeeds
+		wantBUntrusted bool
 	}{
 		{
-			name:        "bundle of A",
-			bundle:      caA.pem,
-			wantAErr:    "",
-			wantBErr:    unknownAuthority,
-			wantObsKind: []string{resOK, resError},
+			name:           "bundle of A",
+			bundle:         caA.pem,
+			wantObsKind:    []string{resOK, resError},
+			wantAUntrusted: false,
+			wantBUntrusted: true,
 		},
 		{
-			name:        "bundle of B",
-			bundle:      caB.pem,
-			wantAErr:    unknownAuthority,
-			wantBErr:    "",
-			wantObsKind: []string{resError, resOK},
+			name:           "bundle of B",
+			bundle:         caB.pem,
+			wantObsKind:    []string{resError, resOK},
+			wantAUntrusted: true,
+			wantBUntrusted: false,
 		},
 		{
-			name: "both authorities in the bundle", bundle: slices.Concat(caA.pem, caB.pem),
-			wantAErr: "", wantBErr: "", wantObsKind: []string{resOK, resOK},
+			name:        "both authorities in the bundle",
+			bundle:      slices.Concat(caA.pem, caB.pem),
+			wantObsKind: []string{resOK, resOK},
 		},
 		{
-			name: "no bundle: system roots only", bundle: nil,
-			wantAErr: unknownAuthority, wantBErr: unknownAuthority, wantObsKind: []string{resError, resError},
+			name:           "no bundle: system roots only",
+			bundle:         nil,
+			wantObsKind:    []string{resError, resError},
+			wantAUntrusted: true,
+			wantBUntrusted: true,
 		},
 	}
 
@@ -136,13 +138,13 @@ func TestFactory_CABundleFileTrust(t *testing.T) {
 			errA, errB := headAt(t, client, srvA.URL), headAt(t, client, srvB.URL)
 
 			for _, check := range []struct {
-				err  error
-				want string
-			}{{errA, tt.wantAErr}, {errB, tt.wantBErr}} {
-				if check.want == "" {
+				err           error
+				wantUntrusted bool
+			}{{errA, tt.wantAUntrusted}, {errB, tt.wantBUntrusted}} {
+				if !check.wantUntrusted {
 					require.NoError(t, check.err)
 				} else {
-					require.ErrorContains(t, check.err, check.want)
+					requireUntrustedCertError(t, check.err)
 				}
 			}
 
@@ -183,7 +185,7 @@ func TestFactory_CABundleRotation(t *testing.T) {
 	before, err := fac.S3(t.Context(), connC)
 	require.NoError(t, err)
 	require.NoError(t, headAt(t, before, srvA.URL))
-	require.ErrorContains(t, headAt(t, before, srvB.URL), unknownAuthority)
+	requireUntrustedCertError(t, headAt(t, before, srvB.URL))
 
 	// the file changes, nobody reloads: nothing changes
 	files.set(caB.pem)
@@ -192,7 +194,7 @@ func TestFactory_CABundleRotation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, before, same)
 	require.NoError(t, headAt(t, same, srvA.URL))
-	require.ErrorContains(t, headAt(t, same, srvB.URL), unknownAuthority)
+	requireUntrustedCertError(t, headAt(t, same, srvB.URL))
 
 	// the reload rebuilds the client with the new authority
 	require.NoError(t, fac.Replace(map[string]connection.Spec{connC: spec()}))
@@ -201,7 +203,7 @@ func TestFactory_CABundleRotation(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotSame(t, before, after)
 	require.NoError(t, headAt(t, after, srvB.URL))
-	require.ErrorContains(t, headAt(t, after, srvA.URL), unknownAuthority)
+	requireUntrustedCertError(t, headAt(t, after, srvA.URL))
 	assert.Equal(t, map[string]int{connC: 2}, fac.Builds())
 }
 
