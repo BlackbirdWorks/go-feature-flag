@@ -326,6 +326,8 @@ func goroutinesBack(t *testing.T, baseline int) {
 		case <-deadline.C:
 			const goroutineDumpMode = 2
 
+			left := runtime.NumGoroutine()
+
 			var stacks strings.Builder
 
 			if prof := pprof.Lookup("goroutine"); prof != nil {
@@ -337,7 +339,7 @@ func goroutinesBack(t *testing.T, baseline int) {
 
 			assert.LessOrEqual(
 				t,
-				runtime.NumGoroutine(),
+				left,
 				baseline,
 				"goroutines left after the run:\n%s",
 				stacks.String(),
