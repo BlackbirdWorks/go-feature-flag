@@ -31,9 +31,18 @@ type Key struct {
 
 type object = map[string]any
 
-// leafTypes are the definitions that are values with a format, not objects to descend into.
-var leafTypes = map[string]string{ //nolint:gochecknoglobals // read-only table
-	"Secret": "secret", "Duration": "duration", "Delay": "duration", "ByteSize": "size",
+// leafType returns the type name of the definitions that are values with a format, not objects to descend into.
+func leafType(name string) (string, bool) {
+	switch name {
+	case "Secret":
+		return "secret", true
+	case "Duration", "Delay":
+		return "duration", true
+	case "ByteSize":
+		return "size", true
+	default:
+		return "", false
+	}
 }
 
 type walker struct {
@@ -77,7 +86,7 @@ func (w *walker) resolve(node object) (object, string) {
 		target, _ := w.defs[name].(object)
 		node = overlay(target, node)
 
-		if leaf, isLeaf := leafTypes[name]; isLeaf {
+		if leaf, isLeaf := leafType(name); isLeaf {
 			return node, leaf
 		}
 	}

@@ -23,7 +23,7 @@ type Manifest struct { //nolint:govet // fieldalignment: the field order is the 
 type ManifestObject struct { //nolint:govet // fieldalignment: the field order is the wire order
 	// Name is the logical name, unique in the manifest; flag sets reference objects by it.
 	Name string `json:"name" yaml:"name"`
-	// Kind is KindFlags or KindFlagSets.
+	// Kind is KindFlags, KindFlagSets or KindSegments.
 	Kind string `json:"kind" yaml:"kind"`
 	// Connection names a connection of the relay bootstrap file; it fixes endpoint, bucket and credentials.
 	Connection string `json:"connection" yaml:"connection"`

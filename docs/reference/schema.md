@@ -274,7 +274,7 @@ Document of kind `Manifest`, written last by `semaphore-cli publish`. File: `.sc
 | `objects[].connection` | string | yes |  |  | Connection names a connection of the relay bootstrap file; it fixes endpoint, bucket and credentials. |
 | `objects[].format` | string | yes |  |  | Format is FormatYAML, FormatJSON or (flags only) FormatTOML. |
 | `objects[].key` | string | yes |  |  | Key is the key of the object in the bucket of the connection. |
-| `objects[].kind` | string | yes |  |  | Kind is KindFlags or KindFlagSets. |
+| `objects[].kind` | string | yes |  |  | Kind is KindFlags, KindFlagSets or KindSegments. |
 | `objects[].name` | string | yes |  |  | Name is the logical name, unique in the manifest; flag sets reference objects by it. |
 | `objects[].size` | integer | yes |  |  | Size is the size of the stored bytes. |
 | `objects[].version` | integer |  |  |  | Version is the version of the content schema; 0 means ObjectVersion1. |

@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	perKind        = "\x00perKind"
 	typeInteger    = "integer"
 	repoRoot       = "../.."
 	bootstrapPath  = repoRoot + "/.schema/bootstrap-schema.json"
@@ -153,20 +154,30 @@ var (
 	headingKey   = regexp.MustCompile("^#{2,4} `([^`]+)`")
 )
 
-// pageKeys returns the keys the page documents, with the prefix of the section heading applied to the keys that are
-// relative: the first column named Key of each table of the section.
-func pageKeys(page string) []string {
-	var out []string
+// pageRow is a row of a key table of the page: the keys of its Key cell and its Type and Default cells.
+type pageRow struct {
+	prefix string
+	typ    string
+	def    string
+	keys   []string
+	// perKind says that the table has a column for the connection type: the schema merges the defaults of the types.
+	perKind bool
+}
+
+// pageRows returns the rows of the key tables of the page, with the prefix of the section heading that applies to the
+// relative keys. A key table is a table with a column named Key.
+func pageRows(page string) []pageRow {
+	var out []pageRow
 
 	prefix := ""
-	column := -1
+	columns := map[string]int{}
 
 	section, _, _ := strings.Cut(page, keysSectionEnd)
 	_, section, _ = strings.Cut(section, "\n## Keys and defaults")
 
 	for line := range strings.SplitSeq(section, "\n") {
 		if strings.HasPrefix(line, "#") {
-			prefix, column = "", -1
+			prefix, columns = "", map[string]int{}
 
 			if match := headingKey.FindStringSubmatch(line); match != nil {
 				prefix = match[1]
@@ -176,7 +187,7 @@ func pageKeys(page string) []string {
 		}
 
 		if !strings.HasPrefix(line, "|") {
-			column = -1
+			columns = map[string]int{}
 
 			continue
 		}
@@ -186,64 +197,141 @@ func pageKeys(page string) []string {
 			cells[i] = strings.TrimSpace(cells[i])
 		}
 
-		if idx := slices.Index(cells, "Key"); idx >= 0 {
-			column = idx
+		if slices.Contains(cells, "Key") {
+			columns = headerColumns(cells)
 
 			continue
 		}
 
-		if column < 0 || column >= len(cells) || strings.HasPrefix(cells[0], "---") {
+		keyColumn, hasKey := columns["Key"]
+		if !hasKey || keyColumn >= len(cells) || strings.HasPrefix(cells[0], "---") {
 			continue
 		}
 
-		for _, match := range backtickSpan.FindAllStringSubmatch(cells[column], -1) {
-			out = append(out, prefix+"\x00"+match[1])
+		_, kind := columns[perKind]
+
+		row := pageRow{
+			perKind: kind,
+			prefix:  prefix,
+			typ:     cellAt(cells, columns, "Type"),
+			def:     cellAt(cells, columns, "Default"),
 		}
+		for _, match := range backtickSpan.FindAllStringSubmatch(cells[keyColumn], -1) {
+			row.keys = append(row.keys, match[1])
+		}
+
+		out = append(out, row)
 	}
 
 	return out
 }
 
+// headerColumns maps the names of the header cells to their index. The last column of a name wins: the Type of a key,
+// not of a connection. A table that starts with a Type column is a table per connection type.
+func headerColumns(cells []string) map[string]int {
+	columns := map[string]int{}
+
+	for i, cell := range cells {
+		columns[cell] = i
+
+		if cell == "Type" && i > 0 && cells[0] == "Type" {
+			columns[perKind] = i
+		}
+	}
+
+	return columns
+}
+
+func cellAt(cells []string, columns map[string]int, name string) string {
+	index, found := columns[name]
+	if !found || index >= len(cells) {
+		return ""
+	}
+
+	return cells[index]
+}
+
+// typeMatches says that the type cell of the page names a type of the schema: "list" for "list of string", "map" for
+// "map of secret", "string" for "string or object".
+func typeMatches(page, schema string) bool {
+	return slices.Contains(strings.Fields(strings.ReplaceAll(schema, " or ", " ")), strings.Fields(page + " ")[0])
+}
+
+// defaultMatches says that the default cell holds the default of the schema. A key that several connection types share
+// has the merged default of the types, so the rows of a table per type are checked only for a key of one type.
+func defaultMatches(row *pageRow, key *schemadoc.Key) bool {
+	if key.Default == "" || (row.perKind && len(key.OnlyFor) != 1) {
+		return true
+	}
+
+	return strings.Contains(strings.ReplaceAll(row.def, "`", ""), key.Default)
+}
+
 // Every key of the bootstrap schema is on the bootstrap reference page, and every key of the page is in the schema.
-// An object that has documented keys below it needs no row of its own.
+// An object that has documented keys below it needs no row of its own. The type of a row is a type of the schema, and
+// the default of a row holds the default that the schema states.
 func TestBootstrapPageListsEveryKey(t *testing.T) {
 	t.Parallel()
 
 	keys, err := schemadoc.Keys(read(t, bootstrapPath))
 	require.NoError(t, err)
 
-	schemaPaths := map[string]bool{}
+	schema := map[string]schemadoc.Key{}
 	for _, key := range keys {
-		schemaPaths[key.Path] = true
+		schema[key.Path] = key
 	}
 
 	documented := map[string]bool{}
 
-	var unknown []string
+	var unknown, wrongType, wrongDefault []string
 
-	for _, entry := range pageKeys(string(read(t, bootstrapPage))) {
-		prefix, token, _ := strings.Cut(entry, "\x00")
+	for _, row := range pageRows(string(read(t, bootstrapPage))) {
+		for _, token := range row.keys {
+			path := token
+			if _, found := schema[row.prefix+"."+token]; row.prefix != "" && found {
+				path = row.prefix + "." + token
+			}
 
-		switch {
-		case prefix != "" && schemaPaths[prefix+"."+token]:
-			documented[prefix+"."+token] = true
-		case schemaPaths[token]:
-			documented[token] = true
-		default:
-			unknown = append(unknown, entry)
+			key, found := schema[path]
+			if !found {
+				unknown = append(unknown, row.prefix+" "+token)
+
+				continue
+			}
+
+			documented[path] = true
+
+			if len(row.keys) > 1 {
+				continue // one type and default cell for several keys
+			}
+
+			if row.typ == "" || !typeMatches(row.typ, key.Type) {
+				wrongType = append(wrongType, path+": page "+row.typ+", schema "+key.Type)
+			}
+
+			if !defaultMatches(&row, &key) {
+				wrongDefault = append(wrongDefault, path+": page "+row.def+", schema "+key.Default)
+			}
 		}
 	}
 
+	assert.Empty(t, undocumented(keys, documented), "keys of the schema that the page does not list")
+	assert.Empty(t, unknown, "keys of the page that the schema does not have")
+	assert.Empty(t, wrongType, "rows whose type is not a type of the schema")
+	assert.Empty(t, wrongDefault, "rows whose default is not the default of the schema")
+}
+
+// undocumented returns the paths of the keys that neither a row nor a row below them documents.
+func undocumented(keys []schemadoc.Key, documented map[string]bool) []string {
 	var missing []string
 
-	for _, key := range keys {
-		if !documented[key.Path] && !hasDocumentedChild(key.Path, documented) {
-			missing = append(missing, key.Path)
+	for i := range keys {
+		if path := keys[i].Path; !documented[path] && !hasDocumentedChild(path, documented) {
+			missing = append(missing, path)
 		}
 	}
 
-	assert.Empty(t, missing, "keys of the schema that the page does not list")
-	assert.Empty(t, unknown, "keys of the page that the schema does not have")
+	return missing
 }
 
 func hasDocumentedChild(path string, documented map[string]bool) bool {

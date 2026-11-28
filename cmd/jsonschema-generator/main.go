@@ -17,12 +17,18 @@ import (
 	"github.com/blackbirdworks/semaphore/model/dto"
 )
 
+// docsOptions are the options of the generated documentation.
+type docsOptions struct {
+	ControlPlaneSchemaDir string `description:"Directory of the control-plane schemas." long:"control-plane-schema-dir"`
+	ReferenceLocation     string `description:"Location of the schema reference page."  long:"reference-location"`
+}
+
 func main() {
 	var opts struct {
-		SchemaLocation          string `description:"Location where the schema will be saved."                                                           long:"schema-location"           required:"true"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
-		ControlPlaneSchemaDir   string `description:"Directory where the schemas of the control-plane documents will be saved, if given."                long:"control-plane-schema-dir"`                  //nolint:lll // struct tags can not be wrapped
-		ReferenceLocation       string `description:"Location where the Markdown schema reference will be saved, if given. Needs the two options above." long:"reference-location"`                        //nolint:lll // struct tags can not be wrapped
-		BootstrapSchemaLocation string `description:"Location where the bootstrap file schema will be saved, if given."                                  long:"bootstrap-schema-location"`                 //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+		docsOptions
+
+		SchemaLocation          string `description:"Location where the schema will be saved."                          long:"schema-location"           required:"true"` //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
+		BootstrapSchemaLocation string `description:"Location where the bootstrap file schema will be saved, if given." long:"bootstrap-schema-location"`                 //nolint:lll // struct tags (json, yaml, toml, jsonschema, mapstructure) can not be wrapped
 	}
 
 	_, err := flags.Parse(&opts)

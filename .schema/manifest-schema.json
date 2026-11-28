@@ -72,7 +72,7 @@
                 },
                 "kind": {
                     "type": "string",
-                    "description": "Kind is KindFlags or KindFlagSets."
+                    "description": "Kind is KindFlags, KindFlagSets or KindSegments."
                 },
                 "connection": {
                     "type": "string",

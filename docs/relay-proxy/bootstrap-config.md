@@ -140,8 +140,8 @@ Only these variables are read. Precedence: command-line flag, then variable, the
 | `server.listeners[].protocols` | list of string | `[http1]` | `http1`, `h2c`, no duplicates (`h2` and `tls` are reserved) |
 | `server.shutdown.drainDelay` | duration | `0s` (no delay) | `0s` to `10m` |
 | `server.shutdown.timeout` | duration | `15s` | positive, at most `10m` |
-| `server.hideBanner` | bool | `false` | keeps the banner out of the standard output at start |
-| `server.ops.pprof.enabled` | bool | `false` | needs a listener with the role `ops` |
+| `server.hideBanner` | boolean | `false` | keeps the banner out of the standard output at start |
+| `server.ops.pprof.enabled` | boolean | `false` | needs a listener with the role `ops` |
 | `server.ofrepEventStream.baseUrl` | string | none (off) | absolute `http` or `https` URL, no credentials, query or fragment |
 | `server.ofrepEventStream.inactivityDelaySec` | integer | `0` (not advertised) | zero or more |
 | `server.validateFlags.maxJsonBodySize` | size | `1MiB` | a size string such as `2MiB`, `64KiB` or `1500B`; `0B` means the default |
