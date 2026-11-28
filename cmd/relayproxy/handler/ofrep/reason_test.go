@@ -1,6 +1,7 @@
 package ofrep_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -32,6 +33,7 @@ type reasonStubFlagSet struct {
 }
 
 func (s *reasonStubFlagSet) RawVariation(
+	_ context.Context,
 	_ string,
 	_ ffcontext.Context,
 	_ any,
@@ -44,7 +46,7 @@ func (s *reasonStubFlagSet) RawVariation(
 	}, nil
 }
 
-func (s *reasonStubFlagSet) AllFlagsState(_ ffcontext.Context) flagstate.AllFlags {
+func (s *reasonStubFlagSet) AllFlagsState(_ context.Context, _ ffcontext.Context) flagstate.AllFlags {
 	all := flagstate.NewAllFlags()
 	all.AddFlag("test-flag", &flagstate.FlagState{
 		Value:         true,

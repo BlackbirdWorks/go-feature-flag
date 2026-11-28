@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode/utf8"
 
@@ -459,4 +460,43 @@ func TestReader_RestoresManifestUnknownFieldsFromSavedState(t *testing.T) {
 	assert.Equal(t, manifestreader.OutcomeAccepted, got.Outcome)
 	assert.Equal(t, 1, got.UnknownFields)
 	assert.Equal(t, []string{"restoredExtra"}, got.UnknownFieldPaths)
+}
+
+// The status of the manifest is visible before the snapshot reaches the engine: the round of the engine reads it (for
+// the unknown fields of the manifest) and must not meet the status of the previous manifest.
+func TestReader_ManifestStatusIsVisibleWhenTheSnapshotIsPublished(t *testing.T) {
+	t.Parallel()
+
+	store := newFakeStore()
+	for _, o := range threeObjects() {
+		store.put(keyOf(t, o), []byte(o.content))
+	}
+
+	publish(t, store, 1, threeObjects()...)
+
+	var (
+		current atomic.Pointer[manifestreader.Reader]
+		seen    = make(chan manifestreader.ManifestStatus, 4)
+	)
+
+	hooks := manifestreader.Hooks{Save: func(manifestreader.Persist) {
+		if rdr := current.Load(); rdr != nil {
+			seen <- rdr.Status().Manifest
+		}
+	}}
+	rdr := startRig(t, store, &manifestreader.Config{}, manifestreader.WithHooks(hooks))
+	current.Store(rdr.reader)
+
+	raw, err := controlplane.MarshalManifestJSON(manifestOf(t, 2, threeObjects()...))
+	require.NoError(t, err)
+
+	store.put(manifestKey, append([]byte(`{"futureField":1,`), raw[1:]...))
+
+	_ = rdr.round()
+
+	require.Len(t, seen, 1)
+
+	got := <-seen
+	assert.Equal(t, uint64(2), got.Generation)
+	assert.Equal(t, 1, got.UnknownFields)
 }

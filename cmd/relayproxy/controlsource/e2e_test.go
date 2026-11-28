@@ -271,7 +271,7 @@ func (e *e2e) value(key string) (any, flagruntime.Route) {
 		return nil, route
 	}
 
-	res, _ := e.eval.RawVariation(set, e2eFlag, ffcontext.NewEvaluationContext("user"), nil)
+	res, _ := e.eval.RawVariation(context.Background(), set, e2eFlag, ffcontext.NewEvaluationContext("user"), nil)
 
 	return res.Value, route
 }

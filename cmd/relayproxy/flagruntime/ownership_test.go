@@ -44,7 +44,7 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 		{
 			name: kindObject, flag: objectFlag, wantValueKind: kindMap,
 			call: func() any {
-				res, _ := eval.JSONVariationDetails(set, objectFlag, ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, objectFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -58,7 +58,7 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 		{
 			name: kindArray, flag: arrayFlag, wantValueKind: kindList,
 			call: func() any {
-				res, _ := eval.JSONArrayVariationDetails(set, arrayFlag, ctx, nil)
+				res, _ := eval.JSONArrayVariationDetails(t.Context(), set, arrayFlag, ctx, nil)
 
 				return res.Value
 			},
@@ -75,7 +75,7 @@ func TestOwnership_TypedJSONResultsAreCopies(t *testing.T) {
 			name: "scheduled object (the engine copies it already)", flag: scheduledObject,
 			wantValueKind: kindMap, wantScheduled: true,
 			call: func() any {
-				res, _ := eval.JSONVariationDetails(set, scheduledObject, ctx, nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, scheduledObject, ctx, nil)
 
 				return res.Value
 			},
@@ -148,8 +148,8 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 			before, err := set.Change()
 			require.NoError(t, err)
 
-			first, _ := eval.RawVariation(set, flag, ctx, nil)
-			second, _ := eval.RawVariation(set, flag, ctx, nil)
+			first, _ := eval.RawVariation(t.Context(), set, flag, ctx, nil)
+			second, _ := eval.RawVariation(t.Context(), set, flag, ctx, nil)
 
 			require.NotNil(t, first.Metadata)
 			assert.Equal(t, tt.wantReason, first.Reason, "the path of the evaluation")
@@ -164,7 +164,7 @@ func TestOwnership_TopLevelMetadataIsPerEvaluation(t *testing.T) {
 			assert.NotContains(t, second.Metadata, "added", "the second evaluation has its own map")
 			assert.NotContains(t, second.Metadata, flagruntime.LegacyMetadataCacheable)
 
-			third, _ := eval.RawVariation(set, flag, ctx, nil)
+			third, _ := eval.RawVariation(t.Context(), set, flag, ctx, nil)
 			assert.NotContains(t, third.Metadata, "added")
 			assert.NotContains(t, third.Metadata, "more")
 			assert.NotContains(t, third.Metadata, flagruntime.MetadataCacheable)
@@ -191,7 +191,7 @@ func TestOwnership_SharedPartsAreTheFlags(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	ctx := ownedContext()
 
-	res, err := eval.RawVariation(set, objectFlag, ctx, nil)
+	res, err := eval.RawVariation(t.Context(), set, objectFlag, ctx, nil)
 	require.NoError(t, err)
 
 	shared, _ := res.Value.(map[string]any)
@@ -199,7 +199,7 @@ func TestOwnership_SharedPartsAreTheFlags(t *testing.T) {
 
 	shared["marker"] = true
 
-	again, _ := eval.RawVariation(set, objectFlag, ctx, nil)
+	again, _ := eval.RawVariation(t.Context(), set, objectFlag, ctx, nil)
 	seen, _ := again.Value.(map[string]any)
 
 	assert.Equal(t, true, seen["marker"], "the value is the flag's own")
@@ -208,7 +208,7 @@ func TestOwnership_SharedPartsAreTheFlags(t *testing.T) {
 	own, _ := flagdef.CloneValue(again.Value).(map[string]any)
 	own["private"] = true
 
-	last, _ := eval.RawVariation(set, objectFlag, ctx, nil)
+	last, _ := eval.RawVariation(t.Context(), set, objectFlag, ctx, nil)
 	lastValue, _ := last.Value.(map[string]any)
 
 	assert.NotContains(t, lastValue, "private")
@@ -225,13 +225,13 @@ func TestOwnership_EnrichmentInputChangeDoesNotReachEvaluations(t *testing.T) {
 	input := map[string]any{orgKey: map[string]any{nameKey: acmeOrg}}
 	eval := flagruntime.NewEvaluator(newService(t), &flagruntime.EvaluatorConfig{EvaluationContextEnrichment: input})
 
-	before, err := eval.RawVariation(set, "pro-only", ffcontext.NewEvaluationContext("u"), nil)
+	before, err := eval.RawVariation(t.Context(), set, "pro-only", ffcontext.NewEvaluationContext("u"), nil)
 	require.NoError(t, err)
 
 	nested, _ := input[orgKey].(map[string]any)
 	nested["name"] = "other"
 
-	after, err := eval.RawVariation(set, "pro-only", ffcontext.NewEvaluationContext("u"), nil)
+	after, err := eval.RawVariation(t.Context(), set, "pro-only", ffcontext.NewEvaluationContext("u"), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, true, before.Value)
@@ -259,7 +259,7 @@ func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 		{
 			name: "flag value", flag: objectFlag, wantReason: flagdef.ReasonTargetingMatch,
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
-				res, _ := eval.JSONVariationDetails(set, objectFlag, ownedContext(), nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, objectFlag, ownedContext(), nil)
 
 				return res
 			},
@@ -270,7 +270,13 @@ func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 			name: "scheduled flag value", flag: "scheduled-tracked-object-flag", wantScheduled: true,
 			wantReason: flagdef.ReasonStatic,
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
-				res, _ := eval.JSONVariationDetails(set, "scheduled-tracked-object-flag", ownedContext(), nil)
+				res, _ := eval.JSONVariationDetails(
+					t.Context(),
+					set,
+					"scheduled-tracked-object-flag",
+					ownedContext(),
+					nil,
+				)
 
 				return res
 			},
@@ -281,7 +287,13 @@ func TestOwnership_TypedResultIsNotTheValueOfTheEvent(t *testing.T) {
 			name: "default value of the caller", flag: missingKey, wantReason: flagdef.ReasonError,
 			wantErrorCode: flagdef.ErrorCodeFlagNotFound,
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet) model.VariationResult[map[string]any] {
-				res, _ := eval.JSONVariationDetails(set, missingKey, ownedContext(), map[string]any{"d": 1})
+				res, _ := eval.JSONVariationDetails(
+					t.Context(),
+					set,
+					missingKey,
+					ownedContext(),
+					map[string]any{"d": 1},
+				)
 
 				return res
 			},
@@ -333,7 +345,7 @@ func TestEvaluator_TrackedEvaluationWithANilContext(t *testing.T) {
 		TrackEvent: func(event *exporter.FeatureEvent) { events = append(events, event) },
 	})
 
-	res, err := eval.RawVariation(shapesSet(t), trackedFlag, nil, nil)
+	res, err := eval.RawVariation(t.Context(), shapesSet(t), trackedFlag, nil, nil)
 	require.NoError(t, err)
 	assert.True(t, res.TrackEvents)
 
@@ -390,12 +402,12 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		{
 			name: "RawVariation",
 			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
-				res, _ := eval.RawVariation(set, flag, ownedContext(), nil)
+				res, _ := eval.RawVariation(t.Context(), set, flag, ownedContext(), nil)
 
 				return res.Reason, res.ErrorCode
 			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
-				res, _ := eval.RawVariation(set, flag, ownedContext(), given)
+				res, _ := eval.RawVariation(t.Context(), set, flag, ownedContext(), given)
 
 				return res.Value
 			},
@@ -413,13 +425,13 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		{
 			name: "JSONVariationDetails",
 			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
-				res, _ := eval.JSONVariationDetails(set, flag, ownedContext(), nil)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, flag, ownedContext(), nil)
 
 				return res.Reason, res.ErrorCode
 			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				def, _ := given.(map[string]any)
-				res, _ := eval.JSONVariationDetails(set, flag, ownedContext(), def)
+				res, _ := eval.JSONVariationDetails(t.Context(), set, flag, ownedContext(), def)
 
 				return res.Value
 			},
@@ -436,13 +448,13 @@ func TestOwnership_TrackedDefaultIsSnapshottedForEveryEntryPoint(t *testing.T) {
 		{
 			name: "JSONArrayVariationDetails",
 			cause: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string) (string, string) {
-				res, _ := eval.JSONArrayVariationDetails(set, flag, ownedContext(), nil)
+				res, _ := eval.JSONArrayVariationDetails(t.Context(), set, flag, ownedContext(), nil)
 
 				return res.Reason, res.ErrorCode
 			},
 			call: func(eval *flagruntime.Evaluator, set *flagruntime.FlagSet, flag string, given any) any {
 				def, _ := given.([]any)
-				res, _ := eval.JSONArrayVariationDetails(set, flag, ownedContext(), def)
+				res, _ := eval.JSONArrayVariationDetails(t.Context(), set, flag, ownedContext(), def)
 
 				return res.Value
 			},
@@ -581,7 +593,7 @@ func TestOwnership_SnapshotKeepsTypesAndNils(t *testing.T) {
 			})
 
 			given := tt.given()
-			res, _ := eval.RawVariation(shapesSet(t), missingKey, ownedContext(), given)
+			res, _ := eval.RawVariation(t.Context(), shapesSet(t), missingKey, ownedContext(), given)
 			require.Len(t, events, 1)
 
 			event := events[0]
@@ -685,10 +697,10 @@ func TestOwnership_NestedNullsInAFlagValueSurviveTheCopy(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	want := `{"empty":[],"list":[null,{"y":null}],"x":null}`
 
-	raw, err := eval.RawVariation(set, "object-null-flag", ownedContext(), nil)
+	raw, err := eval.RawVariation(t.Context(), set, "object-null-flag", ownedContext(), nil)
 	require.NoError(t, err)
 
-	typed, err := eval.JSONVariationDetails(set, "object-null-flag", ownedContext(), nil)
+	typed, err := eval.JSONVariationDetails(t.Context(), set, "object-null-flag", ownedContext(), nil)
 	require.NoError(t, err)
 
 	assert.JSONEq(t, want, mustJSON(t, raw.Value))
@@ -797,7 +809,7 @@ func TestOwnership_ScheduledFlagValueIsNotTheMemo(t *testing.T) {
 			require.True(t, found)
 			assert.NotNil(t, flag.Scheduled, "the flag has scheduled steps")
 
-			first, _ := eval.JSONVariationDetails(set, tt.flag, ownedContext(), nil)
+			first, _ := eval.JSONVariationDetails(t.Context(), set, tt.flag, ownedContext(), nil)
 			assert.JSONEq(t, tt.wantValue, mustJSON(t, first.Value), "the step state of the row")
 
 			// change the returned value deeply: the top level and the list in it
@@ -806,8 +818,8 @@ func TestOwnership_ScheduledFlagValueIsNotTheMemo(t *testing.T) {
 			list, _ := first.Value["k"].([]any)
 			list[0] = mutated
 
-			typed, _ := eval.JSONVariationDetails(set, tt.flag, ownedContext(), nil)
-			raw, _ := eval.RawVariation(set, tt.flag, ownedContext(), nil)
+			typed, _ := eval.JSONVariationDetails(t.Context(), set, tt.flag, ownedContext(), nil)
+			raw, _ := eval.RawVariation(t.Context(), set, tt.flag, ownedContext(), nil)
 
 			assert.JSONEq(t, tt.wantValue, mustJSON(t, typed.Value), "the next typed evaluation")
 			assert.JSONEq(t, tt.wantValue, mustJSON(t, raw.Value), "the next raw evaluation")

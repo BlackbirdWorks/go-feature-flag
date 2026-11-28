@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -157,6 +158,13 @@ func Handle(h func(http.ResponseWriter, *http.Request) error, exposeError bool) 
 		err := h(w, r)
 		if err != nil {
 			reqlog.RecordError(r.Context(), err)
+
+			// a client that is gone (its request was cancelled) receives no error: writing one would only make the
+			// access log of the request an error line for a failure that nobody saw
+			if errors.Is(r.Context().Err(), context.Canceled) {
+				return
+			}
+
 			WriteError(w, r, err, exposeError)
 		}
 	})

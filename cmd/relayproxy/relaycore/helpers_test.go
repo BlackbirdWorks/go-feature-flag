@@ -296,7 +296,8 @@ func (r *rig) value(key string) (any, flagruntime.Route) {
 		return nil, route
 	}
 
-	res, _ := r.core.Evaluator().RawVariation(set, flagName, ffcontext.NewEvaluationContext("user"), nil)
+	res, _ := r.core.Evaluator().
+		RawVariation(context.Background(), set, flagName, ffcontext.NewEvaluationContext("user"), nil)
 
 	return res.Value, route
 }

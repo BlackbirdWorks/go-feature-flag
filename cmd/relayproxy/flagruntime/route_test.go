@@ -218,12 +218,12 @@ func TestRoute_PendingFlagSetAnswers(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	ctx := ffcontext.NewEvaluationContext("u")
 
-	single, err := eval.RawVariation(set, "any", ctx, nil)
+	single, err := eval.RawVariation(t.Context(), set, "any", ctx, nil)
 	require.ErrorIs(t, err, flagruntime.ErrFlagNotPresent)
 	assert.Equal(t, flagdef.ErrorCodeFlagNotFound, single.ErrorCode)
 	assert.Equal(t, flagdef.ReasonError, single.Reason)
 
-	all := eval.AllFlagsState(set, ctx)
+	all := eval.AllFlagsState(t.Context(), set, ctx)
 	assert.True(t, all.IsValid())
 	assert.Equal(t, `{"valid":true}`, mustJSON(t, all))
 	assert.Empty(t, set.Configuration(nil))
@@ -334,7 +334,7 @@ func TestRoute_KeyIsNeverExposed(t *testing.T) {
 	require.NoError(t, err)
 
 	eval := flagruntime.NewEvaluator(newService(t), nil)
-	_, evalErr := eval.RawVariation(
+	_, evalErr := eval.RawVariation(t.Context(),
 		run.FlagSets["good"],
 		"no-such-flag",
 		ffcontext.NewEvaluationContext(secretCanary),

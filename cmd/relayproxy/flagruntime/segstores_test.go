@@ -231,7 +231,13 @@ func TestARejectedDynamicDefinitionAnswersNotConfigured(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := eval.BoolVariationDetails(set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
+			got, err := eval.BoolVariationDetails(
+				t.Context(),
+				set,
+				tt.flag,
+				ffcontext.NewEvaluationContext(tt.key),
+				false,
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantValue, got.Value)
 			assert.Equal(t, tt.wantStatus, got.SegmentStatus)

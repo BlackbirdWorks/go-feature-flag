@@ -62,18 +62,21 @@ func (h *FlagEval) Handler(w http.ResponseWriter, r *http.Request) error {
 
 	tracer := otel.GetTracerProvider().Tracer(configfile.OtelTracerName)
 
-	_, span := tracer.Start(r.Context(), "flagEvaluation")
+	ctx, span := tracer.Start(r.Context(), "flagEvaluation")
 	defer span.End()
 
-	flagset, httpErr := helper.RequestFlagSet(r.Context(), h.flagsetMngr, helper.APIKey(r))
+	flagset, httpErr := helper.RequestFlagSet(ctx, h.flagsetMngr, helper.APIKey(r))
 	if httpErr != nil {
 		return fmt.Errorf("getting the flag set of the flag evaluation: %w", httpErr)
 	}
 
-	flagValue, _ := flagset.RawVariation(flagKey, evaluationCtx, reqBody.DefaultValue)
+	flagValue, _ := flagset.RawVariation(ctx, flagKey, evaluationCtx, reqBody.DefaultValue)
 	if flagValue.ErrorCode == flagdef.ErrorCodeFlagNotFound {
-		h.metrics.IncFlagNotFoundEvaluation()
-	} else {
+		if ctx.Err() == nil {
+			h.metrics.IncFlagNotFoundEvaluation()
+		}
+	} else if ctx.Err() == nil {
+		// no client received the answer of a request that ended: it is not a served evaluation
 		h.metrics.IncFlagEvaluation(flagKey)
 	}
 

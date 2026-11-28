@@ -151,7 +151,7 @@ func TestPrefetchReadsTheEnrichedAttributes(t *testing.T) {
 				evalCtx.AddCustom(name, value)
 			}
 
-			states := eval.AllFlagsState(set, evalCtx.Build())
+			states := eval.AllFlagsState(t.Context(), set, evalCtx.Build())
 
 			assert.Equal(t, tt.wantValue, states.GetFlags()["tenant-twin"].Value)
 			assert.Equal(t, tt.wantValue, states.GetFlags()["tenant-flag"].Value)
@@ -215,11 +215,11 @@ func TestUnservedSegmentHasOneStatusOnEveryEndpoint(t *testing.T) {
 			eval := flagruntime.NewEvaluator(newService(t), nil)
 			evalCtx := ffcontext.NewEvaluationContext(memberAlice)
 
-			single, err := eval.BoolVariationDetails(set, tt.flag, evalCtx, false)
+			single, err := eval.BoolVariationDetails(t.Context(), set, tt.flag, evalCtx, false)
 			require.NoError(t, err)
 
-			all := eval.AllFlagsState(set, evalCtx)
-			one := eval.GetFlagStates(set, evalCtx, []string{tt.flag})
+			all := eval.AllFlagsState(t.Context(), set, evalCtx)
+			one := eval.GetFlagStates(t.Context(), set, evalCtx, []string{tt.flag})
 			bulk, listed := all.GetFlags()[tt.flag], one.GetFlags()[tt.flag]
 
 			assert.Equal(t, tt.wantStatus, single.SegmentStatus, "single")
@@ -285,7 +285,7 @@ func TestAnOutageDoesNotLogForEveryEvaluation(t *testing.T) {
 			eval := flagruntime.NewEvaluator(svc, nil)
 
 			for range evaluations {
-				got, err := eval.BoolVariationDetails(set, tt.flag, tt.ctx, false)
+				got, err := eval.BoolVariationDetails(t.Context(), set, tt.flag, tt.ctx, false)
 				require.NoError(t, err)
 				require.Equal(t, segment.StatusStoreError, got.SegmentStatus)
 			}

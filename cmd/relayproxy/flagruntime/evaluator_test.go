@@ -29,7 +29,7 @@ func TestEvaluator_DefaultValueIsReturnedAsGiven(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	dflt := map[string]any{"d": 1}
 
-	res, err := eval.RawVariation(set, missingKey, ffcontext.NewEvaluationContext("u"), dflt)
+	res, err := eval.RawVariation(t.Context(), set, missingKey, ffcontext.NewEvaluationContext("u"), dflt)
 	require.ErrorIs(t, err, flagruntime.ErrFlagNotPresent)
 
 	got, ok := res.Value.(map[string]any)
@@ -88,7 +88,7 @@ func TestEvaluator_TrackEventHook(t *testing.T) {
 
 			eval := flagruntime.NewEvaluator(newService(t), cfg)
 
-			res, err := eval.RawVariation(set, tt.flag, ctx, nil)
+			res, err := eval.RawVariation(t.Context(), set, tt.flag, ctx, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantFlagTracks, res.TrackEvents, "the trackEvents setting of the flag")
 
@@ -110,17 +110,17 @@ func TestEvaluator_NilFlagSet(t *testing.T) {
 	eval := flagruntime.NewEvaluator(newService(t), nil)
 	ctx := ffcontext.NewEvaluationContext("u")
 
-	res, err := eval.RawVariation(nil, "x", ctx, "dflt")
+	res, err := eval.RawVariation(t.Context(), nil, "x", ctx, "dflt")
 	require.ErrorIs(t, err, flagruntime.ErrFlagNotPresent)
 	assert.Equal(t, flagdef.ErrorCodeFlagNotFound, res.ErrorCode)
 	assert.Equal(t, "dflt", res.Value)
 
-	all := eval.AllFlagsState(nil, ctx)
+	all := eval.AllFlagsState(t.Context(), nil, ctx)
 	assert.True(t, all.IsValid())
 	assert.Empty(t, all.GetFlags())
 	assert.Equal(t, `{"valid":true}`, mustJSON(t, all))
 
-	listed := eval.GetFlagStates(nil, ctx, []string{"x"})
+	listed := eval.GetFlagStates(t.Context(), nil, ctx, []string{"x"})
 	assert.Empty(t, listed.GetFlags())
 
 	var set *flagruntime.FlagSet
@@ -168,7 +168,7 @@ func TestEvaluator_PerFlagSetEnrichment(t *testing.T) {
 			t.Parallel()
 
 			set := run.FlagSets[tt.flagSet]
-			res, err := eval.RawVariation(set, "pro-only", ctx, nil)
+			res, err := eval.RawVariation(t.Context(), set, "pro-only", ctx, nil)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantValue, res.Value)
 			assert.Equal(t, tt.wantEnrichment, eval.EvaluationContextEnrichment(set))
@@ -252,7 +252,13 @@ func TestEvaluator_EnrichmentIsCopied(t *testing.T) {
 				assert.Equal(t, newEnrichment(), eval.EvaluationContextEnrichment(named), "the named output")
 
 				for _, set := range []*flagruntime.FlagSet{named, other} {
-					res, err := eval.RawVariation(set, "org-flag", ffcontext.NewEvaluationContext("u"), nil)
+					res, err := eval.RawVariation(
+						t.Context(),
+						set,
+						"org-flag",
+						ffcontext.NewEvaluationContext("u"),
+						nil,
+					)
 					require.NoError(t, err)
 					assert.Equal(t, true, res.Value, "the evaluation of %s", set.Name)
 				}

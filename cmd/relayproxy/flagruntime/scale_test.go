@@ -289,7 +289,7 @@ func TestScaleReadersDuringContinuousReloads(t *testing.T) {
 				return checked
 			}
 
-			res, err := eval.IntVariationDetails(set, "flag-000", ctx, -1)
+			res, err := eval.IntVariationDetails(t.Context(), set, "flag-000", ctx, -1)
 			if err != nil {
 				assert.Fail(t, "the evaluation failed", err.Error())
 

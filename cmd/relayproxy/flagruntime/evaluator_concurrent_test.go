@@ -97,10 +97,10 @@ func TestEvaluator_ConcurrentReadersAndSwaps(t *testing.T) {
 func evaluateAndEncode(t *testing.T, eval *flagruntime.Evaluator, set *flagruntime.FlagSet, ctx ffcontext.Context) {
 	t.Helper()
 
-	raw, _ := eval.RawVariation(set, "obj", ctx, nil)
-	num, _ := eval.IntVariationDetails(set, "num", ctx, -1)
-	typed, _ := eval.JSONVariationDetails(set, "obj", ctx, nil)
-	states := eval.AllFlagsState(set, ctx)
+	raw, _ := eval.RawVariation(t.Context(), set, "obj", ctx, nil)
+	num, _ := eval.IntVariationDetails(t.Context(), set, "num", ctx, -1)
+	typed, _ := eval.JSONVariationDetails(t.Context(), set, "obj", ctx, nil)
+	states := eval.AllFlagsState(t.Context(), set, ctx)
 	meta := eval.ResponseMetadata(&raw)
 
 	encoded, err := json.Marshal([]any{raw, typed, states, meta})

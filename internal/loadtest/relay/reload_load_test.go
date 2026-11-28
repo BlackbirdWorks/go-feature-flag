@@ -117,7 +117,7 @@ func TestReloadLoad_P99IsFlatDuringReloads(t *testing.T) {
 	set, err := target.Relay().FlagSets.FlagSet(relay.APIKey)
 	require.NoError(t, err)
 
-	got, err := set.RawVariation(markerFlag, ffcontext.NewEvaluationContext("check"), nil)
+	got, err := set.RawVariation(t.Context(), markerFlag, ffcontext.NewEvaluationContext("check"), nil)
 	require.NoError(t, err)
 	assert.EqualValues(t, reloads, got.Value, "the last reload is the one served")
 

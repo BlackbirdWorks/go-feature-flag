@@ -90,6 +90,14 @@ type Provider interface {
 	Contains(ctx context.Context, lookups []Lookup) error
 }
 
+// EndedContextProvider is implemented by a provider that can answer from memory after the context of the request has
+// ended: the evaluation calls it then too (the other providers are not called), and a lookup that it could not answer
+// stays Unknown. The method only marks the capability.
+type EndedContextProvider interface {
+	Provider
+	AnswersFromMemory()
+}
+
 // Type is the kind of store of the members of a segment.
 type Type string
 

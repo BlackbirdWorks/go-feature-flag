@@ -141,38 +141,38 @@ func compareSingle(
 
 	for _, def := range []any{nil, "sdk-default", 42, map[string]any{"d": 1}} {
 		want, wantErr := legacy.RawVariation(name, ctx, def)
-		got, gotErr := eval.RawVariation(set, name, ctx, def)
+		got, gotErr := eval.RawVariation(t.Context(), set, name, ctx, def)
 		assert.Equal(t, want, got, "raw %s", label)
 		assert.Equal(t, errText(wantErr), errText(gotErr), "raw error %s", label)
 	}
 
 	wantB, wantBErr := legacy.BoolVariationDetails(name, ctx, true)
-	gotB, gotBErr := eval.BoolVariationDetails(set, name, ctx, true)
+	gotB, gotBErr := eval.BoolVariationDetails(t.Context(), set, name, ctx, true)
 	assert.Equal(t, wantB, gotB, "bool %s", label)
 	assert.Equal(t, errText(wantBErr), errText(gotBErr), "bool error %s", label)
 
 	wantI, wantIErr := legacy.IntVariationDetails(name, ctx, 7)
-	gotI, gotIErr := eval.IntVariationDetails(set, name, ctx, 7)
+	gotI, gotIErr := eval.IntVariationDetails(t.Context(), set, name, ctx, 7)
 	assert.Equal(t, wantI, gotI, "int %s", label)
 	assert.Equal(t, errText(wantIErr), errText(gotIErr), "int error %s", label)
 
 	wantF, wantFErr := legacy.Float64VariationDetails(name, ctx, 0.5)
-	gotF, gotFErr := eval.Float64VariationDetails(set, name, ctx, 0.5)
+	gotF, gotFErr := eval.Float64VariationDetails(t.Context(), set, name, ctx, 0.5)
 	assert.Equal(t, wantF, gotF, "float %s", label)
 	assert.Equal(t, errText(wantFErr), errText(gotFErr), "float error %s", label)
 
 	wantS, wantSErr := legacy.StringVariationDetails(name, ctx, "s")
-	gotS, gotSErr := eval.StringVariationDetails(set, name, ctx, "s")
+	gotS, gotSErr := eval.StringVariationDetails(t.Context(), set, name, ctx, "s")
 	assert.Equal(t, wantS, gotS, "string %s", label)
 	assert.Equal(t, errText(wantSErr), errText(gotSErr), "string error %s", label)
 
 	wantA, wantAErr := legacy.JSONArrayVariationDetails(name, ctx, []any{"d"})
-	gotA, gotAErr := eval.JSONArrayVariationDetails(set, name, ctx, []any{"d"})
+	gotA, gotAErr := eval.JSONArrayVariationDetails(t.Context(), set, name, ctx, []any{"d"})
 	assert.Equal(t, wantA, gotA, "array %s", label)
 	assert.Equal(t, errText(wantAErr), errText(gotAErr), "array error %s", label)
 
 	wantO, wantOErr := legacy.JSONVariationDetails(name, ctx, map[string]any{"d": 1})
-	gotO, gotOErr := eval.JSONVariationDetails(set, name, ctx, map[string]any{"d": 1})
+	gotO, gotOErr := eval.JSONVariationDetails(t.Context(), set, name, ctx, map[string]any{"d": 1})
 	assert.Equal(t, wantO, gotO, "object %s", label)
 	assert.Equal(t, errText(wantOErr), errText(gotOErr), "object error %s", label)
 }
@@ -200,14 +200,14 @@ func TestEquivalence_FlagStates(t *testing.T) {
 
 			for _, ctx := range ctxs {
 				want := legacy.AllFlagsState(ctx)
-				got := eval.AllFlagsState(set, ctx)
+				got := eval.AllFlagsState(t.Context(), set, ctx)
 
 				assert.Equal(t, mustJSON(t, want), mustJSON(t, got), "all flags of %s", keyOf(ctx))
 				assert.Equal(t, want.GetFlags(), got.GetFlags(), "the states of %s, Failed included", keyOf(ctx))
 				assert.Equal(t, want.IsValid(), got.IsValid(), "validity of %s", keyOf(ctx))
 
 				wantSubset := legacy.GetFlagStates(ctx, subset)
-				gotSubset := eval.GetFlagStates(set, ctx, subset)
+				gotSubset := eval.GetFlagStates(t.Context(), set, ctx, subset)
 				assert.Equal(t, mustJSON(t, wantSubset), mustJSON(t, gotSubset), "listed flags of %s", keyOf(ctx))
 				assert.Equal(t, wantSubset.GetFlags(), gotSubset.GetFlags(), "listed states of %s", keyOf(ctx))
 				assert.Equal(t, wantSubset.IsValid(), gotSubset.IsValid())
@@ -293,15 +293,15 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 			for _, name := range flagNamesOf(t, data, formatOf(path)) {
 				for _, ctx := range equivalenceContexts() {
 					want, wantErr := legacy.RawVariation(name, ctx, nil)
-					got, gotErr := eval.RawVariation(set, name, ctx, nil)
+					got, gotErr := eval.RawVariation(t.Context(), set, name, ctx, nil)
 					assert.Equal(t, want, got, "%s/%s", name, keyOf(ctx))
 					assert.Equal(t, errText(wantErr), errText(gotErr))
 				}
 			}
 
 			plain := ffcontext.NewEvaluationContext("plain-user")
-			planFlag, _ := eval.RawVariation(set, "float-flag", plain, nil)
-			envFlag, _ := eval.RawVariation(set, "env-flag", plain, nil)
+			planFlag, _ := eval.RawVariation(t.Context(), set, "float-flag", plain, nil)
+			envFlag, _ := eval.RawVariation(t.Context(), set, "env-flag", plain, nil)
 
 			assert.InDelta(t, tt.wantPlanFlag, planFlag.Value, 0, "the enrichment is applied")
 			assert.Equal(t, tt.wantEnvFlag, envFlag.Value, "the environment is applied only when it is set")
@@ -309,7 +309,7 @@ func TestEquivalence_EnrichmentAndEnvironment(t *testing.T) {
 			assert.Equal(t, legacy.GetEvaluationContextEnrichment(), eval.EvaluationContextEnrichment(set))
 			assert.Equal(t,
 				mustJSON(t, legacy.AllFlagsState(ffcontext.NewEvaluationContext("u"))),
-				mustJSON(t, eval.AllFlagsState(set, ffcontext.NewEvaluationContext("u"))))
+				mustJSON(t, eval.AllFlagsState(t.Context(), set, ffcontext.NewEvaluationContext("u"))))
 		})
 	}
 }
@@ -333,7 +333,7 @@ func TestEquivalence_EnrichmentWinsOverTheRequest(t *testing.T) {
 	ctx.AddCustomAttribute(planAttr, "free")
 
 	want, wantErr := legacy.RawVariation("float-flag", ctx, nil)
-	got, gotErr := eval.RawVariation(set, "float-flag", ctx, nil)
+	got, gotErr := eval.RawVariation(t.Context(), set, "float-flag", ctx, nil)
 
 	require.NoError(t, wantErr)
 	require.NoError(t, gotErr)
@@ -380,9 +380,9 @@ func TestEquivalence_TrackedEvents(t *testing.T) {
 					}
 
 					_, _ = legacy.RawVariation(name, ctx, nil)
-					_, _ = eval.RawVariation(set, name, ctx, nil)
+					_, _ = eval.RawVariation(t.Context(), set, name, ctx, nil)
 					_, _ = legacy.BoolVariationDetails(name, ctx, false)
-					_, _ = eval.BoolVariationDetails(set, name, ctx, false)
+					_, _ = eval.BoolVariationDetails(t.Context(), set, name, ctx, false)
 				}
 			}
 

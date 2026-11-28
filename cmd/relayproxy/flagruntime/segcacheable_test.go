@@ -121,11 +121,17 @@ func TestEvaluatorOfAFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.T) {
 				set = run.FlagSets[tt.set]
 			}
 
-			raw, err := eval.RawVariation(set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
+			raw, err := eval.RawVariation(t.Context(), set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCacheable, raw.Cacheable)
 
-			typed, err := eval.BoolVariationDetails(set, tt.flag, ffcontext.NewEvaluationContext(tt.key), false)
+			typed, err := eval.BoolVariationDetails(
+				t.Context(),
+				set,
+				tt.flag,
+				ffcontext.NewEvaluationContext(tt.key),
+				false,
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCacheable, typed.Cacheable)
 		})
@@ -167,7 +173,7 @@ func TestEvaluatorOfAPublicFlagThatUsesADynamicSegmentIsNotCacheable(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			raw, err := eval.RawVariation(public, tt.flag, ffcontext.NewEvaluationContext(vipKey), false)
+			raw, err := eval.RawVariation(t.Context(), public, tt.flag, ffcontext.NewEvaluationContext(vipKey), false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantCacheable, raw.Cacheable)
 		})
@@ -250,14 +256,14 @@ func TestEvaluatorDropsTheCacheableKeysOfAFlagThatUsesADynamicSegment(t *testing
 
 			evalCtx := ffcontext.NewEvaluationContext(vipKey)
 
-			raw, err := eval.RawVariation(set, tt.flag, evalCtx, false)
+			raw, err := eval.RawVariation(t.Context(), set, tt.flag, evalCtx, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMetadata, withoutRule(raw.Metadata))
 
-			bulk := eval.GetFlagStates(set, evalCtx, []string{tt.flag})
+			bulk := eval.GetFlagStates(t.Context(), set, evalCtx, []string{tt.flag})
 			assert.Equal(t, tt.wantMetadata, withoutRule(bulk.GetFlags()[tt.flag].Metadata))
 
-			all := eval.AllFlagsState(set, evalCtx)
+			all := eval.AllFlagsState(t.Context(), set, evalCtx)
 			assert.Equal(t, tt.wantMetadata, withoutRule(all.GetFlags()[tt.flag].Metadata))
 		})
 	}

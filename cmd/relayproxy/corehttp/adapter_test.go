@@ -99,17 +99,17 @@ func TestAdapter_FlagSetView(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, flagsCtx, len(flags))
 
-	res, err := flagSet.RawVariation("string-flag", ffcontext.NewEvaluationContext("u"), nil)
+	res, err := flagSet.RawVariation(t.Context(), "string-flag", ffcontext.NewEvaluationContext("u"), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "alpha", res.Value)
 
-	_, err = flagSet.RawVariation("no-such-flag", ffcontext.NewEvaluationContext("u"), "fallback")
+	_, err = flagSet.RawVariation(t.Context(), "no-such-flag", ffcontext.NewEvaluationContext("u"), "fallback")
 	require.Error(t, err)
 
-	states := flagSet.GetFlagStates(ffcontext.NewEvaluationContext("u"), []string{"string-flag"})
+	states := flagSet.GetFlagStates(t.Context(), ffcontext.NewEvaluationContext("u"), []string{"string-flag"})
 	assert.Len(t, states.GetFlags(), 1)
 
-	all := flagSet.AllFlagsState(ffcontext.NewEvaluationContext("u"))
+	all := flagSet.AllFlagsState(t.Context(), ffcontext.NewEvaluationContext("u"))
 	assert.Len(t, all.GetFlags(), len(set.Flags))
 
 	// the exporters take feature events only: a tracking event is dropped. The two raw evaluations above each hand
@@ -256,8 +256,8 @@ func TestServer_HandlersDoNotChangeResults(t *testing.T) {
 	require.NoError(t, err)
 
 	for key := range set.Flags {
-		one, oneErr := flagSet.RawVariation(key, ffcontext.NewEvaluationContext("u"), nil)
-		two, twoErr := flagSet.RawVariation(key, ffcontext.NewEvaluationContext("u"), nil)
+		one, oneErr := flagSet.RawVariation(t.Context(), key, ffcontext.NewEvaluationContext("u"), nil)
+		two, twoErr := flagSet.RawVariation(t.Context(), key, ffcontext.NewEvaluationContext("u"), nil)
 		assert.Equal(t, oneErr, twoErr, key)
 		assert.Equal(t, one, two, key)
 	}

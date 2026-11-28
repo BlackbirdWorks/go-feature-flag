@@ -49,7 +49,7 @@ func BenchmarkSnapshotSegment(b *testing.B) {
 			b.ReportAllocs()
 
 			for b.Loop() {
-				_, err := eval.BoolVariationDetails(set, audienceFlag, evalCtx, false)
+				_, err := eval.BoolVariationDetails(b.Context(), set, audienceFlag, evalCtx, false)
 				require.NoError(b, err)
 			}
 		})

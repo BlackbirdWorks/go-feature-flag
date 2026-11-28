@@ -84,7 +84,13 @@ func TestARejectedDefinitionNeverGrantsMembership(t *testing.T) {
 
 			set := policyRuntime(t, tt.connection).FlagSets["a"]
 
-			got, err := eval.BoolVariationDetails(set, tt.flag, ffcontext.NewEvaluationContext("alice"), false)
+			got, err := eval.BoolVariationDetails(
+				t.Context(),
+				set,
+				tt.flag,
+				ffcontext.NewEvaluationContext("alice"),
+				false,
+			)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantValue, got.Value)
 			assert.Equal(t, segment.StatusNotConfigured, got.SegmentStatus)

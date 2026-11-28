@@ -287,7 +287,7 @@ func (p *process) value(key string) (any, flagruntime.Route) {
 		return nil, route
 	}
 
-	res, _ := p.eval.RawVariation(set, restartFlag, ffcontext.NewEvaluationContext("user"), nil)
+	res, _ := p.eval.RawVariation(context.Background(), set, restartFlag, ffcontext.NewEvaluationContext("user"), nil)
 
 	return res.Value, route
 }

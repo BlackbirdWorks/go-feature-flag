@@ -3,7 +3,9 @@
 package mock
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -18,6 +20,9 @@ import (
 	"github.com/blackbirdworks/semaphore/cmd/relayproxy/service"
 	"github.com/blackbirdworks/semaphore/exporter/fileexporter"
 	"github.com/blackbirdworks/semaphore/exporter/logsexporter"
+	"github.com/blackbirdworks/semaphore/ffcontext"
+	"github.com/blackbirdworks/semaphore/internal/flagstate"
+	cmodel "github.com/blackbirdworks/semaphore/modules/core/model"
 	"github.com/blackbirdworks/semaphore/pkgs/stringsx"
 	"github.com/blackbirdworks/semaphore/retriever/fileretriever"
 )
@@ -51,6 +56,34 @@ func NewClient(tb testing.TB, cfg *ffclient.Config) *ffclient.GoFeatureFlag {
 	tb.Cleanup(client.Close)
 
 	return client
+}
+
+// Engine serves an engine client as a [service.FlagSet]: the client has no evaluation that takes the context of the
+// request, so the context is not used.
+type Engine struct{ *ffclient.GoFeatureFlag }
+
+var _ service.FlagSet = Engine{}
+
+// RawVariation evaluates one flag without a type.
+func (e Engine) RawVariation(
+	_ context.Context, flagKey string, evalCtx ffcontext.Context, defaultValue any,
+) (cmodel.RawVarResult, error) {
+	res, err := e.GoFeatureFlag.RawVariation(flagKey, evalCtx, defaultValue)
+	if err != nil {
+		return res, fmt.Errorf("raw variation: %w", err)
+	}
+
+	return res, nil
+}
+
+// GetFlagStates evaluates the listed flags.
+func (e Engine) GetFlagStates(_ context.Context, evalCtx ffcontext.Context, flags []string) flagstate.AllFlags {
+	return e.GoFeatureFlag.GetFlagStates(evalCtx, flags)
+}
+
+// AllFlagsState evaluates every flag.
+func (e Engine) AllFlagsState(_ context.Context, evalCtx ffcontext.Context) flagstate.AllFlags {
+	return e.GoFeatureFlag.AllFlagsState(evalCtx)
 }
 
 // Named is a flag set of a fixture with several flag sets.
@@ -110,7 +143,7 @@ func NewNamed(tb testing.TB, sets ...Named) *FlagSets {
 //nolint:ireturn // the seam of the HTTP layer
 func (f *FlagSets) FlagSet(apiKey string) (service.FlagSet, error) {
 	if f.def != nil {
-		return f.def, nil
+		return Engine{f.def}, nil
 	}
 
 	if apiKey == "" {
@@ -122,7 +155,7 @@ func (f *FlagSets) FlagSet(apiKey string) (service.FlagSet, error) {
 		return nil, errFlagSetNotFound
 	}
 
-	return f.sets[name], nil
+	return Engine{f.sets[name]}, nil
 }
 
 // FlagSetName returns the name of the flag set of the key.

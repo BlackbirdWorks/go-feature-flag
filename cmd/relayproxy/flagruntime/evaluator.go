@@ -1,6 +1,7 @@
 package flagruntime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -199,50 +200,50 @@ func (e *Evaluator) EvaluationContextEnrichment(set *FlagSet) map[string]any {
 // whatever the flag holds. An object or array value, and the nested containers of the metadata, are shared with the
 // flag and READ-ONLY (see [Evaluator]); the metadata map itself belongs to the caller.
 func (e *Evaluator) RawVariation(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue any,
 ) (model.RawVarResult, error) {
-	res, err := variation(e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
-	notify(e, set, flagKey, evalCtx, &res, isDefaultResult(res.Reason))
+	res, err := variation(ctx, e, set, flagKey, evalCtx, sdkDefaultValue, typeAny)
+	notify(ctx, e, set, flagKey, evalCtx, &res, isDefaultResult(res.Reason))
 
 	return model.RawVarResult(res), err
 }
 
 // BoolVariationDetails evaluates a boolean flag.
 func (e *Evaluator) BoolVariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue bool,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue bool,
 ) (model.VariationResult[bool], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeBool)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeBool)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
 
 // IntVariationDetails evaluates an integer flag.
 func (e *Evaluator) IntVariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue int,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue int,
 ) (model.VariationResult[int], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeInt)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeInt)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
 
 // Float64VariationDetails evaluates a number flag.
 func (e *Evaluator) Float64VariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue float64,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue float64,
 ) (model.VariationResult[float64], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeFloat64)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeFloat64)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
 
 // StringVariationDetails evaluates a string flag.
 func (e *Evaluator) StringVariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue string,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue string,
 ) (model.VariationResult[string], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeString)
-	notify(e, set, flagKey, evalCtx, &res, false)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeString)
+	notify(ctx, e, set, flagKey, evalCtx, &res, false)
 
 	return res, err
 }
@@ -250,12 +251,12 @@ func (e *Evaluator) StringVariationDetails(
 // JSONArrayVariationDetails evaluates an array flag. The value is a copy that the caller owns; the nested containers
 // of the metadata are shared and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) JSONArrayVariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue []any,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue []any,
 ) (model.VariationResult[[]any], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeArray)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeArray)
 	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	notify(e, set, flagKey, evalCtx, &res, !shared)
+	notify(ctx, e, set, flagKey, evalCtx, &res, !shared)
 
 	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).([]any)
@@ -267,12 +268,12 @@ func (e *Evaluator) JSONArrayVariationDetails(
 // JSONVariationDetails evaluates an object flag. The value is a copy that the caller owns; the nested containers of
 // the metadata are shared and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) JSONVariationDetails(
-	set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue map[string]any,
+	ctx context.Context, set *FlagSet, flagKey string, evalCtx ffcontext.Context, defaultValue map[string]any,
 ) (model.VariationResult[map[string]any], error) {
-	res, err := variation(e, set, flagKey, evalCtx, defaultValue, typeObject)
+	res, err := variation(ctx, e, set, flagKey, evalCtx, defaultValue, typeObject)
 	shared := sharesFlagValue(set, flagKey, res.Reason)
 
-	notify(e, set, flagKey, evalCtx, &res, !shared)
+	notify(ctx, e, set, flagKey, evalCtx, &res, !shared)
 
 	if res.Value != nil && shared {
 		res.Value, _ = flagdef.CloneValue(res.Value).(map[string]any)
@@ -295,7 +296,8 @@ const (
 // variation evaluates one flag of a flag set. The result always holds a valid value; the error is set for a
 // flag that is not there and for a value of another type than the one asked.
 func variation[T model.JSONType](
-	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, sdkDefaultValue T, expectedType string,
+	ctx context.Context, eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context,
+	sdkDefaultValue T, expectedType string,
 ) (model.VariationResult[T], error) {
 	flag, ok := set.Flag(flagKey)
 	if !ok {
@@ -319,11 +321,12 @@ func variation[T model.JSONType](
 		EvaluationContextEnrichment: eval.enrichmentFor(set).values,
 		Service:                     eval.svc,
 		SegmentCatalog:              set.SegmentCatalogFor(flagKey),
+		RequestContext:              ctx,
 	}
 
 	if set.usesDynamicSegment(flagKey) {
 		// every membership of the flag is fetched in one batch before the rules run
-		if prefetch := set.prefetchFlag(evalCtx, flagCtx.EvaluationContextEnrichment, flagKey); prefetch != nil {
+		if prefetch := set.prefetchFlag(ctx, evalCtx, flagCtx.EvaluationContextEnrichment, flagKey); prefetch != nil {
 			flagCtx.Segments = prefetch
 		}
 	}
@@ -386,9 +389,20 @@ func sharesFlagValue(set *FlagSet, flagKey string, reason flagdef.ResolutionReas
 // value of another type), and the copy that the engine made for a scheduled flag when a typed call hands it out. The
 // result keeps the value as it is. The all-flags state does not track.
 func notify[T model.JSONType](
-	eval *Evaluator, set *FlagSet, flagKey string, evalCtx ffcontext.Context, res *model.VariationResult[T], own bool,
+	ctx context.Context,
+	eval *Evaluator,
+	set *FlagSet,
+	flagKey string,
+	evalCtx ffcontext.Context,
+	res *model.VariationResult[T],
+	own bool,
 ) {
 	if eval.track == nil || !res.TrackEvents {
+		return
+	}
+
+	// a request that ended before the answer was produced has no client that received it: no event
+	if ctx.Err() != nil {
 		return
 	}
 
@@ -475,24 +489,25 @@ func snapshotSlice(src []any) []any {
 // AllFlagsState evaluates every flag of the flag set for a context. A nil flag set (not available) answers like an
 // empty one: valid, no flags. The values and the nested metadata containers of the states are shared with the flags
 // and READ-ONLY (see [Evaluator]).
-func (e *Evaluator) AllFlagsState(set *FlagSet, evalCtx ffcontext.Context) flagstate.AllFlags {
-	return e.GetFlagStates(set, evalCtx, nil)
+func (e *Evaluator) AllFlagsState(ctx context.Context, set *FlagSet, evalCtx ffcontext.Context) flagstate.AllFlags {
+	return e.GetFlagStates(ctx, set, evalCtx, nil)
 }
 
 // GetFlagStates evaluates the flags named in flagsToEvaluate, or every flag when the list is empty. A name that
 // the flag set does not hold is left out. The values and the nested metadata containers of the states are shared
 // with the flags and READ-ONLY (see [Evaluator]).
 func (e *Evaluator) GetFlagStates(
-	set *FlagSet, evalCtx ffcontext.Context, flagsToEvaluate []string,
+	ctx context.Context, set *FlagSet, evalCtx ffcontext.Context, flagsToEvaluate []string,
 ) flagstate.AllFlags {
 	flagCtx := flagdef.Context{
 		EvaluationContextEnrichment: e.enrichmentFor(set).values,
 		DefaultSdkValue:             nil,
 		Service:                     e.svc,
+		RequestContext:              ctx,
 	}
 
 	// one batch for the dynamic segments of all the flags of the request
-	prefetch := set.prefetchFlags(evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate)
+	prefetch := set.prefetchFlags(ctx, evalCtx, flagCtx.EvaluationContextEnrichment, flagsToEvaluate)
 
 	states := flagstate.NewAllFlags()
 
